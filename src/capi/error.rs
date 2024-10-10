@@ -19,7 +19,7 @@
 
 use crate::{
     capi::{ret::CReturn, utils::Leakable},
-    error::{Error, ErrorKind},
+    error::Error,
 };
 
 use std::{
@@ -102,16 +102,13 @@ impl From<&Error> for CError {
             CString::new(desc).expect("CString::new(description) failed in CError generation")
         };
 
-        // TODO: We should probably convert some of our internal errors into
-        //       equivalent POSIX-style errors (InvalidArgument => -EINVAL, for
-        //       instance).
-        let errno = match err.kind() {
-            ErrorKind::OsError(Some(err)) => err.abs(),
-            _ => 0,
-        };
+        // Map the error to a C errno if possible.
+        // TODO: We might want to use ESERVERFAULT (An untranslatable error
+        // occurred) for untranslatable errors?
+        let saved_errno = err.kind().errno().unwrap_or(0).abs() as u32;
 
         CError {
-            saved_errno: errno.try_into().unwrap_or(0),
+            saved_errno: saved_errno.into(),
             description: desc.into_raw(),
         }
     }
