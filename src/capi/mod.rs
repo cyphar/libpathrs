@@ -24,6 +24,9 @@
 /// Core pathrs function wrappers.
 pub mod core;
 
+/// Helpers for pathrs C API configuration.
+pub mod cfg;
+
 /// procfs-related function wrappers.
 pub mod procfs;
 
