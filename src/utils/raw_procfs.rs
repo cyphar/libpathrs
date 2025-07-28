@@ -235,10 +235,10 @@ impl<'fd> RawProcfsRoot<'fd> {
         oflags: OpenFlags,
     ) -> Result<OwnedFd, Error> {
         let fd = if *syscalls::OPENAT2_IS_SUPPORTED {
-            self.openat2_beneath(path, oflags)?
+            self.openat2_beneath(path, oflags)
         } else {
-            self.opath_beneath_unchecked(path, oflags)?
-        };
+            self.opath_beneath_unchecked(path, oflags)
+        }?;
         // As this is called from within fetch_mnt_id as a fallback, the only
         // thing we can do here is verify that it is actually procfs. However,
         // in practice it will be quite difficult for an attacker to over-mount
