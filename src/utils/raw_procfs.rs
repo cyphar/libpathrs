@@ -260,3 +260,126 @@ impl<'fd> RawProcfsRoot<'fd> {
         Ok(fd)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::ErrorKind;
+
+    use pretty_assertions::assert_matches;
+
+    #[test]
+    fn exists_unchecked() {
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .exists_unchecked("nonexist")
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ENOENT))),
+            r#"exists_unchecked("nonexist") -> ENOENT"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .exists_unchecked("uptime")
+                .map_err(|err| err.kind()),
+            Ok(()),
+            r#"exists_unchecked("uptime") -> Ok"#
+        );
+    }
+
+    #[test]
+    fn open_beneath() {
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .open_beneath("nonexist", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ENOENT))),
+            r#"open_beneath("nonexist") -> ENOENT"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .open_beneath("self", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"open_beneath("self") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .open_beneath("self/cwd", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"open_beneath("self/cwd") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .open_beneath("self/status", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Ok(_),
+            r#"open_beneath("self/status") -> Ok"#
+        );
+    }
+
+    #[test]
+    #[cfg_attr(feature = "_test_enosys_openat2", ignore)]
+    fn openat2_beneath() {
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .openat2_beneath("nonexist", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ENOENT))),
+            r#"openat2_beneath("nonexist") -> ENOENT"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .openat2_beneath("self", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"openat2_beneath("self") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .openat2_beneath("self/cwd", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"openat2_beneath("self/cwd") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .openat2_beneath("self/status", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Ok(_),
+            r#"openat2_beneath("self/status") -> Ok"#
+        );
+    }
+
+    #[test]
+    fn opath_beneath_unchecked() {
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .opath_beneath_unchecked("nonexist", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ENOENT))),
+            r#"opath_beneath_unchecked("nonexist") -> ENOENT"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .opath_beneath_unchecked("self", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"opath_beneath_unchecked("self") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .opath_beneath_unchecked("self/cwd", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"opath_beneath_unchecked("self/cwd") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .opath_beneath_unchecked("self/status", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Ok(_),
+            r#"opath_beneath_unchecked("self/status") -> Ok"#
+        );
+    }
+}
