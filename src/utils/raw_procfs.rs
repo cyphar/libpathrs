@@ -166,6 +166,16 @@ impl<'fd> RawProcfsRoot<'fd> {
         let proc_rootfd = self.try_into_maybe_owned_fd()?;
         let proc_rootfd = proc_rootfd.as_fd();
 
+        // We split the open into O_PATH+reopen below, which means if O_NOFOLLOW
+        // is requested (which it always is), we need to apply it to the initial
+        // O_PATH and not the re-open. If the target is not a symlink,
+        // everything works fine -- if the target was a symlink the re-open will
+        // fail with -ELOOP (the same as a one-shot open).
+        let (opath_oflags, oflags) = (
+            oflags & OpenFlags::O_NOFOLLOW,
+            oflags & !OpenFlags::O_NOFOLLOW,
+        );
+
         // This is technically not safe, but there really is not much we can do
         // in practice -- we would need to have a separate copy of the procfs
         // resolver code without any mount-id-related protections (or add an
@@ -186,12 +196,11 @@ impl<'fd> RawProcfsRoot<'fd> {
         // bind-mount to a filesystem object that could DoS us when we try to
         // O_RDONLY open it below (such as a stale NFS handle), first open it
         // with O_PATH then double-check that it is a procfs inode.
-        let opath = syscalls::openat(proc_rootfd, path, OpenFlags::O_PATH, 0).map_err(|err| {
-            ErrorImpl::RawOsError {
+        let opath = syscalls::openat(proc_rootfd, path, OpenFlags::O_PATH | opath_oflags, 0)
+            .map_err(|err| ErrorImpl::RawOsError {
                 operation: "preliminary open raw procfs subpath to check fstype".into(),
                 source: err,
-            }
-        })?;
+            })?;
         // As below, we can't use verify_same_procfs_mnt.
         procfs::verify_is_procfs(&opath)?;
 
@@ -229,11 +238,15 @@ impl<'fd> RawProcfsRoot<'fd> {
     }
 
     /// Open a subpath within this [`RawProcfsRoot`].
+    ///
+    /// As this method is only really used for `fdinfo`, trailing symlinks are
+    /// not followed (i.e. [`OpenFlags::O_NOFOLLOW`] is always implied).
     pub(crate) fn open_beneath(
         &self,
         path: impl AsRef<Path>,
-        oflags: OpenFlags,
+        mut oflags: OpenFlags,
     ) -> Result<OwnedFd, Error> {
+        oflags.insert(OpenFlags::O_NOFOLLOW);
         let fd = if *syscalls::OPENAT2_IS_SUPPORTED {
             self.openat2_beneath(path, oflags)
         } else {
