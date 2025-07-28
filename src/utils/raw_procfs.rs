@@ -166,6 +166,16 @@ impl<'fd> RawProcfsRoot<'fd> {
         let proc_rootfd = self.try_into_maybe_owned_fd()?;
         let proc_rootfd = proc_rootfd.as_fd();
 
+        // We split the open into O_PATH+reopen below, which means if O_NOFOLLOW
+        // is requested (which it always is), we need to apply it to the initial
+        // O_PATH and not the re-open. If the target is not a symlink,
+        // everything works fine -- if the target was a symlink the re-open will
+        // fail with -ELOOP (the same as a one-shot open).
+        let (opath_oflags, oflags) = (
+            oflags & OpenFlags::O_NOFOLLOW,
+            oflags & !OpenFlags::O_NOFOLLOW,
+        );
+
         // This is technically not safe, but there really is not much we can do
         // in practice -- we would need to have a separate copy of the procfs
         // resolver code without any mount-id-related protections (or add an
@@ -186,12 +196,11 @@ impl<'fd> RawProcfsRoot<'fd> {
         // bind-mount to a filesystem object that could DoS us when we try to
         // O_RDONLY open it below (such as a stale NFS handle), first open it
         // with O_PATH then double-check that it is a procfs inode.
-        let opath = syscalls::openat(proc_rootfd, path, OpenFlags::O_PATH, 0).map_err(|err| {
-            ErrorImpl::RawOsError {
+        let opath = syscalls::openat(proc_rootfd, path, OpenFlags::O_PATH | opath_oflags, 0)
+            .map_err(|err| ErrorImpl::RawOsError {
                 operation: "preliminary open raw procfs subpath to check fstype".into(),
                 source: err,
-            }
-        })?;
+            })?;
         // As below, we can't use verify_same_procfs_mnt.
         procfs::verify_is_procfs(&opath)?;
 
@@ -229,21 +238,148 @@ impl<'fd> RawProcfsRoot<'fd> {
     }
 
     /// Open a subpath within this [`RawProcfsRoot`].
+    ///
+    /// As this method is only really used for `fdinfo`, trailing symlinks are
+    /// not followed (i.e. [`OpenFlags::O_NOFOLLOW`] is always implied).
     pub(crate) fn open_beneath(
         &self,
         path: impl AsRef<Path>,
-        oflags: OpenFlags,
+        mut oflags: OpenFlags,
     ) -> Result<OwnedFd, Error> {
+        oflags.insert(OpenFlags::O_NOFOLLOW);
         let fd = if *syscalls::OPENAT2_IS_SUPPORTED {
-            self.openat2_beneath(path, oflags)?
+            self.openat2_beneath(path, oflags)
         } else {
-            self.opath_beneath_unchecked(path, oflags)?
-        };
+            self.opath_beneath_unchecked(path, oflags)
+        }?;
         // As this is called from within fetch_mnt_id as a fallback, the only
         // thing we can do here is verify that it is actually procfs. However,
         // in practice it will be quite difficult for an attacker to over-mount
         // every fdinfo file for a process.
         procfs::verify_is_procfs(&fd)?;
         Ok(fd)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::ErrorKind;
+
+    use pretty_assertions::assert_matches;
+
+    #[test]
+    fn exists_unchecked() {
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .exists_unchecked("nonexist")
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ENOENT))),
+            r#"exists_unchecked("nonexist") -> ENOENT"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .exists_unchecked("uptime")
+                .map_err(|err| err.kind()),
+            Ok(()),
+            r#"exists_unchecked("uptime") -> Ok"#
+        );
+    }
+
+    #[test]
+    fn open_beneath() {
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .open_beneath("nonexist", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ENOENT))),
+            r#"open_beneath("nonexist") -> ENOENT"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .open_beneath("self", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"open_beneath("self") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .open_beneath("self/cwd", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"open_beneath("self/cwd") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .open_beneath("self/status", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Ok(_),
+            r#"open_beneath("self/status") -> Ok"#
+        );
+    }
+
+    #[test]
+    #[cfg_attr(feature = "_test_enosys_openat2", ignore)]
+    fn openat2_beneath() {
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .openat2_beneath("nonexist", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ENOENT))),
+            r#"openat2_beneath("nonexist") -> ENOENT"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .openat2_beneath("self", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"openat2_beneath("self") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .openat2_beneath("self/cwd", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"openat2_beneath("self/cwd") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .openat2_beneath("self/status", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Ok(_),
+            r#"openat2_beneath("self/status") -> Ok"#
+        );
+    }
+
+    #[test]
+    fn opath_beneath_unchecked() {
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .opath_beneath_unchecked("nonexist", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ENOENT))),
+            r#"opath_beneath_unchecked("nonexist") -> ENOENT"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .opath_beneath_unchecked("self", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"opath_beneath_unchecked("self") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .opath_beneath_unchecked("self/cwd", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Err(ErrorKind::OsError(Some(libc::ELOOP))),
+            r#"opath_beneath_unchecked("self/cwd") -> ELOOP"#
+        );
+        assert_matches!(
+            RawProcfsRoot::UnsafeGlobal
+                .opath_beneath_unchecked("self/status", OpenFlags::O_RDONLY)
+                .map_err(|err| err.kind()),
+            Ok(_),
+            r#"opath_beneath_unchecked("self/status") -> Ok"#
+        );
     }
 }
