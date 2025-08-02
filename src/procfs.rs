@@ -333,7 +333,7 @@ impl ProcfsHandle {
     /// Create a new handle that references a safe `/proc`.
     ///
     /// For privileged users (those that have the ability to create mounts) on
-    /// new enough kernels (Linux 5.1 or later), this created handle will be
+    /// new enough kernels (Linux 5.2 or later), this created handle will be
     /// safe racing attackers that . If your `/proc` does not have locked
     /// overmounts (which is the case for most users except those running inside
     /// a nested container with user namespaces) then the handle will also be
