@@ -129,7 +129,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       # Download the pre-built python dist.
       - name: download built python-pathrs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: python-${{ matrix.python-version }}-pathrs-dist
           path: ${{ env.PYTHON_DIST }}
@@ -152,7 +152,7 @@ jobs:
       id-token: write
     steps:
       - name: download built python-pathrs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: python-3.x-pathrs-dist
           path: ${{ env.PYTHON_DIST }}
