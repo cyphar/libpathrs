@@ -35,7 +35,7 @@ jobs:
   codespell:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: pip install codespell==v2.3.0
       - run: codespell -L crate
 
@@ -43,7 +43,7 @@ jobs:
     name: cargo check (stable)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@cargo-hack
       - name: cargo check
@@ -55,7 +55,7 @@ jobs:
     name: cargo check (msrv)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_MSRV }}
@@ -87,7 +87,7 @@ jobs:
     name: cargo check (${{ matrix.target }})
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           # TODO: Should we use MSRV for this?
@@ -106,7 +106,7 @@ jobs:
     name: make lint (no cargo-hack)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt,clippy
@@ -118,7 +118,7 @@ jobs:
   validate-cbindgen:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - name: install cbindgen
         run: cargo install --force cbindgen
@@ -128,7 +128,7 @@ jobs:
     name: cargo doc
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo doc --document-private-items --workspace --all-features
       - name: upload docs
@@ -145,7 +145,7 @@ jobs:
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: true
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # Nightly rust is required for llvm-cov --doc.
       - uses: dtolnay/rust-toolchain@nightly
       - uses: taiki-e/install-action@cargo-llvm-cov
@@ -174,7 +174,7 @@ jobs:
     name: smoke-test examples
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --examples
       - run: make -C examples smoke-test-rust
@@ -183,7 +183,7 @@ jobs:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # We need to use nightly Rust to check the formatting.
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -194,7 +194,7 @@ jobs:
     name: clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # Pin the Rust version to avoid Rust updates breaking our clippy lints.
       - uses: dtolnay/rust-toolchain@1.88
         with:
@@ -216,7 +216,7 @@ jobs:
     name: check ${{ matrix.libtype }} size
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - run: make release
       - name: compute ${{ matrix.libtype }} file name
@@ -281,7 +281,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo publish
         env:
