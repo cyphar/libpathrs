@@ -65,7 +65,7 @@ jobs:
       - name: install libpathrs
         run: sudo ./install.sh --libdir=/usr/lib
       # Run go-fix.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "${{ env.GO_VERSION }}"
       - name: run go fix
@@ -90,7 +90,7 @@ jobs:
         run: sudo ./install.sh --libdir=/usr/lib
       # Setup go.
       - name: install go ${{ matrix.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
           check-latest: true
