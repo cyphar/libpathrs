@@ -17,7 +17,7 @@
 
 set -Eeuo pipefail
 
-TEMP="$(getopt -o sc: --long sudo,cargo: -- "$@")"
+TEMP="$(getopt -o sc:p: --long sudo,cargo:,partitions: -- "$@")"
 eval set -- "$TEMP"
 
 function bail() {
@@ -49,6 +49,7 @@ function strjoin() {
 }
 
 sudo=
+partitions=
 CARGO="${CARGO_NIGHTLY:-cargo +nightly}"
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -58,6 +59,10 @@ while [ "$#" -gt 0 ]; do
 			;;
 		-c|--cargo)
 			CARGO="$2"
+			shift 2
+			;;
+		-p|--partitions)
+			partitions="$2"
 			shift 2
 			;;
 		--)
@@ -70,12 +75,50 @@ while [ "$#" -gt 0 ]; do
 done
 tests_to_run=("$@")
 
+[ -n "$partitions" ] || {
+	partitions=1
+	[[ "$GITHUB_ACTIONS" == "true" ]] && partitions=2
+}
+
 # These are features that do not make sense to add to the powerset of feature
 # combinations we test for:
 # * "capi" only adds tests and modules in a purely additive way, so re-running
 #   the whole suite without them makes no sense.
 # * "_test_as_root" requires special handling to enable (the "sudo -E" runner).
 SPECIAL_FEATURES=("capi" "_test_as_root")
+
+function llvm-profdata() {
+	local profdata
+
+	{ command llvm-profdata --help &>/dev/null && profdata=llvm-profdata ; } ||
+		{ command rust-profdata --help &>/dev/null && profdata=rust-profdata ; } ||
+		{ command cargo-profdata --help &>/dev/null && profdata=cargo-profdata ; } ||
+		bail "cannot find llvm-profdata!"
+
+	command "$profdata" "$@"
+}
+
+function merge_llvmcov_profdata() {
+	local llvmcov_targetdir=target/llvm-cov-target
+
+	# Get a list of *.profraw files for merging.
+	local profraw_list
+	profraw_list="$(mktemp --tmpdir libpathrs-profraw.XXXXXXXX)"
+	find "$llvmcov_targetdir" -name '*.profraw' -type f >"$profraw_list"
+	#shellcheck disable=SC2064
+	trap "rm -f '$profraw_list'; trap - RETURN" RETURN
+
+	# Merge profiling data. This is what cargo-llvm-cov does internally, and
+	# they also make use of --sparse to remove useless entries.
+	local combined_profraw
+	combined_profraw="$(mktemp libpathrs-combined-profraw.XXXXXXXX)"
+	llvm-profdata merge --sparse -f "$profraw_list" -o "$combined_profraw"
+
+	# Remove the old profiling data and replace it with the merged version. As
+	# long as the file has a ".profraw" suffix, cargo-llvm-cov will use it.
+	find "$llvmcov_targetdir" -name '*.profraw' -type f -delete
+	mv "$combined_profraw" "$llvmcov_targetdir/libpathrs-combined.profraw"
+}
 
 function nextest_run() {
 	local features=("capi")
@@ -127,9 +170,31 @@ function nextest_run() {
 		)
 	fi
 
-	$CARGO "${cargo_hack_args[@]}" \
-		llvm-cov --no-report --branch --features "$(strjoin , "${features[@]}")" \
-		nextest "$@"
+	for partnum in $(seq "$partitions"); do
+		# FIXME: Ideally we would use *nextest* partitioning, but because
+		#        cargo-hack has a --partition flag we can only use that one.
+		#        This should still resolve the issue but in a less granular
+		#        way. See <https://github.com/taiki-e/cargo-hack/issues/286>.
+		#part="hash:$partnum/$partitions"
+		part="$partnum/$partitions"
+
+		$CARGO "${cargo_hack_args[@]}" \
+			llvm-cov --no-report --branch --features="$(strjoin , "${features[@]}")" \
+			nextest --partition="$part" "$@"
+
+		# It turns out that a very large amount of diskspace gets used up by
+		# the thousands of tiny .profraw files generated during each
+		# integration test run (up to ~22GB in our GHA CI).
+		#
+		# This can cause disk exhaustion (and thus CI failures), so we need to
+		# proactively merge the profiling data to reduce its size (in addition
+		# to running the tests in partitions to avoid accumulating all 22GBs of
+		# profiling data before merging).
+		#
+		# cargo-llvm-cov will happily accept these merged files, and this kind
+		# of merging is what it does internally anyway.
+		merge_llvmcov_profdata
+	done
 
 	if [ -v CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER ]; then
 		unset CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER
