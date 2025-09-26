@@ -26,7 +26,7 @@ use crate::{
     flags::{OpenFlags, ResolverFlags},
     resolvers::procfs::ProcfsResolver,
     syscalls,
-    utils::{self, FdExt, RawProcfsRoot},
+    utils::{self, FdExt, MaybeOwnedFd, RawProcfsRoot},
 };
 
 use std::{
@@ -39,6 +39,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use once_cell::sync::OnceCell as OnceLock;
 use rustix::{
     fs::{self as rustix_fs, Access, AtFlags},
     mount::{FsMountFlags, FsOpenFlags, MountAttrFlags, OpenTreeFlags},
@@ -225,13 +226,15 @@ impl ProcfsBase {
 /// [lwn-procfs-overmounts]: https://lwn.net/Articles/934460/
 #[derive(Debug)]
 pub struct ProcfsHandle {
-    inner: OwnedFd,
+    inner: MaybeOwnedFd<'static, OwnedFd>,
     mnt_id: u64,
     is_subset: bool,
-    #[allow(unused)] // temporary
     is_detached: bool,
     pub(crate) resolver: ProcfsResolver,
 }
+
+// MSRV(1.70): Use std::sync::OnceLock.
+static CACHED_PROCFS_HANDLE: OnceLock<OwnedFd> = OnceLock::new();
 
 // TODO: Implement Into<OwnedFd> or AsFd? We (no longer) provide a global
 // handle, so the previous concerns about someone dup2-ing over the handle fd
@@ -341,6 +344,11 @@ impl ProcfsHandle {
     /// a nested container with user namespaces) then the handle will also be
     /// completely safe against overmounts.
     ///
+    /// For kernels with support for `subset=pid`, [`ProcfsHandle::new`] may
+    /// return a cached copy of [`ProcfsHandle`]. This means that you should not
+    /// modify or close the underlying file descriptor for a [`ProcfsHandle`]
+    /// returned by this method.
+    ///
     /// For the userns-with-locked-overmounts case, on slightly newer kernels
     /// (those with `STATX_MNT_ID` support -- Linux 5.8 or later)
     /// [`ProcfsHandle::open`] and [`ProcfsHandle::open_follow`] this handle
@@ -351,12 +359,51 @@ impl ProcfsHandle {
     /// However, the Linux 5.8-or-later `STATX_MNT_ID` protections will protect
     /// against static overmounts created by an attacker that cannot modify the
     /// mount table while these operations are running.
+    ///
+    /// # Panics
+    ///
+    /// If the cached [`ProcfsHandle`] has been invalidated, this method will
+    /// panic as this is not a state that should be possible to reach in regular
+    /// program execution.
     pub fn new() -> Result<Self, Error> {
-        Self::new_fsopen(true)
+        // If there is already a cached filesystem available, use that.
+        if let Some(fd) = CACHED_PROCFS_HANDLE.get() {
+            let procfs = Self::try_from_maybe_owned_fd(fd.as_fd())
+                .expect("cached procfs handle should be valid");
+            debug_assert!(
+                procfs.is_subset && procfs.is_detached,
+                "cached procfs handle should be subset=pid and detached"
+            );
+            return Ok(procfs);
+        }
+
+        let procfs = Self::new_fsopen(true)
             .or_else(|_| Self::new_open_tree(OpenTreeFlags::empty()))
             .or_else(|_| Self::new_open_tree(OpenTreeFlags::AT_RECURSIVE))
             .or_else(|_| Self::new_unsafe_open())
-            .wrap("get safe procfs handle")
+            .wrap("get safe procfs handle")?;
+
+        match procfs {
+            ProcfsHandle {
+                inner: MaybeOwnedFd::OwnedFd(inner),
+                is_subset: true, // must be subset=pid to cache (risk: dangerous files)
+                is_detached: true, // must be detached to cache (risk: escape to host)
+                ..
+            } => {
+                // Try to cache our new handle -- if another thread beat us to
+                // it, just use the handle that they cached and drop the one we
+                // created.
+                let cached_inner = match CACHED_PROCFS_HANDLE.try_insert(inner) {
+                    Ok(inner) => MaybeOwnedFd::BorrowedFd(inner.as_fd()),
+                    Err((inner, _)) => MaybeOwnedFd::BorrowedFd(inner.as_fd()),
+                };
+                // Do not return an error here -- it should be impossible for
+                // this validation to fail after we get here.
+                Ok(Self::try_from_maybe_owned_fd(cached_inner)
+                    .expect("cached procfs handle should be valid"))
+            }
+            procfs => Ok(procfs),
+        }
     }
 
     /// Create a new handle, trying to create a non-masked handle.
@@ -593,13 +640,19 @@ impl ProcfsHandle {
     /// method will return an error if the file handle is not actually the root
     /// of a procfs mount.
     pub fn try_from_fd<Fd: Into<OwnedFd>>(inner: Fd) -> Result<Self, Error> {
+        Self::try_from_maybe_owned_fd(inner.into())
+    }
+
+    fn try_from_maybe_owned_fd<Fd: Into<MaybeOwnedFd<'static, OwnedFd>>>(
+        inner: Fd,
+    ) -> Result<Self, Error> {
         let inner = inner.into();
 
         // Make sure the file is actually a procfs root.
-        verify_is_procfs_root(&inner)?;
+        verify_is_procfs_root(inner.as_fd())?;
 
         let proc_rootfd = RawProcfsRoot::UnsafeFd(inner.as_fd());
-        let mnt_id = utils::fetch_mnt_id(proc_rootfd, &inner, "")?;
+        let mnt_id = utils::fetch_mnt_id(proc_rootfd, inner.as_fd(), "")?;
         let resolver = ProcfsResolver::default();
 
         // Figure out if the mount we have is subset=pid or hidepid=. For
@@ -608,8 +661,13 @@ impl ProcfsHandle {
         let is_subset = [/* subset=pid */ "stat", /* hidepid=n */ "1"]
             .iter()
             .any(|&subpath| {
-                syscalls::accessat(&inner, subpath, Access::EXISTS, AtFlags::SYMLINK_NOFOLLOW)
-                    .is_err()
+                syscalls::accessat(
+                    inner.as_fd(),
+                    subpath,
+                    Access::EXISTS,
+                    AtFlags::SYMLINK_NOFOLLOW,
+                )
+                .is_err()
             });
 
         // Figure out if this file descriptor is a detached mount (i.e., from
@@ -620,11 +678,16 @@ impl ProcfsHandle {
         //
         // If the handle is a detached mount, then ".." should be a procfs root
         // with the same mount ID.
-        let is_detached = verify_same_mnt(proc_rootfd, mnt_id, &inner, "..")
+        let is_detached = verify_same_mnt(proc_rootfd, mnt_id, inner.as_fd(), "..")
             .and_then(|_| {
                 verify_is_procfs_root(
-                    syscalls::openat(&inner, "..", OpenFlags::O_PATH | OpenFlags::O_DIRECTORY, 0)
-                        .map_err(|err| ErrorImpl::RawOsError {
+                    syscalls::openat(
+                        inner.as_fd(),
+                        "..",
+                        OpenFlags::O_PATH | OpenFlags::O_DIRECTORY,
+                        0,
+                    )
+                    .map_err(|err| ErrorImpl::RawOsError {
                         operation: "get parent directory of procfs handle".into(),
                         source: err,
                     })?,
@@ -712,7 +775,9 @@ pub(crate) fn verify_same_mnt(
 mod tests {
     use super::*;
 
-    use std::fs::File;
+    use std::{fs::File, os::unix::io::AsRawFd};
+
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn bad_root() {
@@ -832,5 +897,42 @@ mod tests {
             !procfs.is_detached,
             "ProcfsHandle::new_unsafe_open() should not be detached"
         );
+    }
+
+    #[test]
+    fn new_cached() {
+        // Make sure the cache is filled (with nextest, each test is a separate
+        // process and so gets a new fsopen(2) for the first ProcfsHandle::new
+        // invocation).
+        std::thread::spawn(|| {
+            let _ = ProcfsHandle::new().expect("should be able to get ProcfsHandle in thread");
+        })
+        .join()
+        .expect("ProcfsHandle::new thread should succeed");
+
+        let procfs1 = ProcfsHandle::new().expect("get procfs handle");
+        let procfs2 = ProcfsHandle::new().expect("get procfs handle");
+
+        assert_eq!(
+            procfs1.is_subset, procfs2.is_subset,
+            "subset=pid should be the same for both handles"
+        );
+        assert_eq!(
+            procfs1.is_detached, procfs2.is_detached,
+            "is_detached should be the same for both handles"
+        );
+        if procfs1.is_subset && procfs1.is_detached {
+            assert_eq!(
+                procfs1.as_fd().as_raw_fd(),
+                procfs2.as_fd().as_raw_fd(),
+                "subset=pid handles should be cached and thus have the same fd"
+            );
+        } else {
+            assert_ne!(
+                procfs1.as_fd().as_raw_fd(),
+                procfs2.as_fd().as_raw_fd(),
+                "!subset=pid handles should NOT be cached and thus have different fds"
+            );
+        }
     }
 }
