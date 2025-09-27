@@ -77,38 +77,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   are still the most strongly recommended kernels to use.
 
 ### Changes ###
-- procfs: our internal `GLOBAL_PROCFS_HANDLE` has been removed entirely, and
-  now every libpathrs operation that requires an internal procfs handle will
-  create a temporary copy of procfs. (#203)
+- procfs: the caching strategy for the internal procfs handle has been
+  adjusted, and the public `GLOBAL_PROCFS_HANDLE` has been removed.
 
-  The primary concern is that there have been attacks like [CVE-2024-21626][],
-  where long-lived file descriptors (even those with `O_CLOEXEC`) can be used
-  by an attacker to persist handles or otherwise mess with the system by
-  passing `/proc/self/fd/$n` as a path to use for some other purpose, thus
-  pinning the file descriptor reference.
+  The initial plan was to remove caching entirely, as there is a risk of leaked
+  long-lived file descriptors leading to attacks like [CVE-2024-21626][].
+  However, we found that the performance impact could be quite noticeable
+  (`fsconfig(2)` in particular is somewhat heavy in practice if you do it for
+  every VFS operation very frequently). (#203)
 
-  It seems far more prudent for a security-oriented library to eschew the
-  performance benefit of caching results at the risk of possible (avoidable)
-  security issues, and instead we should opt for very-short-lived procfs
-  handles which should make such attacks impractical (assuming programs make
-  correct use of `PR_SET_DUMPABLE` to avoid fd-snooping by attackers).
-
-  For Rust users that wish to have a cache, they can very easily wrap
-  `ProcfsHandle` inside a `std::sync::OnceLock` in their own programs to
-  improve the performance of direct `ProcfsHandle` operations, while also
-  giving more visibility to such users that there is a level of caching thatj
-  will extend the file descriptor lifetime. The only major internal usage of
-  `ProcfsHandle` (which would not be cached in this method) is the `O_PATH`
-  resolver, which already has so much syscall overhead that caching is probably
-  not going to help much (and internally the resolver will use a single procfs
-  handle instance for an entire lookup).
-
-  For non-Rust users, there is no easy way to do the same kind of caching (the
-  C API doesn't currently let you provide a `procfs_fd`) but it seems likely
-  that the overhead of C FFI in most languages (except for C programs) would
-  overwhelm the performance overhead of even `fsopen(2)`. It might make sense
-  to revisit this in the future -- please open an issue if you can demonstrate
-  that the lack of caching causes a measurable performance issue.
+  The current approach is for `ProcfsHandle::new` to opportunistically cache
+  the underlying file descriptor if it is considered relatively safe to cache
+  (i.e., it is `subset=pid` and is a detached mount object, which should stop
+  host breakouts even if a privileged container attacker snoops on the file
+  descriptor). Programs need not be aware of the caching behaviour, though
+  programs which need to change security contexts should still use common-sense
+  protections like `PR_SET_DUMPABLE`. (#249)
 - api: many of the generic type parameters have been replaced with `impl Trait`
   arguments, in order to make using libpathrs a bit more ergonomic. Unless you
   were specifically setting the generic types with `::<>` syntax, this change

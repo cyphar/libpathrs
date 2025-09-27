@@ -17,7 +17,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::os::unix::io::{AsFd, BorrowedFd};
+use std::os::unix::io::{AsFd, BorrowedFd, OwnedFd};
 
 /// Like [`std::borrow::Cow`] but without the [`ToOwned`] requirement, and only
 /// for file descriptors.
@@ -48,10 +48,25 @@ use std::os::unix::io::{AsFd, BorrowedFd};
 #[derive(Debug)]
 pub(crate) enum MaybeOwnedFd<'fd, Fd>
 where
-    Fd: 'fd + AsFd,
+    Fd: AsFd,
 {
     OwnedFd(Fd),
     BorrowedFd(BorrowedFd<'fd>),
+}
+
+impl<'fd> From<OwnedFd> for MaybeOwnedFd<'fd, OwnedFd> {
+    fn from(fd: OwnedFd) -> Self {
+        Self::OwnedFd(fd)
+    }
+}
+
+impl<'fd, Fd> From<BorrowedFd<'fd>> for MaybeOwnedFd<'fd, Fd>
+where
+    Fd: AsFd,
+{
+    fn from(fd: BorrowedFd<'fd>) -> Self {
+        Self::BorrowedFd(fd)
+    }
 }
 
 // I wish we could make this "impl AsFd for MaybeOwnedFd" but the lifetimes
