@@ -228,6 +228,8 @@ pub struct ProcfsHandle {
     inner: OwnedFd,
     mnt_id: u64,
     is_subset: bool,
+    #[allow(unused)] // temporary
+    is_detached: bool,
     pub(crate) resolver: ProcfsResolver,
 }
 
@@ -596,7 +598,8 @@ impl ProcfsHandle {
         // Make sure the file is actually a procfs root.
         verify_is_procfs_root(&inner)?;
 
-        let mnt_id = utils::fetch_mnt_id(RawProcfsRoot::UnsafeFd(inner.as_fd()), &inner, "")?;
+        let proc_rootfd = RawProcfsRoot::UnsafeFd(inner.as_fd());
+        let mnt_id = utils::fetch_mnt_id(proc_rootfd, &inner, "")?;
         let resolver = ProcfsResolver::default();
 
         // Figure out if the mount we have is subset=pid or hidepid=. For
@@ -609,10 +612,31 @@ impl ProcfsHandle {
                     .is_err()
             });
 
+        // Figure out if this file descriptor is a detached mount (i.e., from
+        // fsmount(2) or OPEN_TREE_CLONE) by checking if ".." lets you get out
+        // the procfs mount. Detached mounts take place in an anonymous mount
+        // namespace rooted at the detached mount (so ".." is a no-op), while
+        // regular opens will take place in a regular host filesystem where.
+        //
+        // If the handle is a detached mount, then ".." should be a procfs root
+        // with the same mount ID.
+        let is_detached = verify_same_mnt(proc_rootfd, mnt_id, &inner, "..")
+            .and_then(|_| {
+                verify_is_procfs_root(
+                    syscalls::openat(&inner, "..", OpenFlags::O_PATH | OpenFlags::O_DIRECTORY, 0)
+                        .map_err(|err| ErrorImpl::RawOsError {
+                        operation: "get parent directory of procfs handle".into(),
+                        source: err,
+                    })?,
+                )
+            })
+            .is_ok();
+
         Ok(Self {
             inner,
             mnt_id,
             is_subset,
+            is_detached,
             resolver,
         })
     }
@@ -729,6 +753,84 @@ mod tests {
         assert!(
             procfs.is_ok(),
             "new procfs handle should succeed, got {procfs:?}",
+        );
+    }
+
+    #[test]
+    fn new_unmasked() {
+        let procfs =
+            ProcfsHandle::new_unmasked().expect("should be able to get unmasked procfs handle");
+        assert!(
+            !procfs.is_subset,
+            "new unmasked procfs handle should have !subset=pid",
+        );
+    }
+
+    #[test]
+    fn new_fsopen() {
+        if let Ok(procfs) = ProcfsHandle::new_fsopen(false) {
+            assert!(
+                !procfs.is_subset,
+                "ProcfsHandle::new_fsopen(false) should be !subset=pid"
+            );
+            assert!(
+                procfs.is_detached,
+                "ProcfsHandle::new_fsopen(false) should be detached"
+            );
+        }
+    }
+
+    #[test]
+    fn new_fsopen_subset() {
+        if let Ok(procfs) = ProcfsHandle::new_fsopen(true) {
+            assert!(
+                procfs.is_subset,
+                "ProcfsHandle::new_fsopen(true) should be subset=pid"
+            );
+            assert!(
+                procfs.is_detached,
+                "ProcfsHandle::new_fsopen(true) should be detached"
+            );
+        }
+    }
+
+    #[test]
+    fn new_open_tree() {
+        if let Ok(procfs) = ProcfsHandle::new_open_tree(OpenTreeFlags::empty()) {
+            assert!(
+                !procfs.is_subset,
+                "ProcfsHandle::new_open_tree() should be !subset=pid (same as host)"
+            );
+            assert!(
+                procfs.is_detached,
+                "ProcfsHandle::new_open_tree() should be detached"
+            );
+        }
+
+        if let Ok(procfs) = ProcfsHandle::new_open_tree(OpenTreeFlags::AT_RECURSIVE) {
+            assert!(
+                !procfs.is_subset,
+                "ProcfsHandle::new_open_tree(AT_RECURSIVE) should be !subset=pid (same as host)"
+            );
+            assert!(
+                procfs.is_detached,
+                "ProcfsHandle::new_open_tree(AT_RECURSIVE) should be detached"
+            );
+        }
+    }
+
+    #[test]
+    fn new_unsafe_open() {
+        let procfs = ProcfsHandle::new_unsafe_open()
+            .expect("ProcfsHandle::new_unsafe_open should always work");
+
+        assert!(
+            !procfs.is_subset,
+            "ProcfsHandle::new_unsafe_open() should be !subset=pid"
+        );
+        assert!(
+            !procfs.is_detached,
+            "ProcfsHandle::new_unsafe_open() should not be detached"
         );
     }
 }
