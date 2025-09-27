@@ -77,7 +77,7 @@ tests_to_run=("$@")
 
 [ -n "$partitions" ] || {
 	partitions=1
-	[[ "$GITHUB_ACTIONS" == "true" ]] && partitions=2
+	[[ "${GITHUB_ACTIONS:-}" == "true" ]] && partitions=2
 }
 
 # These are features that do not make sense to add to the powerset of feature
