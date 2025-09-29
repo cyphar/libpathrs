@@ -406,12 +406,19 @@ impl ProcfsHandle {
         }
     }
 
-    /// Create a new handle, trying to create a non-masked handle.
+    /// Create a new unrestricted handle to `/proc`.
     ///
-    /// This is intended to only ever be used internally, as leaking this handle
-    /// into containers could lead to serious security issues (while leaking
-    /// `subset=pid` is a far less worrisome).
-    pub(crate) fn new_unmasked() -> Result<Self, Error> {
+    /// The returned [`ProcfsHandle`] will not have `subset=pid` applied and so
+    /// will have access to global procfs files. As a result, leaking this file
+    /// descriptor is very dangerous and so this method should be used sparingly
+    /// -- ideally only temporarily by users which need to do a series of
+    /// operations on global procfs files (such as sysctls).
+    ///
+    /// Most users can just use [`ProcfsHandle::new`] and then do operations on
+    /// [`ProcfsBase::ProcRoot`]. In this case, [`ProcfsHandle::new_unmasked`]
+    /// will be called internally and the handle will only be used for that
+    /// operation, reducing the risk of leaks.
+    pub fn new_unmasked() -> Result<Self, Error> {
         Self::new_fsopen(false)
             .or_else(|_| Self::new_open_tree(OpenTreeFlags::empty()))
             .or_else(|_| Self::new_open_tree(OpenTreeFlags::AT_RECURSIVE))
