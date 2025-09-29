@@ -832,6 +832,32 @@ mod tests {
     }
 
     #[test]
+    fn new_unmasked_not_cached() {
+        let procfs1 =
+            ProcfsHandle::new_unmasked().expect("should be able to get unmasked procfs handle");
+        let procfs2 =
+            ProcfsHandle::new_unmasked().expect("should be able to get unmasked procfs handle");
+
+        assert!(
+            !procfs1.is_subset,
+            "new unmasked procfs handle should have !subset=pid",
+        );
+        assert!(
+            !procfs2.is_subset,
+            "new unmasked procfs handle should have !subset=pid",
+        );
+        assert_eq!(
+            procfs1.is_detached, procfs2.is_detached,
+            "is_detached should be the same for both handles"
+        );
+        assert_ne!(
+            procfs1.as_fd().as_raw_fd(),
+            procfs2.as_fd().as_raw_fd(),
+            "unmasked procfs handles should NOT be cached and thus have different fds"
+        );
+    }
+
+    #[test]
     fn new_fsopen() {
         if let Ok(procfs) = ProcfsHandle::new_fsopen(false) {
             assert!(
