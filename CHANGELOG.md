@@ -81,6 +81,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   allows some programs to amortise the cost of constructing a `procfs` handle
   when doing a series of operations on global procfs files (such as configuring
   a large number of sysctls).
+- procfs: `ProcfsHandle` is now `ProcfsHandleRef<'static>`, and it is now
+  possible to construct borrowed versions of `ProcfsHandleRef<'fd>` and still
+  use them. This is primarily intended for our C API, but Rust users can make
+  use of it if you wish. It is possible we will move away from a type alias for
+  `ProcfsHandle` in the future.
 
 ### Changed ###
 - procfs: the caching strategy for the internal procfs handle has been

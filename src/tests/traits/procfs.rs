@@ -20,7 +20,7 @@
 use crate::{
     error::Error,
     flags::OpenFlags,
-    procfs::{ProcfsBase, ProcfsHandle},
+    procfs::{ProcfsBase, ProcfsHandleRef},
     tests::traits::ErrorImpl,
 };
 
@@ -50,7 +50,7 @@ pub(in crate::tests) trait ProcfsHandleImpl: std::fmt::Debug {
         -> Result<PathBuf, Self::Error>;
 }
 
-impl ProcfsHandleImpl for ProcfsHandle {
+impl<'fd> ProcfsHandleImpl for ProcfsHandleRef<'fd> {
     type Error = Error;
 
     fn open_follow(
