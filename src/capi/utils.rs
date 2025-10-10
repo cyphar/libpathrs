@@ -42,7 +42,7 @@ use libc::{c_char, c_int, size_t};
 /// While [`BorrowedFd`] (and `Option<BorrowedFd>`) are technically FFI-safe,
 /// apparently using them in `extern "C" fn` signatures directly is not
 /// recommended for the above reason.
-#[derive(Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 #[repr(transparent)]
 pub struct CBorrowedFd<'fd> {
     inner: RawFd,
@@ -50,6 +50,18 @@ pub struct CBorrowedFd<'fd> {
 }
 
 impl<'fd> CBorrowedFd<'fd> {
+    /// Construct a [`CBorrowedFd`] in a `const`-friendly context.
+    ///
+    /// # Safety
+    /// The caller guarantees that the file descriptor will live long enough for
+    /// the returned lifetime `'fd`.
+    pub(crate) const unsafe fn from_raw_fd(fd: RawFd) -> Self {
+        Self {
+            inner: fd,
+            _phantom: PhantomData,
+        }
+    }
+
     /// Take a [`CBorrowedFd`] from C FFI and convert it to a proper
     /// [`BorrowedFd`] after making sure that it has a valid value (ie. is not
     /// negative).

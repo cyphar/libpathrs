@@ -98,6 +98,12 @@ after_includes = """
  * Outside of those specific uses, users should probably avoid using this.
  */
 #define PATHRS_PROC_PID(n) (__PATHRS_PROC_TYPE_PID | (n))
+
+/*
+ * A sentinel value to tell `pathrs_proc_*` methods to use the default procfs
+ * root handle (which may be globally cached).
+ */
+#define PATHRS_PROC_DEFAULT_ROOTFD -9 /* (-EBADF) */
 """
 
 # Basic kernel-style formatting (can't use tabs so just use 4-spaces).

@@ -184,16 +184,18 @@ pub struct ProcfsHandleRef<'fd> {
 // MSRV(1.70): Use std::sync::OnceLock.
 static CACHED_PROCFS_HANDLE: OnceLock<OwnedFd> = OnceLock::new();
 
-// TODO: Implement Into<OwnedFd> or AsFd? We (no longer) provide a global
-// handle, so the previous concerns about someone dup2-ing over the handle fd
-// are not really that relevant anymore. On the other hand, providing the
-// underlying file descriptor can easily lead to attacks.
+// TODO: Export AsFd or Into<Option<OwnedFd>>?
 
 impl<'fd> ProcfsHandleRef<'fd> {
     // This is part of Linux's ABI.
     const PROC_ROOT_INO: u64 = 1;
 
-    fn as_fd(&self) -> BorrowedFd<'_> {
+    #[allow(unused)] // TODO: Add C API to leak ProcfsHandle.
+    pub(crate) fn into_owned_fd(self) -> Option<OwnedFd> {
+        self.inner.into_owned()
+    }
+
+    pub(crate) fn as_fd(&self) -> BorrowedFd<'_> {
         self.inner.as_fd()
     }
 

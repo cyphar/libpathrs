@@ -75,6 +75,14 @@ impl<'fd, Fd> MaybeOwnedFd<'fd, Fd>
 where
     Fd: AsFd,
 {
+    /// Unwrap `MaybeOwnedFd` into the `OwnedFd` variant if possible.
+    pub(crate) fn into_owned(self) -> Option<Fd> {
+        match self {
+            Self::OwnedFd(fd) => Some(fd),
+            Self::BorrowedFd(_) => None,
+        }
+    }
+
     /// Very similar in concept to [`AsFd::as_fd`] but with some additional
     /// lifetime restrictions that make it incompatible with [`AsFd`].
     pub(crate) fn as_fd<'a>(&'a self) -> BorrowedFd<'a>
@@ -82,8 +90,69 @@ where
         'a: 'fd,
     {
         match self {
-            MaybeOwnedFd::OwnedFd(fd) => fd.as_fd(),
-            MaybeOwnedFd::BorrowedFd(fd) => fd.as_fd(),
+            Self::OwnedFd(fd) => fd.as_fd(),
+            Self::BorrowedFd(fd) => fd.as_fd(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::{
+        fs::File,
+        os::unix::io::{AsFd, AsRawFd, OwnedFd},
+    };
+
+    use anyhow::Error;
+    use pretty_assertions::{assert_eq, assert_matches};
+
+    #[test]
+    fn as_fd() -> Result<(), Error> {
+        let f: OwnedFd = File::open(".")?.into();
+        let fd = f.as_raw_fd();
+        let owned: MaybeOwnedFd<OwnedFd> = f.into();
+        assert_matches!(owned, MaybeOwnedFd::OwnedFd(_));
+        assert_eq!(owned.as_fd().as_raw_fd(), fd);
+        assert_matches!(owned.into_owned(), Some(_));
+
+        let f = File::open(".")?;
+        let borrowed: MaybeOwnedFd<OwnedFd> = f.as_fd().into();
+        assert_matches!(borrowed, MaybeOwnedFd::BorrowedFd(_));
+        assert_matches!(borrowed.into_owned(), None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn into_owned() -> Result<(), Error> {
+        let f: OwnedFd = File::open(".")?.into();
+        let owned: MaybeOwnedFd<OwnedFd> = f.into();
+        assert_matches!(
+            owned,
+            MaybeOwnedFd::OwnedFd(_),
+            "MaybeOwnedFd::from(OwnedFd)"
+        );
+        assert_matches!(
+            owned.into_owned(),
+            Some(_),
+            "MaybeOwnedFd::from(OwnedFd).into_owned()"
+        );
+
+        let f = File::open(".")?;
+        let borrowed: MaybeOwnedFd<OwnedFd> = f.as_fd().into();
+        assert_matches!(
+            borrowed,
+            MaybeOwnedFd::BorrowedFd(_),
+            "MaybeOwnedFd::from(BorrowedFd)"
+        );
+        assert_matches!(
+            borrowed.into_owned(),
+            None,
+            "MaybeOwnedFd::from(BorrowedFd).into_owned()"
+        );
+
+        Ok(())
     }
 }

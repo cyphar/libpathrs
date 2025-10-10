@@ -86,6 +86,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   use them. This is primarily intended for our C API, but Rust users can make
   use of it if you wish. It is possible we will move away from a type alias for
   `ProcfsHandle` in the future.
+- capi: All of that `pathrs_proc_*` methods now have a `pathrs_proc_*at`
+  variant which allows users to pass a file descriptor to use as the `/proc`
+  handle (effectively acting as a C version of `ProcfsHandleRef<'fd>`). Only
+  users that operate heavily on global procfs files are expected to make use of
+  this API -- the regular API still lets you operate on global procfs files.
+  Users can pass `PATHRS_PROC_DEFAULT_ROOTFD` (`-EBADF`) as a file descriptor
+  to use the cached API (the old API methods just do this internally).
 
 ### Changed ###
 - procfs: the caching strategy for the internal procfs handle has been

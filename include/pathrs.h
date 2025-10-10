@@ -73,6 +73,12 @@
  */
 #define PATHRS_PROC_PID(n) (__PATHRS_PROC_TYPE_PID | (n))
 
+/*
+ * A sentinel value to tell `pathrs_proc_*` methods to use the default procfs
+ * root handle (which may be globally cached).
+ */
+#define PATHRS_PROC_DEFAULT_ROOTFD -9 /* (-EBADF) */
+
 
 /**
  * Bits in `pathrs_proc_base_t` that indicate the type of the base value.
@@ -503,6 +509,41 @@ int pathrs_inroot_symlink(int root_fd, const char *path, const char *target);
 int pathrs_inroot_hardlink(int root_fd, const char *path, const char *target);
 
 /**
+ * `pathrs_proc_open` but with a caller-provided file descriptor for `/proc`.
+ *
+ * Internally, `pathrs_proc_open` will attempt to use a cached copy of a very
+ * restricted `/proc` handle (a detached mount object with `subset=pid` and
+ * `hidepid=4`). If a user requests a global `/proc` file, a temporary handle
+ * capable of accessing global files is created and destroyed after the
+ * operation completes.
+ *
+ * For most users, this is more than sufficient. However, if a user needs to
+ * operate on many global `/proc` files, the cost of creating handles can get
+ * quite expensive. `pathrs_proc_openat` allows a user to manually manage the
+ * global-friendly `/proc` handle. Note that passing a `subset=pid` file
+ * descriptor to `pathrs_proc_openat` will *not* stop the automatic creation of
+ * a global-friendly handle internally if necessary.
+ *
+ * In order to get the behaviour of `pathrs_proc_open`, you can pass the
+ * special value `PATHRS_PROC_DEFAULT_ROOTFD` (`-EBADF`) as the `proc_rootfd`
+ * argument.
+ *
+ * # Return Value
+ *
+ * On success, this function returns a file descriptor. The file descriptor
+ * will have the `O_CLOEXEC` flag automatically applied.
+ *
+ * If an error occurs, this function will return a negative error code. To
+ * retrieve information about the error (such as a string describing the error,
+ * the system errno(7) value associated with the error, etc), use
+ * pathrs_errorinfo().
+ */
+int pathrs_proc_openat(int proc_rootfd,
+                       pathrs_proc_base_t base,
+                       const char *path,
+                       int flags);
+
+/**
  * Safely open a path inside a `/proc` handle.
  *
  * Any bind-mounts or other over-mounts will (depending on what kernel features
@@ -542,6 +583,37 @@ int pathrs_inroot_hardlink(int root_fd, const char *path, const char *target);
  * pathrs_errorinfo().
  */
 int pathrs_proc_open(pathrs_proc_base_t base, const char *path, int flags);
+
+/**
+ * `pathrs_proc_readlink` but with a caller-provided file descriptor for
+ * `/proc`.
+ *
+ * See the documentation of pathrs_proc_openat() for when this API might be
+ * useful.
+ *
+ * # Return Value
+ *
+ * On success, this function copies the symlink contents to `linkbuf` (up to
+ * `linkbuf_size` bytes) and returns the full size of the symlink path buffer.
+ * This function will not copy the trailing NUL byte, and the return size does
+ * not include the NUL byte. A `NULL` `linkbuf` or invalid `linkbuf_size` are
+ * treated as zero-size buffers.
+ *
+ * NOTE: Unlike readlinkat(2), in the case where linkbuf is too small to
+ * contain the symlink contents, pathrs_proc_readlink() will return *the number
+ * of bytes it would have copied if the buffer was large enough*. This matches
+ * the behaviour of pathrs_inroot_readlink().
+ *
+ * If an error occurs, this function will return a negative error code. To
+ * retrieve information about the error (such as a string describing the error,
+ * the system errno(7) value associated with the error, etc), use
+ * pathrs_errorinfo().
+ */
+int pathrs_proc_readlinkat(int proc_rootfd,
+                           pathrs_proc_base_t base,
+                           const char *path,
+                           char *linkbuf,
+                           size_t linkbuf_size);
 
 /**
  * Safely read the contents of a symlink inside `/proc`.

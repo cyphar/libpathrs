@@ -18,10 +18,13 @@
  */
 
 use crate::{
-    capi::{ret::IntoCReturn, utils},
+    capi::{
+        ret::IntoCReturn,
+        utils::{self, CBorrowedFd},
+    },
     error::{Error, ErrorExt, ErrorImpl},
     flags::OpenFlags,
-    procfs::{ProcfsBase, ProcfsHandle},
+    procfs::{ProcfsBase, ProcfsHandle, ProcfsHandleRef},
 };
 
 use std::os::unix::io::{OwnedFd, RawFd};
@@ -227,6 +230,69 @@ impl From<ProcfsBase> for CProcfsBase {
     }
 }
 
+/// A sentinel value to tell `pathrs_proc_*` methods to use the default procfs
+/// root handle (which may be globally cached).
+pub const PATHRS_PROC_DEFAULT_ROOTFD: CBorrowedFd<'static> =
+    // SAFETY: The lifetime of fake fd values are 'static.
+    unsafe { CBorrowedFd::from_raw_fd(-libc::EBADF) };
+
+fn parse_proc_rootfd<'fd>(fd: CBorrowedFd<'fd>) -> Result<ProcfsHandleRef<'fd>, Error> {
+    match fd {
+        PATHRS_PROC_DEFAULT_ROOTFD => ProcfsHandle::new(),
+        _ => ProcfsHandleRef::try_from_borrowed_fd(fd.try_as_borrowed_fd()?),
+    }
+}
+
+/// `pathrs_proc_open` but with a caller-provided file descriptor for `/proc`.
+///
+/// Internally, `pathrs_proc_open` will attempt to use a cached copy of a very
+/// restricted `/proc` handle (a detached mount object with `subset=pid` and
+/// `hidepid=4`). If a user requests a global `/proc` file, a temporary handle
+/// capable of accessing global files is created and destroyed after the
+/// operation completes.
+///
+/// For most users, this is more than sufficient. However, if a user needs to
+/// operate on many global `/proc` files, the cost of creating handles can get
+/// quite expensive. `pathrs_proc_openat` allows a user to manually manage the
+/// global-friendly `/proc` handle. Note that passing a `subset=pid` file
+/// descriptor to `pathrs_proc_openat` will *not* stop the automatic creation of
+/// a global-friendly handle internally if necessary.
+///
+/// In order to get the behaviour of `pathrs_proc_open`, you can pass the
+/// special value `PATHRS_PROC_DEFAULT_ROOTFD` (`-EBADF`) as the `proc_rootfd`
+/// argument.
+///
+/// # Return Value
+///
+/// On success, this function returns a file descriptor. The file descriptor
+/// will have the `O_CLOEXEC` flag automatically applied.
+///
+/// If an error occurs, this function will return a negative error code. To
+/// retrieve information about the error (such as a string describing the error,
+/// the system errno(7) value associated with the error, etc), use
+/// pathrs_errorinfo().
+#[no_mangle]
+pub unsafe extern "C" fn pathrs_proc_openat(
+    proc_rootfd: CBorrowedFd<'_>,
+    base: CProcfsBase,
+    path: *const c_char,
+    flags: c_int,
+) -> RawFd {
+    || -> Result<_, Error> {
+        let base = base.try_into()?;
+        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        let oflags = OpenFlags::from_bits_retain(flags);
+        let procfs = parse_proc_rootfd(proc_rootfd)?;
+
+        match oflags.contains(OpenFlags::O_NOFOLLOW) {
+            true => procfs.open(base, path, oflags),
+            false => procfs.open_follow(base, path, oflags),
+        }
+    }()
+    .map(OwnedFd::from)
+    .into_c_return()
+}
+
 /// Safely open a path inside a `/proc` handle.
 ///
 /// Any bind-mounts or other over-mounts will (depending on what kernel features
@@ -270,18 +336,49 @@ pub unsafe extern "C" fn pathrs_proc_open(
     path: *const c_char,
     flags: c_int,
 ) -> RawFd {
+    pathrs_proc_openat(PATHRS_PROC_DEFAULT_ROOTFD, base, path, flags)
+}
+
+/// `pathrs_proc_readlink` but with a caller-provided file descriptor for
+/// `/proc`.
+///
+/// See the documentation of pathrs_proc_openat() for when this API might be
+/// useful.
+///
+/// # Return Value
+///
+/// On success, this function copies the symlink contents to `linkbuf` (up to
+/// `linkbuf_size` bytes) and returns the full size of the symlink path buffer.
+/// This function will not copy the trailing NUL byte, and the return size does
+/// not include the NUL byte. A `NULL` `linkbuf` or invalid `linkbuf_size` are
+/// treated as zero-size buffers.
+///
+/// NOTE: Unlike readlinkat(2), in the case where linkbuf is too small to
+/// contain the symlink contents, pathrs_proc_readlink() will return *the number
+/// of bytes it would have copied if the buffer was large enough*. This matches
+/// the behaviour of pathrs_inroot_readlink().
+///
+/// If an error occurs, this function will return a negative error code. To
+/// retrieve information about the error (such as a string describing the error,
+/// the system errno(7) value associated with the error, etc), use
+/// pathrs_errorinfo().
+#[no_mangle]
+pub unsafe extern "C" fn pathrs_proc_readlinkat(
+    proc_rootfd: CBorrowedFd<'_>,
+    base: CProcfsBase,
+    path: *const c_char,
+    linkbuf: *mut c_char,
+    linkbuf_size: size_t,
+) -> c_int {
     || -> Result<_, Error> {
         let base = base.try_into()?;
         let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
-        let oflags = OpenFlags::from_bits_retain(flags);
-        let procfs = ProcfsHandle::new()?;
-
-        match oflags.contains(OpenFlags::O_NOFOLLOW) {
-            true => procfs.open(base, path, oflags),
-            false => procfs.open_follow(base, path, oflags),
-        }
+        let procfs = parse_proc_rootfd(proc_rootfd)?;
+        let link_target = procfs.readlink(base, path)?;
+        // SAFETY: C caller guarantees buffer is at least linkbuf_size and can
+        // be written to.
+        unsafe { utils::copy_path_into_buffer(link_target, linkbuf, linkbuf_size) }
     }()
-    .map(OwnedFd::from)
     .into_c_return()
 }
 
@@ -328,15 +425,13 @@ pub unsafe extern "C" fn pathrs_proc_readlink(
     linkbuf: *mut c_char,
     linkbuf_size: size_t,
 ) -> c_int {
-    || -> Result<_, Error> {
-        let base = base.try_into()?;
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
-        let link_target = ProcfsHandle::new()?.readlink(base, path)?;
-        // SAFETY: C caller guarantees buffer is at least linkbuf_size and can
-        // be written to.
-        unsafe { utils::copy_path_into_buffer(link_target, linkbuf, linkbuf_size) }
-    }()
-    .into_c_return()
+    pathrs_proc_readlinkat(
+        PATHRS_PROC_DEFAULT_ROOTFD,
+        base,
+        path,
+        linkbuf,
+        linkbuf_size,
+    )
 }
 
 #[cfg(test)]

@@ -18,7 +18,7 @@
  */
 
 #[cfg(feature = "capi")]
-use crate::tests::capi::CapiProcfsHandle;
+use crate::tests::capi::{CapiProcfsHandle, CapiProcfsHandleFd};
 use crate::{
     error::ErrorKind,
     flags::OpenFlags,
@@ -165,6 +165,15 @@ macro_rules! procfs_tests {
             $(#[$meta])*
             @capi-fn [<capi_ $test_name>]
                 { Ok(CapiProcfsHandle) }.$procfs_op($($args)*) => (over_mounts: false, $($tt)*);
+        }
+        procfs_tests! {
+            $(#[$meta])*
+            @capi-fn [<capi_unmasked_ $test_name>]
+                {
+                    let proc = ProcfsHandle::new_unmasked().expect("ProcfsHandle::new_unmasked should never fail");
+                    let fd = proc.into_owned_fd().expect("unmasked should give OwnedFd");
+                    Ok(CapiProcfsHandleFd(fd))
+                }.$procfs_op($($args)*) => (over_mounts: false, $($tt)*);
         }
     };
 
