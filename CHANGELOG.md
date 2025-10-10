@@ -82,7 +82,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   when doing a series of operations on global procfs files (such as configuring
   a large number of sysctls).
 
-### Changes ###
+### Changed ###
 - procfs: the caching strategy for the internal procfs handle has been
   adjusted, and the public `GLOBAL_PROCFS_HANDLE` has been removed.
 
@@ -103,6 +103,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   arguments, in order to make using libpathrs a bit more ergonomic. Unless you
   were specifically setting the generic types with `::<>` syntax, this change
   should not affect you.
+- syscalls: switch to rustix for most of our syscall wrappers to simplify how
+  much code we have for wrapper raw syscalls. This also lets us build on
+  musl-based targets because musl doesn't support some of the syscalls we need.
+
+  There are some outstanding issues with rustix that make this switch a little
+  uglier than necessary ([rustix#1186][], [rustix#1187][]), but this is a net
+  improvement overall.
 
 ### Fixes ###
 - multiarch: we now build correctly on 32-bit architectures as well as
@@ -169,15 +176,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - openat2: we now set `O_NOCTTY` and `O_NOFOLLOW` more aggressively when doing
   `openat2` operations, to avoid theoretical DoS attacks (these were set for
   `openat` but we missed including them for `openat2`).
-
-### Changed ###
-- syscalls: switch to rustix for most of our syscall wrappers to simplify how
-  much code we have for wrapper raw syscalls. This also lets us build on
-  musl-based targets because musl doesn't support some of the syscalls we need.
-
-  There are some outstanding issues with rustix that make this switch a little
-  uglier than necessary ([rustix#1186][], [rustix#1187][]), but this is a net
-  improvement overall.
 
 [CVE-2024-21626]: https://github.com/opencontainers/runc/security/advisories/GHSA-xr7r-f8xq-vfvv
 [rustix#1186]: https://github.com/bytecodealliance/rustix/issues/1186
