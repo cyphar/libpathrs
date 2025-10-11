@@ -75,12 +75,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
   Note that it is still the case that post-6.8 kernels (`STATX_MNT_ID_UNIQUE`)
   are still the most strongly recommended kernels to use.
-- procfs: `ProcfsHandle::new_unmasked` has now been exposed as a public API.
-
-  It should only be used sparingly and with great care to avoid leaks, but it
-  allows some programs to amortise the cost of constructing a `procfs` handle
-  when doing a series of operations on global procfs files (such as configuring
-  a large number of sysctls).
 - procfs: `ProcfsHandle` is now `ProcfsHandleRef<'static>`, and it is now
   possible to construct borrowed versions of `ProcfsHandleRef<'fd>` and still
   use them. This is primarily intended for our C API, but Rust users can make
@@ -93,6 +87,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   this API -- the regular API still lets you operate on global procfs files.
   Users can pass `PATHRS_PROC_DEFAULT_ROOTFD` (`-EBADF`) as a file descriptor
   to use the cached API (the old API methods just do this internally).
+- procfs: a new `ProcfsHandleBuilder` builder has been added to the API, which
+  allows users to construct an unmasked (i.e., no-`subset=pid`) `ProcfsHandle`.
+
+  This should only be used sparingly and with great care to avoid leaks, but it
+  allows some programs to amortise the cost of constructing a `procfs` handle
+  when doing a series of operations on global procfs files (such as configuring
+  a large number of sysctls).
+
+  We plan to add a few more configuration options to `ProcfsHandleBuilder` in
+  the future, but `ProcfsHandleBuilder::unmasked` will always give you an
+  unmasked version of `/proc` regardless of any new features.
 
 ### Changed ###
 - procfs: the caching strategy for the internal procfs handle has been
