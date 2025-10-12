@@ -82,6 +82,10 @@ pub(crate) enum ErrorImpl {
         description: Cow<'static, str>,
     },
 
+    #[cfg(feature = "capi")]
+    #[error("invalid {name} structure: extra non-zero trailing bytes found")]
+    UnsupportedStructureData { name: Cow<'static, str> },
+
     #[error("violation of safety requirement: {description}")]
     SafetyViolation { description: Cow<'static, str> },
 
@@ -101,6 +105,13 @@ pub(crate) enum ErrorImpl {
     RawOsError {
         operation: Cow<'static, str>,
         source: SyscallError,
+    },
+
+    #[cfg(feature = "capi")]
+    #[error("error while parsing c struct: {description}")]
+    BytemuckPodCastError {
+        description: Cow<'static, str>,
+        source: bytemuck::PodCastError,
     },
 
     #[error("integer parsing failed")]
@@ -131,6 +142,10 @@ pub enum ErrorKind {
     NotSupported,
     /// The provided arguments to libpathrs were invalid.
     InvalidArgument,
+    /// The provided extensible structure argument to the libpathrs C API
+    /// contained trailing non-zero data which was not supported.
+    #[cfg(feature = "capi")]
+    UnsupportedStructureData,
     /// libpaths encountered a state where the safety of the operation could not
     /// be guaranteeed. This is usually the result of an attack by a malicious
     /// program.
@@ -151,6 +166,8 @@ impl ErrorImpl {
             Self::NotImplemented { .. } => ErrorKind::NotImplemented,
             Self::NotSupported { .. } => ErrorKind::NotSupported,
             Self::InvalidArgument { .. } => ErrorKind::InvalidArgument,
+            #[cfg(feature = "capi")]
+            Self::UnsupportedStructureData { .. } => ErrorKind::UnsupportedStructureData,
             Self::SafetyViolation { .. } => ErrorKind::SafetyViolation,
             // Any syscall-related errors get mapped to an OsError, since the
             // distinction doesn't matter to users checking error values.
@@ -164,6 +181,9 @@ impl ErrorImpl {
             Self::BadSymlinkStackError { .. }
             | Self::ParseIntError(_)
             | Self::InfallibleError(_) => ErrorKind::InternalError,
+            #[cfg(feature = "capi")]
+            Self::BytemuckPodCastError { .. } => ErrorKind::InternalError,
+
             Self::Wrapped { source, .. } => source.kind(),
         }
     }
@@ -183,6 +203,8 @@ impl ErrorKind {
         match self {
             ErrorKind::NotImplemented => Some(libc::ENOSYS),
             ErrorKind::InvalidArgument => Some(libc::EINVAL),
+            #[cfg(feature = "capi")]
+            ErrorKind::UnsupportedStructureData => Some(libc::E2BIG),
             ErrorKind::SafetyViolation => Some(libc::EXDEV),
             ErrorKind::OsError(errno) => *errno,
             _ => None,

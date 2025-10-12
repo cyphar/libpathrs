@@ -20,17 +20,19 @@
 use crate::error::{Error, ErrorImpl};
 
 use std::{
-    cmp,
+    any, cmp,
     ffi::{CStr, CString, OsStr},
     marker::PhantomData,
+    mem,
     os::unix::{
         ffi::OsStrExt,
         io::{AsRawFd, BorrowedFd, RawFd},
     },
     path::Path,
-    ptr,
+    ptr, slice,
 };
 
+use bytemuck::Pod;
 use libc::{c_char, c_int, size_t};
 
 /// Equivalent to [`BorrowedFd`], except that there are no restrictions on what
@@ -134,6 +136,62 @@ pub(crate) unsafe fn copy_path_into_buffer(
     Ok(path_len as c_int)
 }
 
+pub(crate) unsafe fn copy_from_extensible_struct<T: Pod>(
+    ptr: *const T,
+    size: usize,
+) -> Result<T, Error> {
+    // SAFETY: The C caller guarantees that ptr is from a single allocation, is
+    // aligned for a u8 slice (generally true for all arrays), and is at least
+    // size bytes in length.
+    let raw_data = unsafe { slice::from_raw_parts(ptr as *const u8, size) };
+    let struct_size = mem::size_of::<T>();
+
+    // We may need to make a copy if the structure is smaller than sizeof(T) to
+    // zero-pad it, and the Vec needs to live for the rest of this function.
+    #[allow(unused_assignments)] // only needed for storage
+    let mut struct_data_buf: Option<Vec<u8>> = None;
+
+    // MSRV(1.80): Use slice::split_at_checked()?
+    let (struct_data, trailing) = if raw_data.len() >= struct_size {
+        raw_data.split_at(struct_size)
+    } else {
+        let mut buf = vec![0u8; struct_size];
+        buf[0..raw_data.len()].copy_from_slice(raw_data);
+        struct_data_buf = Some(buf);
+        (
+            &struct_data_buf
+                .as_ref()
+                .expect("Option just assigned with Some must contain Some")[..],
+            &[][..],
+        )
+    };
+    debug_assert!(
+        struct_data.len() == struct_size,
+        "copy_from_extensible_struct should compute the struct size correctly"
+    );
+
+    // TODO: Can we get an optimised memchr_inv implementation? Unfortunately,
+    // see <https://github.com/BurntSushi/memchr/issues/166> -- memchr doesn't
+    // have this and is unlikely to have it in the future.
+    if trailing.iter().any(|&ch| ch != 0) {
+        return Err(ErrorImpl::UnsupportedStructureData {
+            name: format!("c struct {}", any::type_name::<T>()).into(),
+        }
+        .into());
+    }
+
+    // NOTE: Even though we have a slice, we can only be sure it's aligned to u8
+    // (i.e., any alignment). It's better to just return a copy than error out
+    // in the non-aligned case...
+    bytemuck::try_pod_read_unaligned(struct_data).map_err(|err| {
+        ErrorImpl::BytemuckPodCastError {
+            description: format!("cannot cast passed buffer into {}", any::type_name::<T>()).into(),
+            source: err,
+        }
+        .into()
+    })
+}
+
 pub(crate) trait Leakable: Sized {
     /// Leak a structure such that it can be passed through C-FFI.
     fn leak(self) -> &'static mut Self {
@@ -158,5 +216,140 @@ pub(crate) trait Leakable: Sized {
         // SAFETY: Caller guarantees this is safe to do.
         let _ = unsafe { self.unleak() };
         // drop Self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::error::ErrorKind;
+
+    use bytemuck::{Pod, Zeroable};
+    use pretty_assertions::assert_eq;
+
+    #[repr(C)]
+    #[derive(PartialEq, Eq, Default, Debug, Clone, Copy, Pod, Zeroable)]
+    struct Struct {
+        foo: u64,
+        bar: u32,
+        baz: u32,
+    }
+
+    #[test]
+    fn extensible_struct() {
+        let example = Struct {
+            foo: 0xdeadbeeff00dcafe,
+            bar: 0x01234567,
+            baz: 0x89abcdef,
+        };
+
+        assert_eq!(
+            unsafe {
+                copy_from_extensible_struct(&example as *const Struct, mem::size_of::<Struct>())
+            }
+            .expect("copy_from_extensible_struct with size=sizeof(struct)"),
+            example,
+            "copy_from_extensible_struct(struct, sizeof(struct))",
+        );
+    }
+
+    #[test]
+    fn extensible_struct_short() {
+        let example = Struct {
+            foo: 0xdeadbeeff00dcafe,
+            bar: 0x01234567,
+            baz: 0x89abcdef,
+        };
+
+        assert_eq!(
+            unsafe { copy_from_extensible_struct(&example as *const Struct, 0) }
+                .expect("copy_from_extensible_struct with size=0"),
+            Struct::default(),
+            "copy_from_extensible_struct(struct, 0)",
+        );
+
+        assert_eq!(
+            unsafe {
+                copy_from_extensible_struct(
+                    &example as *const Struct,
+                    bytemuck::offset_of!(Struct, bar),
+                )
+            }
+            .expect("copy_from_extensible_struct with size=offsetof(struct.bar)"),
+            Struct {
+                foo: example.foo,
+                ..Default::default()
+            },
+            "copy_from_extensible_struct(struct, offsetof(struct, bar))",
+        );
+
+        assert_eq!(
+            unsafe {
+                copy_from_extensible_struct(
+                    &example as *const Struct,
+                    bytemuck::offset_of!(Struct, baz),
+                )
+            }
+            .expect("copy_from_extensible_struct with size=offsetof(struct.baz)"),
+            Struct {
+                foo: example.foo,
+                bar: example.bar,
+                ..Default::default()
+            },
+            "copy_from_extensible_struct(struct, offsetof(struct, bar))",
+        );
+    }
+
+    #[test]
+    fn extensible_struct_long() {
+        #[repr(C)]
+        #[derive(PartialEq, Eq, Default, Debug, Clone, Copy, Pod, Zeroable)]
+        struct StructV2 {
+            inner: Struct,
+            extra: u64,
+        }
+
+        let example_compatible = StructV2 {
+            inner: Struct {
+                foo: 0xdeadbeeff00dcafe,
+                bar: 0x01234567,
+                baz: 0x89abcdef,
+            },
+            extra: 0,
+        };
+
+        assert_eq!(
+            unsafe {
+                copy_from_extensible_struct(
+                    &example_compatible as *const StructV2 as *const Struct,
+                    mem::size_of::<StructV2>(),
+                )
+            }
+            .expect("copy_from_extensible_struct with size=sizeof(structv2)"),
+            example_compatible.inner,
+            "copy_from_extensible_struct(structv2, sizeof(structv2)) with only trailing zero bytes",
+        );
+
+        let example_compatible = StructV2 {
+            inner: Struct {
+                foo: 0xdeadbeeff00dcafe,
+                bar: 0x01234567,
+                baz: 0x89abcdef,
+            },
+            extra: 0x1,
+        };
+
+        assert_eq!(
+            unsafe {
+                copy_from_extensible_struct(
+                    &example_compatible as *const StructV2 as *const Struct,
+                    mem::size_of::<StructV2>(),
+                )
+            }
+            .map_err(|err| err.kind()),
+            Err(ErrorKind::UnsupportedStructureData),
+            "copy_from_extensible_struct(structv2, sizeof(structv2)) with trailing non-zero bytes",
+        );
     }
 }
