@@ -98,6 +98,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   We plan to add a few more configuration options to `ProcfsHandleBuilder` in
   the future, but `ProcfsHandleBuilder::unmasked` will always give you an
   unmasked version of `/proc` regardless of any new features.
+- procfs: `ProcfsHandleRef` can now be converted to `OwnedFd` with
+  `.into_owned_fd()` (if it is internally an `OwnedFd`) and borrowed as
+  `BorrowedFd` with `AsFd::as_fd`. Users should take great care when using the
+  underlying file descriptor directly, as using it opens you up to all of the
+  attacks that libpathrs protects you against.
 
 ### Changed ###
 - procfs: the caching strategy for the internal procfs handle has been

@@ -352,19 +352,35 @@ pub struct ProcfsHandleRef<'fd> {
     pub(crate) resolver: ProcfsResolver,
 }
 
-// TODO: Export AsFd or Into<Option<OwnedFd>>?
+/// > **NOTE**: Take great care when using this file descriptor -- it is very
+/// > easy to get attacked with a malicious procfs mount when using the file
+/// > descriptor directly. This should only be used in circumstances where you
+/// > cannot achieve your goal using `libpathrs` (in which case, please open an
+/// > issue to help us improve the API).
+impl<'fd> AsFd for ProcfsHandleRef<'fd> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.inner.as_fd()
+    }
+}
 
 impl<'fd> ProcfsHandleRef<'fd> {
     // This is part of Linux's ABI.
     const PROC_ROOT_INO: u64 = 1;
 
-    #[allow(unused)] // TODO: Add C API to leak ProcfsHandle.
-    pub(crate) fn into_owned_fd(self) -> Option<OwnedFd> {
+    /// Convert an owned [`ProcfsHandle`] to the underlying [`OwnedFd`].
+    ///
+    /// If the handle is internally a shared reference (i.e., it was constructed
+    /// using [`ProcfsHandle::try_from_borrowed_fd`] or is using the global
+    /// cached [`ProcfsHandle`]), this method will return `None`.
+    ///
+    /// > **NOTE**: Take great care when using this file descriptor -- it is
+    /// > very easy to get attacked with a malicious procfs mount when using the
+    /// > file descriptor directly. This should only be used in circumstances
+    /// > where you cannot achieve your goal using `libpathrs` (in which case,
+    /// > please open an issue to help us improve the API).
+    // TODO: We probably should have a Result<OwnedFd, Self> version.
+    pub fn into_owned_fd(self) -> Option<OwnedFd> {
         self.inner.into_owned()
-    }
-
-    pub(crate) fn as_fd(&self) -> BorrowedFd<'_> {
-        self.inner.as_fd()
     }
 
     pub(crate) fn as_raw_procfs(&self) -> RawProcfsRoot<'_> {
