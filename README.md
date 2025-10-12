@@ -246,8 +246,8 @@ different to the version described by LWN):
 
 ```
 libpathrs: safe path resolution on Linux
-Copyright (C) 2019-2024 Aleksa Sarai <cyphar@cyphar.com>
-Copyright (C) 2019-2024 SUSE LLC
+Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
+Copyright (C) 2019-2025 SUSE LLC
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -276,8 +276,8 @@ modified libpathrs. See the LGPLv3 license for more details.
 
 ```
 libpathrs: safe path resolution on Linux
-Copyright (C) 2019-2024 Aleksa Sarai <cyphar@cyphar.com>
-Copyright (C) 2019-2024 SUSE LLC
+Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
+Copyright (C) 2019-2025 SUSE LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # libpathrs: safe path resolution on Linux
-# Copyright (C) 2019-2024 Aleksa Sarai <cyphar@cyphar.com>
-# Copyright (C) 2019-2024 SUSE LLC
+# Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
+# Copyright (C) 2019-2025 SUSE LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
