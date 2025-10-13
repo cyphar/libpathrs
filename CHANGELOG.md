@@ -111,6 +111,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
     `ProcfsHandle.cached()` returns the cached global `ProcfsHandle`. The
     top-level `proc_*` functions (which may be removed in future versions) are
     now just bound methods of `ProcfsHandle.cached()`.
+  - go bindings: `ProcfsHandle` wraps this new API, and you can construct
+ a   custom `ProcfsHandle`s with `OpenProcRoot` (calling this with no arguments
+    will produce the global cached handle if the handle is being cached). The
+    old `Proc*` functions have been removed entirely.
 
 ### Changed ###
 - procfs: the caching strategy for the internal procfs handle has been

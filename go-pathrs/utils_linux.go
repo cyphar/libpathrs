@@ -98,8 +98,14 @@ func dupFile(file *os.File) (*os.File, error) {
 // unlike os.NewFile, the file's Name is based on the real path (provided by
 // /proc/self/fd/$n).
 func mkFile(fd uintptr) (*os.File, error) {
+	proc, err := OpenProcRoot()
+	if err != nil {
+		return nil, err
+	}
+	defer proc.Close() //nolint:errcheck // Close errors are not critical
+
 	fdPath := fmt.Sprintf("fd/%d", fd)
-	fdName, err := ProcReadlink(ProcBaseThreadSelf, fdPath)
+	fdName, err := proc.Readlink(ProcBaseThreadSelf, fdPath)
 	if err != nil {
 		_ = unix.Close(int(fd))
 		return nil, fmt.Errorf("failed to fetch real name of fd %d: %w", fd, err)
