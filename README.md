@@ -267,32 +267,26 @@ with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #### Bindings ####
 
-`SPDX-License-Identifier: Apache-2.0`
+`SPDX-License-Identifier: MPL-2.0`
 
 The language-specific bindings (the code in `contrib/bindings/` and
-`go-pathrs/`) are licensed under the Apache-2.0 license, to allow for wider
-usage of `libpathrs` from languages where language libraries are not
-dynamically linked.
+`go-pathrs/`) are licensed under the Mozilla Public License version 2.0
+(available in [`LICENSE.MPL-2.0`][MPL-2.0]).
 
-**NOTE**: If you compile libpathrs.so into your binary statically, you still
-need to abide by the LGPLv3 license. In practice this means at least providing
-the object files necessary to allow someone to recompile your program using a
-modified libpathrs. See the LGPLv3 license for more details.
+**NOTE**: If you compile `libpathrs.so` into your binary statically, you still
+need to abide by the license terms of the main `libpathrs` project. In practice
+this means at least providing the object files necessary to allow someone to
+recompile your program using a modified libpathrs. See the LGPLv3 license for
+more details.
 
 ```
 libpathrs: safe path resolution on Linux
 Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
 Copyright (C) 2019-2025 SUSE LLC
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
 ```
+
+[MPL-2.0]: LICENSE.MPL-2.0
