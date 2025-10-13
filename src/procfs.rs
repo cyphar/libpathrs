@@ -20,6 +20,30 @@
 #![forbid(unsafe_code)]
 
 //! Helpers to operate on `procfs` safely.
+//!
+//! The primary interface most users will interact with is [`ProcfsHandle`],
+//! with most usage looking something like:
+//!
+//! ```rust
+//! # use pathrs::flags::OpenFlags;
+//! # use pathrs::procfs::{ProcfsBase, ProcfsHandle};
+//! let proc = ProcfsHandle::new()?; // usually cached by libpathrs
+//!
+//! // Open regular procfs files (ProcfsBase indicates the base subpath of /proc
+//! // the operation is acting on, effectively acting like a prefix).
+//! let status = proc.open(ProcfsBase::ProcThreadSelf, "status", OpenFlags::O_RDONLY)?;
+//! # let _ = status;
+//!
+//! // Open a magic-link safely. This even protects against bind-mounts on top
+//! // of the magic-link!
+//! let exe = proc.open_follow(ProcfsBase::ProcSelf, "exe", OpenFlags::O_PATH)?;
+//! # let _ = exe;
+//!
+//! // Do a safe readlink.
+//! let stdin_path = proc.readlink(ProcfsBase::ProcThreadSelf, "fd/0")?;
+//! println!("stdin: {stdin_path:?}");
+//! # Ok::<(), anyhow::Error>(())
+//! ```
 
 use crate::{
     error::{Error, ErrorExt, ErrorImpl, ErrorKind},
@@ -172,6 +196,20 @@ impl ProcfsBase {
 /// `/proc` they need to operate on. For the most part this would be users that
 /// need to frequently operate on global `/proc` files and thus need to have a
 /// non-`subset=pid` [`ProcfsHandle`] to use multiple times.
+///
+/// ```rust
+/// # use pathrs::flags::OpenFlags;
+/// # use pathrs::procfs::{ProcfsBase, ProcfsHandleBuilder};
+/// # use std::io::Read;
+/// let procfs = ProcfsHandleBuilder::new()
+///     .unmasked()
+///     .build()?;
+/// let mut uptime = String::new();
+/// procfs.open(ProcfsBase::ProcRoot, "uptime", OpenFlags::O_RDONLY)?
+///       .read_to_string(&mut uptime)?;
+/// println!("uptime: {uptime}");
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 ///
 /// Most users should just use [`ProcfsHandle::new`] or the default
 /// configuration of [`ProcfsHandleBuilder`], as it provides the safest
