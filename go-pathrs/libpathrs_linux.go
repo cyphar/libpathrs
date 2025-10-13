@@ -40,7 +40,7 @@ char *cast_ptr(void *ptr) { return ptr; }
 import "C"
 
 func fetchError(errID C.int) error {
-	if errID >= 0 {
+	if errID >= C.__PATHRS_MAX_ERR_VALUE {
 		return nil
 	}
 	cErr := C.pathrs_errorinfo(errID)
@@ -102,7 +102,7 @@ func pathrsInRootReadlink(rootFd uintptr, path string) (string, error) {
 		linkBuf := make([]byte, size)
 		n := C.pathrs_inroot_readlink(C.int(rootFd), cPath, C.cast_ptr(unsafe.Pointer(&linkBuf[0])), C.ulong(len(linkBuf)))
 		switch {
-		case int(n) < 0:
+		case int(n) < C.__PATHRS_MAX_ERR_VALUE:
 			return "", fetchError(n)
 		case int(n) <= len(linkBuf):
 			return string(linkBuf[:int(n)]), nil
@@ -277,7 +277,7 @@ func pathrsProcReadlink(base pathrsProcBase, path string) (string, error) {
 		linkBuf := make([]byte, size)
 		n := C.pathrs_proc_readlink(cBase, cPath, C.cast_ptr(unsafe.Pointer(&linkBuf[0])), C.ulong(len(linkBuf)))
 		switch {
-		case int(n) < 0:
+		case int(n) < C.__PATHRS_MAX_ERR_VALUE:
 			return "", fetchError(n)
 		case int(n) <= len(linkBuf):
 			return string(linkBuf[:int(n)]), nil

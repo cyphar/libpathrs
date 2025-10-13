@@ -249,7 +249,7 @@ impl From<ProcfsBase> for CProcfsBase {
 ///
 /// ```c
 /// fd = pathrs_proc_open(PATHRS_PROC_THREAD_SELF, "fd/101", O_RDWR);
-/// if (fd < 0) {
+/// if (IS_PATHRS_ERR(fd)) {
 ///     liberr = fd; // for use with pathrs_errorinfo()
 ///     goto err;
 /// }
@@ -296,7 +296,7 @@ pub unsafe extern "C" fn pathrs_proc_open(
 ///
 /// ```c
 /// fd = pathrs_proc_open(base, path, O_PATH|O_NOFOLLOW);
-/// if (fd < 0) {
+/// if (IS_PATHRS_ERR(fd)) {
 ///     liberr = fd; // for use with pathrs_errorinfo()
 ///     goto err;
 /// }

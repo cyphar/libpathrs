@@ -37,6 +37,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/types.h>
+
+/*
+ * Returns whether the given numerical value is a libpathrs error (which can be
+ * passed to pathrs_errorinfo()). Users are recommended to use this instead of
+ * a bare `<0` comparison because some functions may return a negative number
+ * even in a success condition.
+ */
+#define IS_PATHRS_ERR(ret) ((ret) < __PATHRS_MAX_ERR_VALUE)
+
 /*
  * Used to construct pathrs_proc_base_t values for a PID (or TID). Passing
  * PATHRS_PROC_PID(pid) to pathrs_proc_*() as pathrs_proc_base_t will cause
@@ -136,6 +145,20 @@ typedef struct __CBINDGEN_ALIGNED(8) {
      */
     const char *description;
 } pathrs_error_t;
+
+/**
+ * The smallest return value which cannot be a libpathrs error ID.
+ *
+ * While all libpathrs error IDs are negative numbers, some functions may
+ * return a negative number in a success scenario. This macro defines the high
+ * range end of the numbers that can be used as an error ID. Don't use this
+ * value directly, instead use `IS_PATHRS_ERR(ret)` to check if a returned
+ * value is an error or not.
+ *
+ * NOTE: This is used internally by libpathrs. You should avoid using this
+ * macro if possible.
+ */
+#define __PATHRS_MAX_ERR_VALUE -4096
 
 /**
  * Open a root handle.
@@ -264,7 +287,7 @@ int pathrs_inroot_open(int root_fd, const char *path, int flags);
  *
  * ```c
  * int linkfd = pathrs_inroot_resolve_nofollow(rootfd, path);
- * if (linkfd < 0) {
+ * if (IS_PATHRS_ERR(linkfd)) {
  *     liberr = fd; // for use with pathrs_errorinfo()
  *     goto err;
  * }
@@ -502,7 +525,7 @@ int pathrs_inroot_hardlink(int root_fd, const char *path, const char *target);
  *
  * ```c
  * fd = pathrs_proc_open(PATHRS_PROC_THREAD_SELF, "fd/101", O_RDWR);
- * if (fd < 0) {
+ * if (IS_PATHRS_ERR(fd)) {
  *     liberr = fd; // for use with pathrs_errorinfo()
  *     goto err;
  * }
@@ -532,7 +555,7 @@ int pathrs_proc_open(pathrs_proc_base_t base, const char *path, int flags);
  *
  * ```c
  * fd = pathrs_proc_open(base, path, O_PATH|O_NOFOLLOW);
- * if (fd < 0) {
+ * if (IS_PATHRS_ERR(fd)) {
  *     liberr = fd; // for use with pathrs_errorinfo()
  *     goto err;
  * }
@@ -572,7 +595,7 @@ int pathrs_proc_readlink(pathrs_proc_base_t base,
  *
  * ```c
  * fd = pathrs_inroot_resolve(root, "/foo/bar");
- * if (fd < 0) {
+ * if (IS_PATHRS_ERR(fd)) {
  *     // fd is an error id
  *     pathrs_error_t *error = pathrs_errorinfo(fd);
  *     // ... print the error information ...

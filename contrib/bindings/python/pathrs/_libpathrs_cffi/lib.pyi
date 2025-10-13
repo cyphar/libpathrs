@@ -21,6 +21,8 @@ from typing_extensions import TypeAlias, Literal
 
 from .._pathrs import CBuffer, CString, ProcfsBase
 
+RawFd: TypeAlias = int
+
 # pathrs_errorinfo_t *
 @type_check_only
 class CError:
@@ -28,7 +30,7 @@ class CError:
     description: CString
 
 ErrorId: TypeAlias = int
-RawFd: TypeAlias = int
+__PATHRS_MAX_ERR_VALUE: ErrorId
 
 # TODO: We actually return Union[CError, cffi.FFI.NULL] but we can't express
 #       this using the typing stubs for CFFI...

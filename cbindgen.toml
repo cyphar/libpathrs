@@ -63,6 +63,15 @@ sys_includes = [
 ]
 
 after_includes = """
+
+/*
+ * Returns whether the given numerical value is a libpathrs error (which can be
+ * passed to pathrs_errorinfo()). Users are recommended to use this instead of
+ * a bare `<0` comparison because some functions may return a negative number
+ * even in a success condition.
+ */
+#define IS_PATHRS_ERR(ret) ((ret) < __PATHRS_MAX_ERR_VALUE)
+
 /*
  * Used to construct pathrs_proc_base_t values for a PID (or TID). Passing
  * PATHRS_PROC_PID(pid) to pathrs_proc_*() as pathrs_proc_base_t will cause

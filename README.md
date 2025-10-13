@@ -36,25 +36,25 @@ int get_my_fd(void)
 		fd = -EBADF;
 
 	root = pathrs_open_root(root_path);
-	if (root < 0) {
+	if (IS_PATHRS_ERR(root)) {
 		liberr = root;
 		goto err;
 	}
 
 	handle = pathrs_inroot_resolve(root, unsafe_path);
-	if (handle < 0) {
+	if (IS_PATHRS_ERR(handle)) {
 		liberr = handle;
 		goto err;
 	}
 
 	fd = pathrs_reopen(handle, O_RDONLY);
-	if (fd < 0) {
+	if (IS_PATHRS_ERR(fd)) {
 		liberr = fd;
 		goto err;
 	}
 
 err:
-	if (liberr < 0) {
+	if (IS_PATHRS_ERR(liberr)) {
 		pathrs_error_t *error = pathrs_errorinfo(liberr);
 		fprintf(stderr, "Uh-oh: %s (errno=%d)\n", error->description, error->saved_errno);
 		pathrs_errorinfo_free(error);
@@ -110,7 +110,7 @@ int get_self_exe(void)
 {
     /* This follows the trailing magic-link! */
     int fd = pathrs_proc_open(PATHRS_PROC_SELF, "exe", O_PATH);
-    if (fd < 0) {
+    if (IS_PATHRS_ERR(fd)) {
         pathrs_error_t *error = pathrs_errorinfo(fd);
         /* ... print the error ... */
         pathrs_errorinfo_free(error);
@@ -134,7 +134,7 @@ int write_apparmor_label(const char *label)
      */
     fd = pathrs_proc_open(PATHRS_PROC_SELF, "attr/apparmor/exec",
                           O_WRONLY|O_NOFOLLOW);
-    if (fd < 0) {
+    if (IS_PATHRS_ERR(fd)) {
         pathrs_error_t *error = pathrs_errorinfo(fd);
         /* ... print the error ... */
         pathrs_errorinfo_free(error);
@@ -171,7 +171,7 @@ char *get_unsafe_path(int fd)
     for (;;) {
         int len = pathrs_proc_readlink(PATHRS_PROC_THREAD_SELF,
                                        fdpath, linkbuf, linkbuf_size);
-        if (len < 0) {
+        if (IS_PATHRS_ERR(len)) {
             pathrs_error_t *error = pathrs_errorinfo(fd);
             /* ... print the error ... */
             pathrs_errorinfo_free(error);

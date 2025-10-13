@@ -74,25 +74,25 @@
 //!         fd = -EBADF;
 //!
 //!     root = pathrs_open_root(root_path);
-//!     if (root < 0) {
+//!     if (IS_PATHRS_ERR(root)) {
 //!         liberr = root;
 //!         goto err;
 //!     }
 //!
 //!     handle = pathrs_inroot_resolve(root, unsafe_path);
-//!     if (handle < 0) {
+//!     if (IS_PATHRS_ERR(handle)) {
 //!         liberr = handle;
 //!         goto err;
 //!     }
 //!
 //!     fd = pathrs_reopen(handle, O_RDONLY);
-//!     if (fd < 0) {
+//!     if (IS_PATHRS_ERR(fd)) {
 //!         liberr = fd;
 //!         goto err;
 //!     }
 //!
 //! err:
-//!     if (liberr < 0) {
+//!     if (IS_PATHRS_ERR(liberr)) {
 //!         pathrs_error_t *error = pathrs_errorinfo(liberr);
 //!         fprintf(stderr, "Uh-oh: %s (errno=%d)\n", error->description, error->saved_errno);
 //!         pathrs_errorinfo_free(error);
