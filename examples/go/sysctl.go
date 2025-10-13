@@ -14,14 +14,6 @@
 // You should have received a copy of the GNU Lesser General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// Original author of this example code:
-// Copyright (C) 2020 Maxim Zhiburt <zhiburt@gmail.com>
-
-// File: examples/c/cat.c
-//
-// An example program which opens a file inside a root and outputs its contents
-// using libpathrs.
-
 package main
 
 import (
@@ -29,34 +21,34 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/cyphar/libpathrs/go-pathrs"
 )
 
-func Main(args ...string) error {
-	if len(args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: cat <root> <unsafe-path>")
-		os.Exit(1)
-	}
-
-	rootPath, unsafePath := args[0], args[1]
-
-	root, err := pathrs.OpenRoot(rootPath)
+func Main(names ...string) error {
+	proc, err := pathrs.OpenProcRoot(pathrs.UnmaskedProcRoot)
 	if err != nil {
-		return fmt.Errorf("open root %q: %w", rootPath, err)
+		return fmt.Errorf("open proc root: %w", err)
 	}
-	defer root.Close()
+	defer proc.Close()
 
-	file, err := root.Open(unsafePath)
-	if err != nil {
-		return fmt.Errorf("open %q: %w", unsafePath, err)
-	}
-	defer file.Close()
+	for _, name := range names {
+		path := "sys/" + strings.ReplaceAll(name, ".", "/")
 
-	fmt.Fprintf(os.Stderr, "== file %q (from root %q) ==\n", file.Name(), root.IntoFile().Name())
+		file, err := proc.OpenRoot(path, unix.O_RDONLY)
+		if err != nil {
+			return fmt.Errorf("open sysctl %s: %w", name, err)
+		}
+		data, err := io.ReadAll(file)
+		_ = file.Close()
+		if err != nil {
+			return fmt.Errorf("read sysctl %s: %w", name, err)
+		}
 
-	if _, err := io.Copy(os.Stdout, file); err != nil {
-		return fmt.Errorf("copy file contents to stdout: %w", err)
+		fmt.Printf("%s = %q\n", name, string(data))
 	}
 	return nil
 }
