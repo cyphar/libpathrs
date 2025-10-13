@@ -75,14 +75,48 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
   Note that it is still the case that post-6.8 kernels (`STATX_MNT_ID_UNIQUE`)
   are still the most strongly recommended kernels to use.
-- procfs: `ProcfsHandle::new_unmasked` has now been exposed as a public API.
+- procfs: `ProcfsHandle` is now `ProcfsHandleRef<'static>`, and it is now
+  possible to construct borrowed versions of `ProcfsHandleRef<'fd>` and still
+  use them. This is primarily intended for our C API, but Rust users can make
+  use of it if you wish. It is possible we will move away from a type alias for
+  `ProcfsHandle` in the future.
+- capi: All of that `pathrs_proc_*` methods now have a `pathrs_proc_*at`
+  variant which allows users to pass a file descriptor to use as the `/proc`
+  handle (effectively acting as a C version of `ProcfsHandleRef<'fd>`). Only
+  users that operate heavily on global procfs files are expected to make use of
+  this API -- the regular API still lets you operate on global procfs files.
+  Users can pass `PATHRS_PROC_DEFAULT_ROOTFD` (`-EBADF`) as a file descriptor
+  to use the cached API (the old API methods just do this internally).
+- procfs: a new `ProcfsHandleBuilder` builder has been added to the API, which
+  allows users to construct an unmasked (i.e., no-`subset=pid`) `ProcfsHandle`.
 
-  It should only be used sparingly and with great care to avoid leaks, but it
+  This should only be used sparingly and with great care to avoid leaks, but it
   allows some programs to amortise the cost of constructing a `procfs` handle
   when doing a series of operations on global procfs files (such as configuring
   a large number of sysctls).
 
-### Changes ###
+  We plan to add a few more configuration options to `ProcfsHandleBuilder` in
+  the future, but `ProcfsHandleBuilder::unmasked` will always give you an
+  unmasked version of `/proc` regardless of any new features.
+- procfs: `ProcfsHandleRef` can now be converted to `OwnedFd` with
+  `.into_owned_fd()` (if it is internally an `OwnedFd`) and borrowed as
+  `BorrowedFd` with `AsFd::as_fd`. Users should take great care when using the
+  underlying file descriptor directly, as using it opens you up to all of the
+  attacks that libpathrs protects you against.
+- capi: add `pathrs_procfs_open` method to create a new `ProcfsHandle` with a
+  custom configuration (a-la `ProcfsHandleBuilder`). As with
+  `ProcfsHandleBuilder`, most users do not need to use this.
+  - python bindings: `ProcfsHandle` wraps this new API, and you can construct
+    custom `ProcfsHandle`s with `ProcfsHandle.new(...)`.
+    `ProcfsHandle.cached()` returns the cached global `ProcfsHandle`. The
+    top-level `proc_*` functions (which may be removed in future versions) are
+    now just bound methods of `ProcfsHandle.cached()`.
+  - go bindings: `ProcfsHandle` wraps this new API, and you can construct
+ a   custom `ProcfsHandle`s with `OpenProcRoot` (calling this with no arguments
+    will produce the global cached handle if the handle is being cached). The
+    old `Proc*` functions have been removed entirely.
+
+### Changed ###
 - procfs: the caching strategy for the internal procfs handle has been
   adjusted, and the public `GLOBAL_PROCFS_HANDLE` has been removed.
 
@@ -103,6 +137,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   arguments, in order to make using libpathrs a bit more ergonomic. Unless you
   were specifically setting the generic types with `::<>` syntax, this change
   should not affect you.
+- syscalls: switch to rustix for most of our syscall wrappers to simplify how
+  much code we have for wrapper raw syscalls. This also lets us build on
+  musl-based targets because musl doesn't support some of the syscalls we need.
+
+  There are some outstanding issues with rustix that make this switch a little
+  uglier than necessary ([rustix#1186][], [rustix#1187][]), but this is a net
+  improvement overall.
 
 ### Fixes ###
 - multiarch: we now build correctly on 32-bit architectures as well as
@@ -169,15 +210,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - openat2: we now set `O_NOCTTY` and `O_NOFOLLOW` more aggressively when doing
   `openat2` operations, to avoid theoretical DoS attacks (these were set for
   `openat` but we missed including them for `openat2`).
-
-### Changed ###
-- syscalls: switch to rustix for most of our syscall wrappers to simplify how
-  much code we have for wrapper raw syscalls. This also lets us build on
-  musl-based targets because musl doesn't support some of the syscalls we need.
-
-  There are some outstanding issues with rustix that make this switch a little
-  uglier than necessary ([rustix#1186][], [rustix#1187][]), but this is a net
-  improvement overall.
 
 [CVE-2024-21626]: https://github.com/opencontainers/runc/security/advisories/GHSA-xr7r-f8xq-vfvv
 [rustix#1186]: https://github.com/bytecodealliance/rustix/issues/1186

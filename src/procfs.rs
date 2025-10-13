@@ -166,222 +166,152 @@ impl ProcfsBase {
     // TODO: Add into_raw_path() that doesn't use symlinks?
 }
 
-/// A wrapper around a handle to `/proc` that is designed to be safe against
-/// various attacks.
+/// Builder for [`ProcfsHandle`].
 ///
-/// Unlike most regular filesystems, `/proc` serves several important purposes
-/// for system administration programs:
+/// This is mainly intended for users that have specific requirements for the
+/// `/proc` they need to operate on. For the most part this would be users that
+/// need to frequently operate on global `/proc` files and thus need to have a
+/// non-`subset=pid` [`ProcfsHandle`] to use multiple times.
 ///
-///  1. As a mechanism for doing certain filesystem operations through
-///     `/proc/self/fd/...` (and other similar magic-links) that cannot be done
-///     by other means.
-///  2. As a source of true information about processes and the general system.
-///  3. As an administrative tool for managing other processes (such as setting
-///     LSM labels).
-///
-/// libpathrs uses `/proc` internally for the first purpose and many libpathrs
-/// users use `/proc` for all three. As such, it is not sufficient that
-/// operations on `/proc` paths do not escape the `/proc` filesystem -- it is
-/// absolutely critical that operations through `/proc` operate **on the exact
-/// subpath that the caller requested**.
-///
-/// This might seem like an esoteric concern, but there have been several
-/// security vulnerabilities where a maliciously configured `/proc` could be
-/// used to trick administrative processes into doing unexpected operations (for
-/// example, [CVE-2019-16884][] and [CVE-2019-19921][]). See [this
-/// video][lca2020] for a longer explanation of the many other issues that
-/// `/proc`-based checking is needed to protect against and [this other
-/// video][lpc2022] for some other procfs challenges libpathrs has to contend
-/// with.
-///
-/// It should be noted that there is interest in Linux upstream to block certain
-/// classes of procfs overmounts entirely. Linux 6.12 notably introduced
-/// [several restrictions on such mounts][linux612-procfs-overmounts], [with
-/// plans to eventually block most-if-not-all overmounts inside
-/// `/proc/self`][lwn-procfs-overmounts]. `ProcfsHandle` is still useful for
-/// older kernels, as well as verifying that there aren't any tricky overmounts
-/// anywhere else in the procfs path (such as on top of `/proc/self`).
-///
-/// NOTE: Users of `ProcfsHandle` should be aware that sometimes `/proc`
-/// overmounting is a feature -- tools like [lxcfs] provide better compatibility
-/// for system tools by overmounting global procfs files (notably
-/// `/proc/meminfo` and `/proc/cpuinfo` to emulate cgroup-aware support for
-/// containerisation in procfs). This means that using [`ProcfsBase::ProcRoot`]
-/// may result in errors on such systems for non-privileged users, even in the
-/// absence of an active attack. This is an intentional feature of libpathrs,
-/// but it may be unexpected. Note that (to the best of our knowledge), there
-/// are no benevolent tools which create mounts in `/proc/self` or
-/// `/proc/thread-self` (mainly due to scaling and correctness issues that would
-/// make production usage of such a tool impractical, even if such behaviour may
-/// be desirable). As a result, we would only expect [`ProcfsBase::ProcSelf`]
-/// and [`ProcfsBase::ProcThreadSelf`] operations to produce errors when you are
-/// actually being attacked.
-///
-/// [cve-2019-16884]: https://nvd.nist.gov/vuln/detail/CVE-2019-16884
-/// [cve-2019-19921]: https://nvd.nist.gov/vuln/detail/CVE-2019-19921
-/// [lca2020]: https://youtu.be/tGseJW_uBB8
-/// [lpc2022]: https://youtu.be/y1PaBzxwRWQ
-/// [lxcfs]: https://github.com/lxc/lxcfs
-/// [linux612-procfs-overmounts]: https://lore.kernel.org/all/20240806-work-procfs-v1-0-fb04e1d09f0c@kernel.org/
-/// [lwn-procfs-overmounts]: https://lwn.net/Articles/934460/
-#[derive(Debug)]
-pub struct ProcfsHandle {
-    inner: MaybeOwnedFd<'static, OwnedFd>,
-    mnt_id: u64,
-    is_subset: bool,
-    is_detached: bool,
-    pub(crate) resolver: ProcfsResolver,
+/// Most users should just use [`ProcfsHandle::new`] or the default
+/// configuration of [`ProcfsHandleBuilder`], as it provides the safest
+/// configuration without performance penalties for most users.
+#[derive(Clone, Debug)]
+pub struct ProcfsHandleBuilder {
+    subset_pid: bool,
 }
 
 // MSRV(1.70): Use std::sync::OnceLock.
 static CACHED_PROCFS_HANDLE: OnceLock<OwnedFd> = OnceLock::new();
 
-// TODO: Implement Into<OwnedFd> or AsFd? We (no longer) provide a global
-// handle, so the previous concerns about someone dup2-ing over the handle fd
-// are not really that relevant anymore. On the other hand, providing the
-// underlying file descriptor can easily lead to attacks.
+impl Default for ProcfsHandleBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-impl ProcfsHandle {
-    // This is part of Linux's ABI.
-    const PROC_ROOT_INO: u64 = 1;
-
-    fn as_fd(&self) -> BorrowedFd<'_> {
-        self.inner.as_fd()
+impl ProcfsHandleBuilder {
+    /// Construct a new [`ProcfsHandleBuilder`] with the recommended
+    /// configuration.
+    #[inline]
+    pub fn new() -> Self {
+        Self { subset_pid: true }
     }
 
-    pub(crate) fn as_raw_procfs(&self) -> RawProcfsRoot<'_> {
-        RawProcfsRoot::UnsafeFd(self.as_fd())
-    }
+    // TODO: use_cached() -- allow users to control whether they get a cached
+    // handle (if it is cacheable).
 
-    /// Create a new `fsopen(2)`-based [`ProcfsHandle`]. This handle is safe
-    /// against racing attackers changing the mount table and is guaranteed to
-    /// have no overmounts because it is a brand-new procfs.
-    pub(crate) fn new_fsopen(subset: bool) -> Result<Self, Error> {
-        let sfd = syscalls::fsopen("proc", FsOpenFlags::FSOPEN_CLOEXEC).map_err(|err| {
-            ErrorImpl::RawOsError {
-                operation: "create procfs suberblock".into(),
-                source: err,
-            }
-        })?;
+    // TODO: allow_global() -- allow users to control whether they want to allow
+    // the usage of the global (non-detached) "/proc" as a final fallback.
 
-        if subset {
-            // Try to configure hidepid=ptraceable,subset=pid if possible, but
-            // ignore errors.
-            let _ = syscalls::fsconfig_set_string(&sfd, "hidepid", "ptraceable");
-            let _ = syscalls::fsconfig_set_string(&sfd, "subset", "pid");
-        }
-
-        syscalls::fsconfig_create(&sfd).map_err(|err| ErrorImpl::RawOsError {
-            operation: "instantiate procfs superblock".into(),
-            source: err,
-        })?;
-
-        syscalls::fsmount(
-            &sfd,
-            FsMountFlags::FSMOUNT_CLOEXEC,
-            MountAttrFlags::MOUNT_ATTR_NODEV
-                | MountAttrFlags::MOUNT_ATTR_NOEXEC
-                | MountAttrFlags::MOUNT_ATTR_NOSUID,
-        )
-        .map_err(|err| {
-            ErrorImpl::RawOsError {
-                operation: "mount new private procfs".into(),
-                source: err,
-            }
-            .into()
-        })
-        // NOTE: try_from_fd checks this is an actual procfs root.
-        .and_then(Self::try_from_fd)
-    }
-
-    /// Create a new `open_tree(2)`-based [`ProcfsHandle`]. This handle is
-    /// guaranteed to be safe against racing attackers, and will not have
-    /// overmounts unless `flags` contains `OpenTreeFlags::AT_RECURSIVE`.
-    pub(crate) fn new_open_tree(flags: OpenTreeFlags) -> Result<Self, Error> {
-        syscalls::open_tree(
-            syscalls::BADFD,
-            "/proc",
-            OpenTreeFlags::OPEN_TREE_CLONE | flags,
-        )
-        .map_err(|err| {
-            ErrorImpl::RawOsError {
-                operation: "create private /proc bind-mount".into(),
-                source: err,
-            }
-            .into()
-        })
-        // NOTE: try_from_fd checks this is an actual procfs root.
-        .and_then(Self::try_from_fd)
-    }
-
-    /// Create a plain `open(2)`-style [`ProcfsHandle`].
+    /// Specify whether to try to set `subset=pid` on the [`ProcfsHandle`].
     ///
-    /// This handle is NOT safe against racing attackers and overmounts.
-    pub(crate) fn new_unsafe_open() -> Result<Self, Error> {
-        syscalls::openat(
-            syscalls::BADFD,
-            "/proc",
-            OpenFlags::O_PATH | OpenFlags::O_DIRECTORY,
-            0,
-        )
-        .map_err(|err| {
-            ErrorImpl::RawOsError {
-                operation: "open /proc handle".into(),
-                source: err,
-            }
-            .into()
-        })
-        // NOTE: try_from_fd checks this is an actual procfs root.
-        .and_then(Self::try_from_fd)
+    /// `subset=pid` (available since Linux 5.8) disables all global procfs
+    /// files (the vast majority of which are the main causes for concern if an
+    /// attacker can write to them). Only [`ProcfsHandle`] instances with
+    /// `subset=pid` configured can be cached (in addition to some other
+    /// requirements).
+    ///
+    /// As a result, leaking the file descriptor of a [`ProcfsHandle`] with
+    /// `subset=pid` *disabled* is **very** dangerous and so this method should
+    /// be used sparingly -- ideally only temporarily by users which need to do
+    /// a series of operations on global procfs files (such as sysctls).
+    ///
+    /// Most users can just use [`ProcfsHandle::new`] and then do operations on
+    /// [`ProcfsBase::ProcRoot`]. In this case, a no-`subset=pid`
+    /// [`ProcfsHandle`] will be created internally and will only be used *for
+    /// that operation*, reducing the risk of leaks.
+    #[inline]
+    pub fn subset_pid(mut self, subset_pid: bool) -> Self {
+        self.set_subset_pid(subset_pid);
+        self
     }
 
-    /// Create a new handle that references a safe `/proc`.
+    /// Setter form of [`ProcfsHandleBuilder::subset_pid`].
+    #[inline]
+    pub fn set_subset_pid(&mut self, subset_pid: bool) -> &mut Self {
+        self.subset_pid = subset_pid;
+        self
+    }
+
+    /// Do not require any restrictions for the procfs handle.
+    ///
+    /// Unlike standalone methods for each configuration setting of
+    /// [`ProcfsHandle`], this method will always clear all restrictions
+    /// supported by [`ProcfsHandleBuilder`].
+    #[inline]
+    pub fn unmasked(mut self) -> Self {
+        self.set_unmasked();
+        self
+    }
+
+    /// Setter form of [`ProcfsHandleBuilder::unmasked`].
+    #[inline]
+    pub fn set_unmasked(&mut self) -> &mut Self {
+        self.subset_pid = false;
+        self
+    }
+
+    /// Returns whether this [`ProcfsHandleBuilder`] will request a cacheable
+    /// [`ProcfsHandle`].
+    #[inline]
+    fn is_cache_friendly(&self) -> bool {
+        self.subset_pid
+    }
+
+    /// Build the [`ProcfsHandle`].
     ///
     /// For privileged users (those that have the ability to create mounts) on
     /// new enough kernels (Linux 5.2 or later), this created handle will be
-    /// safe racing attackers that . If your `/proc` does not have locked
-    /// overmounts (which is the case for most users except those running inside
-    /// a nested container with user namespaces) then the handle will also be
-    /// completely safe against overmounts.
+    /// safe against racing attackers that have the ability to configure the
+    /// mount table.
     ///
-    /// For kernels with support for `subset=pid`, [`ProcfsHandle::new`] may
-    /// return a cached copy of [`ProcfsHandle`]. This means that you should not
-    /// modify or close the underlying file descriptor for a [`ProcfsHandle`]
-    /// returned by this method.
+    /// For unprivileged users (or those on pre-5.2 kernels), this handle will
+    /// only be safe against attackers that cannot actively modify the mount
+    /// table while we are operating on it (which is usually more than enough
+    /// protection -- after all, most attackers cannot mount anything in the
+    /// first place -- but it is a notable limitation).
     ///
-    /// For the userns-with-locked-overmounts case, on slightly newer kernels
-    /// (those with `STATX_MNT_ID` support -- Linux 5.8 or later)
-    /// [`ProcfsHandle::open`] and [`ProcfsHandle::open_follow`] this handle
-    /// will be safe against overmounts.
+    /// # Caching
     ///
-    /// For unprivileged users, this handle will not be safe against a racing
-    /// attacker that can modify the mount table while doing operations.
-    /// However, the Linux 5.8-or-later `STATX_MNT_ID` protections will protect
-    /// against static overmounts created by an attacker that cannot modify the
-    /// mount table while these operations are running.
+    /// For some configurations (namely, with `subset=pid` enabled),
+    /// [`ProcfsHandleBuilder`] will internally cache the created
+    /// [`ProcfsHandle`] and future requests with the same configuration will
+    /// return a copy of the cached [`ProcfsHandle`].
+    ///
+    /// As the cached [`ProcfsHandle`] will always have the same file
+    /// descriptor, this means that you should not modify or close the
+    /// underlying file descriptor for a [`ProcfsHandle`] returned by this
+    /// method.
     ///
     /// # Panics
     ///
     /// If the cached [`ProcfsHandle`] has been invalidated, this method will
     /// panic as this is not a state that should be possible to reach in regular
     /// program execution.
-    pub fn new() -> Result<Self, Error> {
-        // If there is already a cached filesystem available, use that.
-        if let Some(fd) = CACHED_PROCFS_HANDLE.get() {
-            let procfs = Self::try_from_maybe_owned_fd(fd.as_fd())
-                .expect("cached procfs handle should be valid");
-            debug_assert!(
-                procfs.is_subset && procfs.is_detached,
-                "cached procfs handle should be subset=pid and detached"
-            );
-            return Ok(procfs);
+    pub fn build(self) -> Result<ProcfsHandle, Error> {
+        // MSRV(1.85): Use let chain here (Rust 2024).
+        if self.is_cache_friendly() {
+            // If there is already a cached filesystem available, use that.
+            if let Some(fd) = CACHED_PROCFS_HANDLE.get() {
+                let procfs = ProcfsHandle::try_from_borrowed_fd(fd.as_fd())
+                    .expect("cached procfs handle should be valid");
+                debug_assert!(
+                    procfs.is_subset && procfs.is_detached,
+                    "cached procfs handle should be subset=pid and detached"
+                );
+                return Ok(procfs);
+            }
         }
 
-        let procfs = Self::new_fsopen(true)
-            .or_else(|_| Self::new_open_tree(OpenTreeFlags::empty()))
-            .or_else(|_| Self::new_open_tree(OpenTreeFlags::AT_RECURSIVE))
-            .or_else(|_| Self::new_unsafe_open())
+        let procfs = ProcfsHandle::new_fsopen(self.subset_pid)
+            .or_else(|_| ProcfsHandle::new_open_tree(OpenTreeFlags::empty()))
+            .or_else(|_| ProcfsHandle::new_open_tree(OpenTreeFlags::AT_RECURSIVE))
+            .or_else(|_| ProcfsHandle::new_unsafe_open())
             .wrap("get safe procfs handle")?;
+
+        // TODO: Add a way to require/verify that the requested properties will
+        // be set, and then check them here before returning.
 
         match procfs {
             ProcfsHandle {
@@ -399,33 +329,62 @@ impl ProcfsHandle {
                 };
                 // Do not return an error here -- it should be impossible for
                 // this validation to fail after we get here.
-                Ok(Self::try_from_maybe_owned_fd(cached_inner)
+                Ok(ProcfsHandle::try_from_maybe_owned_fd(cached_inner)
                     .expect("cached procfs handle should be valid"))
             }
             procfs => Ok(procfs),
         }
     }
+}
 
-    /// Create a new unrestricted handle to `/proc`.
+/// A borrowed version of [`ProcfsHandle`].
+///
+/// > NOTE: Actually, [`ProcfsHandle`] is an alias to this, but from an API
+/// > perspective it's probably easier to think of [`ProcfsHandleRef`] as being
+/// > derivative of [`ProcfsHandle`] -- as most users will probably use
+/// > [`ProcfsHandle::new`].
+#[derive(Debug)]
+pub struct ProcfsHandleRef<'fd> {
+    inner: MaybeOwnedFd<'fd, OwnedFd>,
+    mnt_id: u64,
+    is_subset: bool,
+    is_detached: bool,
+    pub(crate) resolver: ProcfsResolver,
+}
+
+/// > **NOTE**: Take great care when using this file descriptor -- it is very
+/// > easy to get attacked with a malicious procfs mount when using the file
+/// > descriptor directly. This should only be used in circumstances where you
+/// > cannot achieve your goal using `libpathrs` (in which case, please open an
+/// > issue to help us improve the API).
+impl<'fd> AsFd for ProcfsHandleRef<'fd> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.inner.as_fd()
+    }
+}
+
+impl<'fd> ProcfsHandleRef<'fd> {
+    // This is part of Linux's ABI.
+    const PROC_ROOT_INO: u64 = 1;
+
+    /// Convert an owned [`ProcfsHandle`] to the underlying [`OwnedFd`].
     ///
-    /// The returned [`ProcfsHandle`] will not have `subset=pid` applied and so
-    /// will have access to global procfs files. As a result, leaking this file
-    /// descriptor is very dangerous and so this method should be used sparingly
-    /// -- ideally only temporarily by users which need to do a series of
-    /// operations on global procfs files (such as sysctls).
+    /// If the handle is internally a shared reference (i.e., it was constructed
+    /// using [`ProcfsHandle::try_from_borrowed_fd`] or is using the global
+    /// cached [`ProcfsHandle`]), this method will return `None`.
     ///
-    /// Most users can just use [`ProcfsHandle::new`] and then do operations on
-    /// [`ProcfsBase::ProcRoot`]. In this case, [`ProcfsHandle::new_unmasked`]
-    /// will be called internally and the handle will only be used for that
-    /// operation, reducing the risk of leaks.
-    pub fn new_unmasked() -> Result<Self, Error> {
-        Self::new_fsopen(false)
-            .or_else(|_| Self::new_open_tree(OpenTreeFlags::empty()))
-            .or_else(|_| Self::new_open_tree(OpenTreeFlags::AT_RECURSIVE))
-            .or_else(|_| Self::new_unsafe_open())
-            .wrap("get safe unmasked procfs handle")
-        // TODO: We should probably verify is_subset here, to avoid an infinite
-        //       loop in the ProcfsHandle::open fallback...
+    /// > **NOTE**: Take great care when using this file descriptor -- it is
+    /// > very easy to get attacked with a malicious procfs mount when using the
+    /// > file descriptor directly. This should only be used in circumstances
+    /// > where you cannot achieve your goal using `libpathrs` (in which case,
+    /// > please open an issue to help us improve the API).
+    // TODO: We probably should have a Result<OwnedFd, Self> version.
+    pub fn into_owned_fd(self) -> Option<OwnedFd> {
+        self.inner.into_owned()
+    }
+
+    pub(crate) fn as_raw_procfs(&self) -> RawProcfsRoot<'_> {
+        RawProcfsRoot::UnsafeFd(self.as_fd())
     }
 
     fn open_base(&self, base: ProcfsBase) -> Result<OwnedFd, Error> {
@@ -600,7 +559,9 @@ impl ProcfsHandle {
                     // If the lookup failed due to ENOENT, and the current
                     // procfs handle is "masked" in some way, try to create a
                     // temporary unmasked handle and retry the operation.
-                    Self::new_unmasked()
+                    ProcfsHandleBuilder::new()
+                        .unmasked()
+                        .build()
                         // Use the old error if creating a new handle failed.
                         .or(Err(err))?
                         .open(base, subpath, oflags)
@@ -643,18 +604,14 @@ impl ProcfsHandle {
         verify_is_procfs(&fd)
     }
 
-    /// Try to convert a regular [`File`] handle to a [`ProcfsHandle`]. This
-    /// method will return an error if the file handle is not actually the root
-    /// of a procfs mount.
-    pub fn try_from_fd<Fd: Into<OwnedFd>>(inner: Fd) -> Result<Self, Error> {
-        Self::try_from_maybe_owned_fd(inner.into())
+    /// Try to convert a [`BorrowedFd`] into a [`ProcfsHandle`] with the same
+    /// lifetime. This method will return an error if the file handle is not
+    /// actually the root of a procfs mount.
+    pub fn try_from_borrowed_fd<Fd: Into<BorrowedFd<'fd>>>(inner: Fd) -> Result<Self, Error> {
+        Self::try_from_maybe_owned_fd(inner.into().into())
     }
 
-    fn try_from_maybe_owned_fd<Fd: Into<MaybeOwnedFd<'static, OwnedFd>>>(
-        inner: Fd,
-    ) -> Result<Self, Error> {
-        let inner = inner.into();
-
+    fn try_from_maybe_owned_fd(inner: MaybeOwnedFd<'fd, OwnedFd>) -> Result<Self, Error> {
         // Make sure the file is actually a procfs root.
         verify_is_procfs_root(inner.as_fd())?;
 
@@ -709,6 +666,170 @@ impl ProcfsHandle {
             is_detached,
             resolver,
         })
+    }
+}
+
+/// A wrapper around a handle to `/proc` that is designed to be safe against
+/// various attacks.
+///
+/// Unlike most regular filesystems, `/proc` serves several important purposes
+/// for system administration programs:
+///
+///  1. As a mechanism for doing certain filesystem operations through
+///     `/proc/self/fd/...` (and other similar magic-links) that cannot be done
+///     by other means.
+///  2. As a source of true information about processes and the general system.
+///  3. As an administrative tool for managing other processes (such as setting
+///     LSM labels).
+///
+/// libpathrs uses `/proc` internally for the first purpose and many libpathrs
+/// users use `/proc` for all three. As such, it is not sufficient that
+/// operations on `/proc` paths do not escape the `/proc` filesystem -- it is
+/// absolutely critical that operations through `/proc` operate **on the exact
+/// subpath that the caller requested**.
+///
+/// This might seem like an esoteric concern, but there have been several
+/// security vulnerabilities where a maliciously configured `/proc` could be
+/// used to trick administrative processes into doing unexpected operations (for
+/// example, [CVE-2019-16884][] and [CVE-2019-19921][]). See [this
+/// video][lca2020] for a longer explanation of the many other issues that
+/// `/proc`-based checking is needed to protect against and [this other
+/// video][lpc2022] for some other procfs challenges libpathrs has to contend
+/// with.
+///
+/// It should be noted that there is interest in Linux upstream to block certain
+/// classes of procfs overmounts entirely. Linux 6.12 notably introduced
+/// [several restrictions on such mounts][linux612-procfs-overmounts], [with
+/// plans to eventually block most-if-not-all overmounts inside
+/// `/proc/self`][lwn-procfs-overmounts]. `ProcfsHandle` is still useful for
+/// older kernels, as well as verifying that there aren't any tricky overmounts
+/// anywhere else in the procfs path (such as on top of `/proc/self`).
+///
+/// NOTE: Users of `ProcfsHandle` should be aware that sometimes `/proc`
+/// overmounting is a feature -- tools like [lxcfs] provide better compatibility
+/// for system tools by overmounting global procfs files (notably
+/// `/proc/meminfo` and `/proc/cpuinfo` to emulate cgroup-aware support for
+/// containerisation in procfs). This means that using [`ProcfsBase::ProcRoot`]
+/// may result in errors on such systems for non-privileged users, even in the
+/// absence of an active attack. This is an intentional feature of libpathrs,
+/// but it may be unexpected. Note that (to the best of our knowledge), there
+/// are no benevolent tools which create mounts in `/proc/self` or
+/// `/proc/thread-self` (mainly due to scaling and correctness issues that would
+/// make production usage of such a tool impractical, even if such behaviour may
+/// be desirable). As a result, we would only expect [`ProcfsBase::ProcSelf`]
+/// and [`ProcfsBase::ProcThreadSelf`] operations to produce errors when you are
+/// actually being attacked.
+///
+/// [cve-2019-16884]: https://nvd.nist.gov/vuln/detail/CVE-2019-16884
+/// [cve-2019-19921]: https://nvd.nist.gov/vuln/detail/CVE-2019-19921
+/// [lca2020]: https://youtu.be/tGseJW_uBB8
+/// [lpc2022]: https://youtu.be/y1PaBzxwRWQ
+/// [lxcfs]: https://github.com/lxc/lxcfs
+/// [linux612-procfs-overmounts]: https://lore.kernel.org/all/20240806-work-procfs-v1-0-fb04e1d09f0c@kernel.org/
+/// [lwn-procfs-overmounts]: https://lwn.net/Articles/934460/
+pub type ProcfsHandle = ProcfsHandleRef<'static>;
+
+impl ProcfsHandle {
+    /// Create a new `fsopen(2)`-based [`ProcfsHandle`]. This handle is safe
+    /// against racing attackers changing the mount table and is guaranteed to
+    /// have no overmounts because it is a brand-new procfs.
+    pub(crate) fn new_fsopen(subset: bool) -> Result<Self, Error> {
+        let sfd = syscalls::fsopen("proc", FsOpenFlags::FSOPEN_CLOEXEC).map_err(|err| {
+            ErrorImpl::RawOsError {
+                operation: "create procfs suberblock".into(),
+                source: err,
+            }
+        })?;
+
+        if subset {
+            // Try to configure hidepid=ptraceable,subset=pid if possible, but
+            // ignore errors.
+            let _ = syscalls::fsconfig_set_string(&sfd, "hidepid", "ptraceable");
+            let _ = syscalls::fsconfig_set_string(&sfd, "subset", "pid");
+        }
+
+        syscalls::fsconfig_create(&sfd).map_err(|err| ErrorImpl::RawOsError {
+            operation: "instantiate procfs superblock".into(),
+            source: err,
+        })?;
+
+        syscalls::fsmount(
+            &sfd,
+            FsMountFlags::FSMOUNT_CLOEXEC,
+            MountAttrFlags::MOUNT_ATTR_NODEV
+                | MountAttrFlags::MOUNT_ATTR_NOEXEC
+                | MountAttrFlags::MOUNT_ATTR_NOSUID,
+        )
+        .map_err(|err| {
+            ErrorImpl::RawOsError {
+                operation: "mount new private procfs".into(),
+                source: err,
+            }
+            .into()
+        })
+        // NOTE: try_from_fd checks this is an actual procfs root.
+        .and_then(Self::try_from_fd)
+    }
+
+    /// Create a new `open_tree(2)`-based [`ProcfsHandle`]. This handle is
+    /// guaranteed to be safe against racing attackers, and will not have
+    /// overmounts unless `flags` contains `OpenTreeFlags::AT_RECURSIVE`.
+    pub(crate) fn new_open_tree(flags: OpenTreeFlags) -> Result<Self, Error> {
+        syscalls::open_tree(
+            syscalls::BADFD,
+            "/proc",
+            OpenTreeFlags::OPEN_TREE_CLONE | flags,
+        )
+        .map_err(|err| {
+            ErrorImpl::RawOsError {
+                operation: "create private /proc bind-mount".into(),
+                source: err,
+            }
+            .into()
+        })
+        // NOTE: try_from_fd checks this is an actual procfs root.
+        .and_then(Self::try_from_fd)
+    }
+
+    /// Create a plain `open(2)`-style [`ProcfsHandle`].
+    ///
+    /// This handle is NOT safe against racing attackers and overmounts.
+    pub(crate) fn new_unsafe_open() -> Result<Self, Error> {
+        syscalls::openat(
+            syscalls::BADFD,
+            "/proc",
+            OpenFlags::O_PATH | OpenFlags::O_DIRECTORY,
+            0,
+        )
+        .map_err(|err| {
+            ErrorImpl::RawOsError {
+                operation: "open /proc handle".into(),
+                source: err,
+            }
+            .into()
+        })
+        // NOTE: try_from_fd checks this is an actual procfs root.
+        .and_then(Self::try_from_fd)
+    }
+
+    /// Create a new handle that references a safe `/proc`.
+    ///
+    /// This method is just short-hand for:
+    ///
+    /// ```rust
+    /// # use pathrs::procfs::ProcfsHandleBuilder;
+    /// let procfs = ProcfsHandleBuilder::new().build()?;
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
+    pub fn new() -> Result<Self, Error> {
+        ProcfsHandleBuilder::new().subset_pid(true).build()
+    }
+
+    /// Try to convert a regular [`File`] handle to a [`ProcfsHandle`]. This
+    /// method will return an error if the file handle is not actually the root
+    /// of a procfs mount.
+    pub fn try_from_fd<Fd: Into<OwnedFd>>(inner: Fd) -> Result<Self, Error> {
+        Self::try_from_maybe_owned_fd(inner.into().into())
     }
 }
 
@@ -820,6 +941,56 @@ mod tests {
     }
 
     #[test]
+    fn builder_props() {
+        assert_eq!(
+            ProcfsHandleBuilder::new().subset_pid,
+            true,
+            "ProcfsHandleBuilder::new() should have subset_pid = true"
+        );
+        assert_eq!(
+            ProcfsHandleBuilder::default().subset_pid,
+            true,
+            "ProcfsHandleBuilder::default() should have subset_pid = true"
+        );
+
+        assert_eq!(
+            ProcfsHandleBuilder::new().subset_pid(true).subset_pid,
+            true,
+            "ProcfsHandleBuilder::subset_pid(true) should give subset_pid = true"
+        );
+        let mut builder = ProcfsHandleBuilder::new();
+        builder.set_subset_pid(true);
+        assert_eq!(
+            builder.subset_pid, true,
+            "ProcfsHandleBuilder::set_subset_pid(true) should give subset_pid = true"
+        );
+
+        assert_eq!(
+            ProcfsHandleBuilder::new().subset_pid(false).subset_pid,
+            false,
+            "ProcfsHandleBuilder::subset_pid(true) should give subset_pid = false"
+        );
+        let mut builder = ProcfsHandleBuilder::new();
+        builder.set_subset_pid(false);
+        assert_eq!(
+            builder.subset_pid, false,
+            "ProcfsHandleBuilder::set_subset_pid(false) should give subset_pid = false"
+        );
+
+        assert_eq!(
+            ProcfsHandleBuilder::new().unmasked().subset_pid,
+            false,
+            "ProcfsHandleBuilder::unmasked() should have subset_pid = false"
+        );
+        let mut builder = ProcfsHandleBuilder::new();
+        builder.set_unmasked();
+        assert_eq!(
+            builder.subset_pid, false,
+            "ProcfsHandleBuilder::set_unmasked() should have subset_pid = false"
+        );
+    }
+
+    #[test]
     fn new() {
         let procfs = ProcfsHandle::new();
         assert!(
@@ -829,9 +1000,20 @@ mod tests {
     }
 
     #[test]
-    fn new_unmasked() {
-        let procfs =
-            ProcfsHandle::new_unmasked().expect("should be able to get unmasked procfs handle");
+    fn builder_build() {
+        let procfs = ProcfsHandleBuilder::new().build();
+        assert!(
+            procfs.is_ok(),
+            "new procfs handle should succeed, got {procfs:?}",
+        );
+    }
+
+    #[test]
+    fn builder_unmasked_build() {
+        let procfs = ProcfsHandleBuilder::new()
+            .unmasked()
+            .build()
+            .expect("should be able to get unmasked procfs handle");
         assert!(
             !procfs.is_subset,
             "new unmasked procfs handle should have !subset=pid",
@@ -839,11 +1021,15 @@ mod tests {
     }
 
     #[test]
-    fn new_unmasked_not_cached() {
-        let procfs1 =
-            ProcfsHandle::new_unmasked().expect("should be able to get unmasked procfs handle");
-        let procfs2 =
-            ProcfsHandle::new_unmasked().expect("should be able to get unmasked procfs handle");
+    fn builder_unmasked_build_not_cached() {
+        let procfs1 = ProcfsHandleBuilder::new()
+            .unmasked()
+            .build()
+            .expect("should be able to get unmasked procfs handle");
+        let procfs2 = ProcfsHandleBuilder::new()
+            .unmasked()
+            .build()
+            .expect("should be able to get unmasked procfs handle");
 
         assert!(
             !procfs1.is_subset,
@@ -945,6 +1131,49 @@ mod tests {
 
         let procfs1 = ProcfsHandle::new().expect("get procfs handle");
         let procfs2 = ProcfsHandle::new().expect("get procfs handle");
+
+        assert_eq!(
+            procfs1.is_subset, procfs2.is_subset,
+            "subset=pid should be the same for both handles"
+        );
+        assert_eq!(
+            procfs1.is_detached, procfs2.is_detached,
+            "is_detached should be the same for both handles"
+        );
+        if procfs1.is_subset && procfs1.is_detached {
+            assert_eq!(
+                procfs1.as_fd().as_raw_fd(),
+                procfs2.as_fd().as_raw_fd(),
+                "subset=pid handles should be cached and thus have the same fd"
+            );
+        } else {
+            assert_ne!(
+                procfs1.as_fd().as_raw_fd(),
+                procfs2.as_fd().as_raw_fd(),
+                "!subset=pid handles should NOT be cached and thus have different fds"
+            );
+        }
+    }
+
+    #[test]
+    fn builder_build_cached() {
+        // Make sure the cache is filled (with nextest, each test is a separate
+        // process and so gets a new fsopen(2) for the first ProcfsHandle::new
+        // invocation).
+        std::thread::spawn(|| {
+            let _ = ProcfsHandleBuilder::new()
+                .build()
+                .expect("should be able to get ProcfsHandle in thread");
+        })
+        .join()
+        .expect("ProcfsHandle::new thread should succeed");
+
+        let procfs1 = ProcfsHandleBuilder::new()
+            .build()
+            .expect("get procfs handle");
+        let procfs2 = ProcfsHandleBuilder::new()
+            .build()
+            .expect("get procfs handle");
 
         assert_eq!(
             procfs1.is_subset, procfs2.is_subset,

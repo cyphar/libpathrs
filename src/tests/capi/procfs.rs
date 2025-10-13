@@ -18,7 +18,10 @@
  */
 
 use crate::{
-    capi::{self, procfs::CProcfsBase},
+    capi::{
+        self,
+        procfs::{CProcfsBase, ProcfsOpenFlags, ProcfsOpenHow},
+    },
     flags::OpenFlags,
     procfs::ProcfsBase,
     tests::{
@@ -29,12 +32,11 @@ use crate::{
 
 use std::{
     fs::File,
+    mem,
+    os::unix::io::{AsFd, OwnedFd},
     path::{Path, PathBuf},
 };
 
-// NOTE: The C API creates its own copy of the procfs handle internally
-// ProcfsHandle::new(), and does not provide any way of having your own procfs
-// handle.
 #[derive(Debug)]
 pub struct CapiProcfsHandle;
 
@@ -76,6 +78,104 @@ impl CapiProcfsHandle {
 }
 
 impl ProcfsHandleImpl for CapiProcfsHandle {
+    type Error = CapiError;
+
+    fn open_follow(
+        &self,
+        base: ProcfsBase,
+        subpath: impl AsRef<Path>,
+        oflags: impl Into<OpenFlags>,
+    ) -> Result<File, Self::Error> {
+        self.open_follow(base, subpath, oflags)
+    }
+
+    fn open(
+        &self,
+        base: ProcfsBase,
+        subpath: impl AsRef<Path>,
+        oflags: impl Into<OpenFlags>,
+    ) -> Result<File, Self::Error> {
+        self.open(base, subpath, oflags)
+    }
+
+    fn readlink(
+        &self,
+        base: ProcfsBase,
+        subpath: impl AsRef<Path>,
+    ) -> Result<PathBuf, Self::Error> {
+        self.readlink(base, subpath)
+    }
+}
+
+#[derive(Debug)]
+pub struct CapiProcfsHandleFd(pub OwnedFd);
+
+impl From<CapiProcfsHandleFd> for OwnedFd {
+    fn from(procfs: CapiProcfsHandleFd) -> Self {
+        procfs.0
+    }
+}
+
+impl CapiProcfsHandleFd {
+    pub fn new_unmasked() -> Result<Self, CapiError> {
+        capi_utils::call_capi_fd(|| unsafe {
+            let how = ProcfsOpenHow {
+                flags: ProcfsOpenFlags::PATHRS_PROCFS_NEW_UNMASKED,
+            };
+
+            capi::procfs::pathrs_procfs_open(&how as *const _, mem::size_of::<ProcfsOpenHow>())
+        })
+        .map(CapiProcfsHandleFd)
+    }
+
+    fn open_follow(
+        &self,
+        base: ProcfsBase,
+        subpath: impl AsRef<Path>,
+        oflags: impl Into<OpenFlags>,
+    ) -> Result<File, CapiError> {
+        let base: CProcfsBase = base.into();
+        let subpath = capi_utils::path_to_cstring(subpath);
+        let oflags = oflags.into();
+
+        capi_utils::call_capi_fd(|| unsafe {
+            capi::procfs::pathrs_proc_openat(
+                self.0.as_fd().into(),
+                base,
+                subpath.as_ptr(),
+                oflags.bits(),
+            )
+        })
+        .map(File::from)
+    }
+
+    fn open(
+        &self,
+        base: ProcfsBase,
+        subpath: impl AsRef<Path>,
+        oflags: impl Into<OpenFlags>,
+    ) -> Result<File, CapiError> {
+        // The C API exposes ProcfsHandle::open using O_NOFOLLOW.
+        self.open_follow(base, subpath, oflags.into() | OpenFlags::O_NOFOLLOW)
+    }
+
+    fn readlink(&self, base: ProcfsBase, subpath: impl AsRef<Path>) -> Result<PathBuf, CapiError> {
+        let base: CProcfsBase = base.into();
+        let subpath = capi_utils::path_to_cstring(subpath);
+
+        capi_utils::call_capi_readlink(|linkbuf, linkbuf_size| unsafe {
+            capi::procfs::pathrs_proc_readlinkat(
+                self.0.as_fd().into(),
+                base,
+                subpath.as_ptr(),
+                linkbuf,
+                linkbuf_size,
+            )
+        })
+    }
+}
+
+impl ProcfsHandleImpl for CapiProcfsHandleFd {
     type Error = CapiError;
 
     fn open_follow(

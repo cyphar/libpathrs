@@ -34,6 +34,21 @@ use libc::{c_char, c_int};
 use once_cell::sync::Lazy;
 use rand::{self, Rng};
 
+/// The smallest return value which cannot be a libpathrs error ID.
+///
+/// While all libpathrs error IDs are negative numbers, some functions may
+/// return a negative number in a success scenario. This macro defines the high
+/// range end of the numbers that can be used as an error ID. Don't use this
+/// value directly, instead use `IS_PATHRS_ERR(ret)` to check if a returned
+/// value is an error or not.
+///
+/// NOTE: This is used internally by libpathrs. You should avoid using this
+/// macro if possible.
+// We avoid using anything in -4096..0 to avoid users interpreting the return
+// value as an -errno (at the moment, the largest errno is ~150 but the kernel
+// currently reserves 4096 values as possible ERR_PTR values).
+pub const __PATHRS_MAX_ERR_VALUE: CReturn = -4096;
+
 // TODO: Switch this to using a slab or similar structure, possibly using a less
 // heavy-weight lock?
 // MSRV(1.80): Use LazyLock.
@@ -42,13 +57,10 @@ static ERROR_MAP: Lazy<Mutex<HashMap<CReturn, Error>>> = Lazy::new(|| Mutex::new
 pub(crate) fn store_error(err: Error) -> CReturn {
     let mut err_map = ERROR_MAP.lock().unwrap();
 
-    // Try to find a negative error value we can use. We avoid using anything in
-    // 0..4096 to avoid users interpreting the return value as an -errno (at the
-    // moment, the largest errno is ~150 but the kernel currently reserves
-    // 4096 values as possible ERR_PTR values).
+    // Try to find a negative error value we can use.
     let mut g = rand::rng();
     loop {
-        let idx = g.random_range(CReturn::MIN..=-4096);
+        let idx = g.random_range(CReturn::MIN..__PATHRS_MAX_ERR_VALUE);
         match err_map.entry(idx) {
             HashMapEntry::Occupied(_) => continue,
             HashMapEntry::Vacant(slot) => {
@@ -134,7 +146,7 @@ impl Drop for CError {
 ///
 /// ```c
 /// fd = pathrs_inroot_resolve(root, "/foo/bar");
-/// if (fd < 0) {
+/// if (IS_PATHRS_ERR(fd)) {
 ///     // fd is an error id
 ///     pathrs_error_t *error = pathrs_errorinfo(fd);
 ///     // ... print the error information ...

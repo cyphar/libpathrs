@@ -64,13 +64,13 @@ void *worker(void *_arg) {
 	pthread_barrier_wait(arg->barrier);
 
 	handlefd = pathrs_inroot_resolve(arg->rootfd, arg->path);
-	if (handlefd < 0) {
+	if (IS_PATHRS_ERR(handlefd)) {
 		liberr = handlefd;
 		goto err;
 	}
 
 	fd = pathrs_reopen(handlefd, O_RDONLY);
-	if (fd < 0) {
+	if (IS_PATHRS_ERR(fd)) {
 		liberr = fd;
 		goto err;
 	}
@@ -94,7 +94,7 @@ void *worker(void *_arg) {
 	}
 
 err:
-	if (liberr < 0) {
+	if (IS_PATHRS_ERR(liberr)) {
 		pathrs_error_t *error = pathrs_errorinfo(liberr);
 		print_error(error);
 		pathrs_errorinfo_free(error);
@@ -128,7 +128,7 @@ int main(int argc, char **argv)
 	path = argv[2];
 
 	rootfd = pathrs_open_root(root_path);
-	if (rootfd < 0) {
+	if (IS_PATHRS_ERR(rootfd)) {
 		liberr = rootfd;
 		goto err;
 	}
@@ -150,7 +150,7 @@ int main(int argc, char **argv)
 		pthread_join(threads[i], NULL);
 
 err:
-	if (liberr < 0) {
+	if (IS_PATHRS_ERR(liberr)) {
 		pathrs_error_t *error = pathrs_errorinfo(liberr);
 		print_error(error);
 		pathrs_errorinfo_free(error);

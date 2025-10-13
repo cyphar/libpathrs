@@ -18,11 +18,11 @@
  */
 
 #[cfg(feature = "capi")]
-use crate::tests::capi::CapiProcfsHandle;
+use crate::tests::capi::{CapiProcfsHandle, CapiProcfsHandleFd};
 use crate::{
     error::ErrorKind,
     flags::OpenFlags,
-    procfs::{ProcfsBase, ProcfsHandle},
+    procfs::{ProcfsBase, ProcfsHandle, ProcfsHandleBuilder},
     resolvers::procfs::ProcfsResolver,
     syscalls,
 };
@@ -114,7 +114,11 @@ macro_rules! procfs_tests {
         procfs_tests! {
             $(#[$meta])*
             @rust-fn [<new_unmasked_ $test_name>]
-                { ProcfsHandle::new_unmasked() }.$procfs_op($($args)*) => (over_mounts: false, $($tt)*);
+                {
+                    ProcfsHandleBuilder::new()
+                        .unmasked()
+                        .build()
+                }.$procfs_op($($args)*) => (over_mounts: false, $($tt)*);
         }
 
         procfs_tests! {
@@ -165,6 +169,11 @@ macro_rules! procfs_tests {
             $(#[$meta])*
             @capi-fn [<capi_ $test_name>]
                 { Ok(CapiProcfsHandle) }.$procfs_op($($args)*) => (over_mounts: false, $($tt)*);
+        }
+        procfs_tests! {
+            $(#[$meta])*
+            @capi-fn [<capi_unmasked_ $test_name>]
+                { CapiProcfsHandleFd::new_unmasked() }.$procfs_op($($args)*) => (over_mounts: false, $($tt)*);
         }
     };
 

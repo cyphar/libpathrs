@@ -45,15 +45,18 @@ def sysctl_subpath(name: str) -> str:
     return "sys/" + name.replace(".", "/")
 
 
+PROCFS = pathrs.ProcfsHandle.new(unmasked=True)
+
+
 def sysctl_write(name: str, value: str) -> None:
     subpath = sysctl_subpath(name)
-    with pathrs.proc_open(pathrs.PROC_ROOT, subpath, "w") as f:
+    with PROCFS.open(pathrs.PROC_ROOT, subpath, "w") as f:
         f.write(value)
 
 
 def sysctl_read(name: str, *, value_only: bool = False) -> None:
     subpath = sysctl_subpath(name)
-    with pathrs.proc_open(pathrs.PROC_ROOT, subpath, "r") as f:
+    with PROCFS.open(pathrs.PROC_ROOT, subpath, "r") as f:
         value = chomp(f.read())
         if value_only:
             print(f"{value}")

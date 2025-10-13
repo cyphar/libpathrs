@@ -44,7 +44,7 @@ def load_hdr(ffi: cffi.FFI, hdr_path: str) -> None:
     #  * "#define FOO(n) ..." lines (function-style macros are not supported).
     #  * Empty-value "#define FOO" lines (empty macros are not supported)
     # TODO: We probably should support multi-line macros.
-    hdr = re.sub(r"^#\s*define\b\s*\w*\s*(\(.*|)$", "", hdr, flags=re.MULTILINE)
+    hdr = re.sub(r"^#\s*define\b\s*\w*(\(.*|)$", "", hdr, flags=re.MULTILINE)
 
     # Replace each struct-like body that has __CBINDGEN_ALIGNED before it,
     # remove the __CBINDGEN_ALIGNED and add "...;" as the last field in the

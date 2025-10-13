@@ -18,9 +18,10 @@ GO ?= go
 
 GOMOD_FILES := go.mod go.sum
 
-cat: cat.go $(GOMOD_FILES)
+%: %.go $(GOMOD_FILES)
 	$(GO) build -o $@ $<
 
 .PHONY: smoke-test
-smoke-test: cat
+smoke-test: cat sysctl
 	./cat . ../../cat.go &>/dev/null
+	./sysctl kernel.hostname kernel.overflowuid kernel.overflowgid

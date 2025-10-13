@@ -36,25 +36,25 @@ int get_my_fd(void)
 		fd = -EBADF;
 
 	root = pathrs_open_root(root_path);
-	if (root < 0) {
+	if (IS_PATHRS_ERR(root)) {
 		liberr = root;
 		goto err;
 	}
 
 	handle = pathrs_inroot_resolve(root, unsafe_path);
-	if (handle < 0) {
+	if (IS_PATHRS_ERR(handle)) {
 		liberr = handle;
 		goto err;
 	}
 
 	fd = pathrs_reopen(handle, O_RDONLY);
-	if (fd < 0) {
+	if (IS_PATHRS_ERR(fd)) {
 		liberr = fd;
 		goto err;
 	}
 
 err:
-	if (liberr < 0) {
+	if (IS_PATHRS_ERR(liberr)) {
 		pathrs_error_t *error = pathrs_errorinfo(liberr);
 		fprintf(stderr, "Uh-oh: %s (errno=%d)\n", error->description, error->saved_errno);
 		pathrs_errorinfo_free(error);
@@ -110,7 +110,7 @@ int get_self_exe(void)
 {
     /* This follows the trailing magic-link! */
     int fd = pathrs_proc_open(PATHRS_PROC_SELF, "exe", O_PATH);
-    if (fd < 0) {
+    if (IS_PATHRS_ERR(fd)) {
         pathrs_error_t *error = pathrs_errorinfo(fd);
         /* ... print the error ... */
         pathrs_errorinfo_free(error);
@@ -134,7 +134,7 @@ int write_apparmor_label(const char *label)
      */
     fd = pathrs_proc_open(PATHRS_PROC_SELF, "attr/apparmor/exec",
                           O_WRONLY|O_NOFOLLOW);
-    if (fd < 0) {
+    if (IS_PATHRS_ERR(fd)) {
         pathrs_error_t *error = pathrs_errorinfo(fd);
         /* ... print the error ... */
         pathrs_errorinfo_free(error);
@@ -171,7 +171,7 @@ char *get_unsafe_path(int fd)
     for (;;) {
         int len = pathrs_proc_readlink(PATHRS_PROC_THREAD_SELF,
                                        fdpath, linkbuf, linkbuf_size);
-        if (len < 0) {
+        if (IS_PATHRS_ERR(len)) {
             pathrs_error_t *error = pathrs_errorinfo(fd);
             /* ... print the error ... */
             pathrs_errorinfo_free(error);
@@ -224,6 +224,7 @@ what they are used for.
 | [`open_tree(2)`][]    | Linux 5.2 (2019-07-07)  | Used to create a private procfs handle when operating on `/proc` (this is a copy of the host `/proc` -- in most cases this will also strip any overmounts). Requires `CAP_SYS_ADMIN` privileges. | Open a regular handle to `/proc`. This can lead to certain race attacks if the attacker can dynamically create mounts. |
 | [`fsopen(2)`][]       | Linux 5.2 (2019-07-07)  | Used to create a private procfs handle when operating on `/proc` (with a completely fresh copy of `/proc` -- in some cases this operation will fail if there are locked overmounts on top of `/proc`). Requires `CAP_SYS_ADMIN` privileges. | Try to use [`open_tree(2)`] instead -- in the case of errors due to locked overmounts, [`open_tree(2)`] will be used to create a recursive copy that preserves the overmounts. This means that an attacker would not be able to actively change the mounts on top of `/proc` but there might be some overmounts that libpathrs will detect (and reject). |
 | [`openat2(2)`][]      | Linux 5.6 (2020-03-29)  | In-kernel restrictions of path lookup. This is used extensively by `libpathrs` to safely do path lookups. | Userspace emulated path lookups. |
+| `subset=pid`          | Linux 5.8 (2020-08-02)  | Allows for a `procfs` handle created with [`fsopen(2)`][] to not contain any global procfs files that would be dangerous for an attacker to write to. Detached `procfs` mounts with `subset=pid` are deemed safe(r) to leak into containers and so libpathrs will internally cache `subset=pid` `ProcfsHandle`s. | libpathrs's `ProcfsHandle`s will have global files and thus libpathrs will not cache a copy of the file descriptor for each operation (possibly causing substantially higher syscall usage as a result -- our testing found that this can have a performance impact in some cases). |
 | `STATX_MNT_ID`        | Linux 5.8 (2020-08-02)  | Used to verify whether there are bind-mounts on top of `/proc` that could result in insecure operations (on systems with `fsopen(2)` or `open_tree(2)` this protection is somewhat redundant for privileged programs -- those kinds of `procfs` handles will typically not have overmounts.) | Parse the `/proc/thread-self/fdinfo/$fd` directly -- for systems with `openat2(2)`, this is guaranteed to be safe against attacks. For systems without `openat2(2)`, we have to fallback to unsafe opens that could be fooled by bind-mounts -- however, we believe that exploitation of this would be difficult in practice (even with an attacker that has the persistent ability to mount to arbitrary paths) due to the way we verify `procfs` accesses. |
 | `STATX_MNT_ID_UNIQUE` | Linux 6.8 (2024-03-10)  | Used for the same reason as `STATX_MNT_ID`, but allows us to protect against mount ID recycling. This is effectively a safer version of `STATX_MNT_ID`. | `STATX_MNT_ID` is used (see the `STATX_MNT_ID` fallback if it's not available either). |
 

@@ -53,13 +53,13 @@ int open_in_root(const char *root_path, const char *unsafe_path)
 	int rootfd = -EBADF, fd = -EBADF;
 
 	rootfd = pathrs_open_root(root_path);
-	if (rootfd < 0) {
+	if (IS_PATHRS_ERR(rootfd)) {
 		liberr = rootfd;
 		goto err;
 	}
 
 	fd = pathrs_inroot_open(rootfd, unsafe_path, O_RDONLY);
-	if (fd < 0) {
+	if (IS_PATHRS_ERR(fd)) {
 		liberr = fd;
 		goto err;
 	}
@@ -67,7 +67,7 @@ int open_in_root(const char *root_path, const char *unsafe_path)
 err:
 	close(rootfd);
 
-	if (liberr < 0) {
+	if (IS_PATHRS_ERR(liberr)) {
 		pathrs_error_t *error = pathrs_errorinfo(liberr);
 		print_error(error);
 		pathrs_errorinfo_free(error);

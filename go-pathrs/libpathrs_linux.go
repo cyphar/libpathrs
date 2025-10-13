@@ -40,7 +40,7 @@ char *cast_ptr(void *ptr) { return ptr; }
 import "C"
 
 func fetchError(errID C.int) error {
-	if errID >= 0 {
+	if errID >= C.__PATHRS_MAX_ERR_VALUE {
 		return nil
 	}
 	cErr := C.pathrs_errorinfo(errID)
@@ -102,7 +102,7 @@ func pathrsInRootReadlink(rootFd uintptr, path string) (string, error) {
 		linkBuf := make([]byte, size)
 		n := C.pathrs_inroot_readlink(C.int(rootFd), cPath, C.cast_ptr(unsafe.Pointer(&linkBuf[0])), C.ulong(len(linkBuf)))
 		switch {
-		case int(n) < 0:
+		case int(n) < C.__PATHRS_MAX_ERR_VALUE:
 			return "", fetchError(n)
 		case int(n) <= len(linkBuf):
 			return string(linkBuf[:int(n)]), nil
@@ -219,7 +219,15 @@ const (
 
 	pathrsProcBaseTypeMask pathrsProcBase = 0xFFFF_FFFF_0000_0000 // C.__PATHRS_PROC_TYPE_MASK
 	pathrsProcBaseTypePid  pathrsProcBase = 0x8000_0000_0000_0000 // C.__PATHRS_PROC_TYPE_PID
+
+	pathrsProcDefaultRootFd = -int(syscall.EBADF) // C._PATHRS_PROC_DEFAULT_ROOTFD
 )
+
+func assertEqual[T comparable](a, b T, msg string) {
+	if a != b {
+		panic(fmt.Sprintf("%s ((%T) %#v != (%T) %#v)", msg, a, a, b, b))
+	}
+}
 
 // Verify that the values above match the actual C values. Unfortunately, Go
 // only allows us to forcefully cast int64 to uint64 if you use a temporary
@@ -227,12 +235,6 @@ const (
 // it at runtime (even though it is a check that fundamentally could be done at
 // compile-time)...
 func init() {
-	assertEqual := func(a, b pathrsProcBase, msg string) {
-		if a != b {
-			panic(fmt.Sprintf("%s ((%T) %#v != (%T) %#v)", msg, a, a, b, b))
-		}
-	}
-
 	var (
 		actualProcRoot       int64 = C.PATHRS_PROC_ROOT
 		actualProcSelf       int64 = C.PATHRS_PROC_SELF
@@ -250,21 +252,23 @@ func init() {
 
 	assertEqual(pathrsProcBaseTypeMask, pathrsProcBase(actualProcBaseTypeMask), "__PATHRS_PROC_TYPE_MASK")
 	assertEqual(pathrsProcBaseTypePid, pathrsProcBase(actualProcBaseTypePid), "__PATHRS_PROC_TYPE_PID")
+
+	assertEqual(pathrsProcDefaultRootFd, int(C.PATHRS_PROC_DEFAULT_ROOTFD), "PATHRS_PROC_DEFAULT_ROOTFD")
 }
 
 func pathrsProcPid(pid uint32) pathrsProcBase { return pathrsProcBaseTypePid | pathrsProcBase(pid) }
 
-func pathrsProcOpen(base pathrsProcBase, path string, flags int) (uintptr, error) {
+func pathrsProcOpenat(procRootFd int, base pathrsProcBase, path string, flags int) (uintptr, error) {
 	cBase := C.pathrs_proc_base_t(base)
 
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
-	fd := C.pathrs_proc_open(cBase, cPath, C.int(flags))
+	fd := C.pathrs_proc_openat(C.int(procRootFd), cBase, cPath, C.int(flags))
 	return uintptr(fd), fetchError(fd)
 }
 
-func pathrsProcReadlink(base pathrsProcBase, path string) (string, error) {
+func pathrsProcReadlinkat(procRootFd int, base pathrsProcBase, path string) (string, error) {
 	// TODO: See if we can unify this code with pathrsInRootReadlink.
 
 	cBase := C.pathrs_proc_base_t(base)
@@ -275,9 +279,11 @@ func pathrsProcReadlink(base pathrsProcBase, path string) (string, error) {
 	size := 128
 	for {
 		linkBuf := make([]byte, size)
-		n := C.pathrs_proc_readlink(cBase, cPath, C.cast_ptr(unsafe.Pointer(&linkBuf[0])), C.ulong(len(linkBuf)))
+		n := C.pathrs_proc_readlinkat(
+			C.int(procRootFd), cBase, cPath,
+			C.cast_ptr(unsafe.Pointer(&linkBuf[0])), C.ulong(len(linkBuf)))
 		switch {
-		case int(n) < 0:
+		case int(n) < C.__PATHRS_MAX_ERR_VALUE:
 			return "", fetchError(n)
 		case int(n) <= len(linkBuf):
 			return string(linkBuf[:int(n)]), nil
@@ -290,4 +296,15 @@ func pathrsProcReadlink(base pathrsProcBase, path string) (string, error) {
 			size += int(n)
 		}
 	}
+}
+
+type pathrsProcfsOpenHow = C.pathrs_procfs_open_how
+
+const (
+	pathrsProcfsNewUnmasked = C.PATHRS_PROCFS_NEW_UNMASKED
+)
+
+func pathrsProcfsOpen(how *pathrsProcfsOpenHow) (uintptr, error) {
+	fd := C.pathrs_procfs_open(how, C.size_t(unsafe.Sizeof(*how)))
+	return uintptr(fd), fetchError(fd)
 }

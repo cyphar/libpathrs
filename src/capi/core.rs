@@ -204,7 +204,7 @@ pub unsafe extern "C" fn pathrs_inroot_open(
 ///
 /// ```c
 /// int linkfd = pathrs_inroot_resolve_nofollow(rootfd, path);
-/// if (linkfd < 0) {
+/// if (IS_PATHRS_ERR(linkfd)) {
 ///     liberr = fd; // for use with pathrs_errorinfo()
 ///     goto err;
 /// }
