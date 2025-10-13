@@ -106,6 +106,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - capi: add `pathrs_procfs_open` method to create a new `ProcfsHandle` with a
   custom configuration (a-la `ProcfsHandleBuilder`). As with
   `ProcfsHandleBuilder`, most users do not need to use this.
+  - python bindings: `ProcfsHandle` wraps this new API, and you can construct
+    custom `ProcfsHandle`s with `ProcfsHandle.new(...)`.
+    `ProcfsHandle.cached()` returns the cached global `ProcfsHandle`. The
+    top-level `proc_*` functions (which may be removed in future versions) are
+    now just bound methods of `ProcfsHandle.cached()`.
 
 ### Changed ###
 - procfs: the caching strategy for the internal procfs handle has been

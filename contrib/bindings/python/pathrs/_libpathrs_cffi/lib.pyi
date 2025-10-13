@@ -37,6 +37,15 @@ __PATHRS_MAX_ERR_VALUE: ErrorId
 def pathrs_errorinfo(err_id: Union[ErrorId, int]) -> CError: ...
 def pathrs_errorinfo_free(err: CError) -> None: ...
 
+# uint64_t
+ProcfsOpenFlags: TypeAlias = int
+PATHRS_PROCFS_NEW_UNMASKED: ProcfsOpenFlags
+
+# pathrs_procfs_open_how *
+@type_check_only
+class ProcfsOpenHow:
+    flags: ProcfsOpenFlags
+
 PATHRS_PROC_ROOT: ProcfsBase
 PATHRS_PROC_SELF: ProcfsBase
 PATHRS_PROC_THREAD_SELF: ProcfsBase
@@ -44,12 +53,28 @@ PATHRS_PROC_THREAD_SELF: ProcfsBase
 __PATHRS_PROC_TYPE_MASK: ProcfsBase
 __PATHRS_PROC_TYPE_PID: ProcfsBase
 
+PATHRS_PROC_DEFAULT_ROOTFD: RawFd
+
+# procfs API
+def pathrs_procfs_open(how: ProcfsOpenHow, size: int) -> Union[RawFd, ErrorId]: ...
 def pathrs_proc_open(
     base: ProcfsBase, path: CString, flags: int
+) -> Union[RawFd, ErrorId]: ...
+def pathrs_proc_openat(
+    proc_root_fd: RawFd, base: ProcfsBase, path: CString, flags: int
 ) -> Union[RawFd, ErrorId]: ...
 def pathrs_proc_readlink(
     base: ProcfsBase, path: CString, linkbuf: CBuffer, linkbuf_size: int
 ) -> Union[int, ErrorId]: ...
+def pathrs_proc_readlinkat(
+    proc_root_fd: RawFd,
+    base: ProcfsBase,
+    path: CString,
+    linkbuf: CBuffer,
+    linkbuf_size: int,
+) -> Union[int, ErrorId]: ...
+
+# core API
 def pathrs_open_root(path: CString) -> Union[RawFd, ErrorId]: ...
 def pathrs_reopen(fd: RawFd, flags: int) -> Union[RawFd, ErrorId]: ...
 def pathrs_inroot_resolve(rootfd: RawFd, path: CString) -> Union[RawFd, ErrorId]: ...

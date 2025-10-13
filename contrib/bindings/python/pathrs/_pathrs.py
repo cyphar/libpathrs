@@ -24,7 +24,7 @@ import fcntl
 
 import typing
 from types import TracebackType
-from typing import Any, Dict, IO, Optional, TextIO, Type, TypeVar, Union
+from typing import Any, Dict, IO, Optional, TextIO, Type, TypeVar, Union, cast
 
 # TODO: Remove this once we only support Python >= 3.11.
 from typing_extensions import Self, TypeAlias
@@ -55,6 +55,7 @@ __all__ = [
     "PROC_SELF",
     "PROC_THREAD_SELF",
     "PROC_PID",
+    "ProcfsHandle",
     "proc_open",
     "proc_open_raw",
     "proc_readlink",
@@ -229,7 +230,8 @@ class WrappedFd(object):
         leak the WrappedFd, just use WrappedFd.into_raw_fd() which does both
         for you.
         """
-        self._fd = None
+        if self._fd is not None and self._fd >= 0:
+            self._fd = None
 
     def fdopen(self, mode: str = "r") -> IO[Any]:
         """
@@ -286,15 +288,19 @@ class WrappedFd(object):
         """
         if not self.isclosed():
             assert self._fd is not None  # typing
-            os.close(self._fd)
-            self._fd = None
+            if self._fd >= 0:
+                os.close(self._fd)
+                self._fd = None
 
     def clone(self) -> Self:
         "Create a clone of this WrappedFd that has a separate lifetime."
         if self.isclosed():
             raise ValueError("cannot clone closed file")
         assert self._fd is not None  # typing
-        return self.__class__(_clonefile(self._fd))
+        newfd = self._fd
+        if self._fd >= 0:
+            newfd = _clonefile(self._fd)
+        return self.__class__.from_raw_fd(newfd)
 
     def __copy__(self) -> Self:
         "Identical to WrappedFd.clone()"
@@ -378,6 +384,10 @@ PROC_SELF: ProcfsBase = libpathrs_so.PATHRS_PROC_SELF
 PROC_THREAD_SELF: ProcfsBase = libpathrs_so.PATHRS_PROC_THREAD_SELF
 
 
+def _is_pathrs_err(ret: int) -> bool:
+    return ret < libpathrs_so.__PATHRS_MAX_ERR_VALUE
+
+
 def PROC_PID(pid: int) -> ProcfsBase:
     """
     Resolve proc_* operations relative to /proc/<pid>. Be aware that due to PID
@@ -396,89 +406,127 @@ def PROC_PID(pid: int) -> ProcfsBase:
     return libpathrs_so.__PATHRS_PROC_TYPE_PID | pid
 
 
-def _is_pathrs_err(ret: int) -> bool:
-    return ret < libpathrs_so.__PATHRS_MAX_ERR_VALUE
+class ProcfsHandle(WrappedFd):
+    """ """
+
+    _PROCFS_OPEN_HOW_TYPE = "pathrs_procfs_open_how *"
+
+    @classmethod
+    def cached(cls) -> Self:
+        """
+        Returns a cached version of ProcfsHandle that will always remain valid
+        and cannot be closed. This is the recommended usage of ProcfsHandle.
+        """
+        return cls.from_raw_fd(libpathrs_so.PATHRS_PROC_DEFAULT_ROOTFD)
+
+    @classmethod
+    def new(cls, /, *, unmasked: bool = False) -> Self:
+        """
+        Create a new procfs handle with the requested configuration settings.
+
+        Note that the requested configuration might be eligible for caching, in
+        which case the ProcfsHandle.fileno() will contain a special sentinel
+        value that cannot be used like a regular file descriptor.
+        """
+
+        # TODO: Is there a way to have ProcfsOpenHow actually subclass CData so
+        # that we don't need to do any of these ugly casts?
+        how = cast("libpathrs_so.ProcfsOpenHow", ffi.new(cls._PROCFS_OPEN_HOW_TYPE))
+        how_size = ffi.sizeof(cast("Any", how))
+
+        if unmasked:
+            how.flags = libpathrs_so.PATHRS_PROCFS_NEW_UNMASKED
+
+        fd = libpathrs_so.pathrs_procfs_open(how, how_size)
+        if _is_pathrs_err(fd):
+            raise Error._fetch(fd) or INTERNAL_ERROR
+        return cls.from_raw_fd(fd)
+
+    def open_raw(self, base: ProcfsBase, path: str, flags: int, /) -> WrappedFd:
+        """
+        Open a procfs file using Unix open flags.
+
+        This function returns a WrappedFd file handle.
+
+        base indicates what the path should be relative to. Valid values
+        include PROC_{ROOT,SELF,THREAD_SELF}.
+
+        path is a relative path to base indicating which procfs file you wish
+        to open.
+
+        flags is the set of O_* flags you wish to pass to the open operation.
+        If you do not intend to open a symlink, you should pass O_NOFOLLOW to
+        flags to let libpathrs know that it can be more strict when opening the
+        path.
+        """
+        # TODO: Should we default to O_NOFOLLOW or put a separate argument for it?
+        fd = libpathrs_so.pathrs_proc_openat(self.fileno(), base, _cstr(path), flags)
+        if _is_pathrs_err(fd):
+            raise Error._fetch(fd) or INTERNAL_ERROR
+        return WrappedFd(fd)
+
+    def open(
+        self, base: ProcfsBase, path: str, mode: str = "r", /, *, extra_flags: int = 0
+    ) -> IO[Any]:
+        """
+        Open a procfs file using Pythonic mode strings.
+
+        This function returns an os.fdopen() file handle.
+
+        base indicates what the path should be relative to. Valid values
+        include PROC_{ROOT,SELF,THREAD_SELF}.
+
+        path is a relative path to base indicating which procfs file you wish
+        to open.
+
+        mode is a Python mode string, and extra_flags can be used to indicate
+        extra O_* flags you wish to pass to the open operation. If you do not
+        intend to open a symlink, you should pass O_NOFOLLOW to extra_flags to
+        let libpathrs know that it can be more strict when opening the path.
+        """
+        flags = _convert_mode(mode) | extra_flags
+        with self.open_raw(base, path, flags) as file:
+            return file.fdopen(mode)
+
+    def readlink(self, base: ProcfsBase, path: str, /) -> str:
+        """
+        Fetch the target of a procfs symlink.
+
+        Note that some procfs symlinks are "magic-links" where the returned
+        string from readlink() is not how they are actually resolved.
+
+        base indicates what the path should be relative to. Valid values
+        include PROC_{ROOT,SELF,THREAD_SELF}.
+
+        path is a relative path to base indicating which procfs file you wish
+        to open.
+        """
+        # TODO: See if we can merge this with Root.readlink.
+        cpath = _cstr(path)
+        linkbuf_size = 128
+        while True:
+            linkbuf = _cbuffer(linkbuf_size)
+            n = libpathrs_so.pathrs_proc_readlinkat(
+                self.fileno(), base, cpath, linkbuf, linkbuf_size
+            )
+            if _is_pathrs_err(n):
+                raise Error._fetch(n) or INTERNAL_ERROR
+            elif n <= linkbuf_size:
+                buf = typing.cast(bytes, ffi.buffer(linkbuf, linkbuf_size)[:n])
+                return buf.decode("latin1")
+            else:
+                # The contents were truncated. Unlike readlinkat, pathrs
+                # returns the size of the link when it checked. So use the
+                # returned size as a basis for the reallocated size (but in
+                # order to avoid a DoS where a magic-link is growing by a
+                # single byte each iteration, make sure we are a fair bit
+                # larger).
+                linkbuf_size += n
 
 
-def proc_open(
-    base: ProcfsBase, path: str, mode: str = "r", /, *, extra_flags: int = 0
-) -> IO[Any]:
-    """
-    Open a procfs file using Pythonic mode strings.
-
-    This function returns an os.fdopen() file handle.
-
-    base indicates what the path should be relative to. Valid values include
-    PROC_{ROOT,SELF,THREAD_SELF}.
-
-    path is a relative path to base indicating which procfs file you wish to
-    open.
-
-    mode is a Python mode string, and extra_flags can be used to indicate extra
-    O_* flags you wish to pass to the open operation. If you do not intend to
-    open a symlink, you should pass O_NOFOLLOW to extra_flags to let libpathrs
-    know that it can be more strict when opening the path.
-    """
-    # TODO: Should we default to O_NOFOLLOW or put a separate argument for it?
-    flags = _convert_mode(mode) | extra_flags
-    with proc_open_raw(base, path, flags) as file:
-        return file.fdopen(mode)
-
-
-def proc_open_raw(base: ProcfsBase, path: str, flags: int, /) -> WrappedFd:
-    """
-    Open a procfs file using Unix open flags.
-
-    This function returns a WrappedFd file handle.
-
-    base indicates what the path should be relative to. Valid values include
-    PROC_{ROOT,SELF,THREAD_SELF}.
-
-    path is a relative path to base indicating which procfs file you wish to
-    open.
-
-    flags is the set of O_* flags you wish to pass to the open operation. If
-    you do not intend to open a symlink, you should pass O_NOFOLLOW to flags to
-    let libpathrs know that it can be more strict when opening the path.
-    """
-    # TODO: Should we default to O_NOFOLLOW or put a separate argument for it?
-    fd = libpathrs_so.pathrs_proc_open(base, _cstr(path), flags)
-    if _is_pathrs_err(fd):
-        raise Error._fetch(fd) or INTERNAL_ERROR
-    return WrappedFd(fd)
-
-
-def proc_readlink(base: ProcfsBase, path: str, /) -> str:
-    """
-    Fetch the target of a procfs symlink.
-
-    Note that some procfs symlinks are "magic-links" where the returned string
-    from readlink() is not how they are actually resolved.
-
-    base indicates what the path should be relative to. Valid values include
-    PROC_{ROOT,SELF,THREAD_SELF}.
-
-    path is a relative path to base indicating which procfs file you wish to
-    open.
-    """
-    # TODO: See if we can merge this with Root.readlink.
-    cpath = _cstr(path)
-    linkbuf_size = 128
-    while True:
-        linkbuf = _cbuffer(linkbuf_size)
-        n = libpathrs_so.pathrs_proc_readlink(base, cpath, linkbuf, linkbuf_size)
-        if _is_pathrs_err(n):
-            raise Error._fetch(n) or INTERNAL_ERROR
-        elif n <= linkbuf_size:
-            buf = typing.cast(bytes, ffi.buffer(linkbuf, linkbuf_size)[:n])
-            return buf.decode("latin1")
-        else:
-            # The contents were truncated. Unlike readlinkat, pathrs returns
-            # the size of the link when it checked. So use the returned size
-            # as a basis for the reallocated size (but in order to avoid a DoS
-            # where a magic-link is growing by a single byte each iteration,
-            # make sure we are a fair bit larger).
-            linkbuf_size += n
+proc_open = ProcfsHandle.cached().open
+proc_open_raw = ProcfsHandle.cached().open_raw
+proc_readlink = ProcfsHandle.cached().readlink
 
 
 class Handle(WrappedFd):
