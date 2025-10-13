@@ -103,6 +103,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `BorrowedFd` with `AsFd::as_fd`. Users should take great care when using the
   underlying file descriptor directly, as using it opens you up to all of the
   attacks that libpathrs protects you against.
+- capi: add `pathrs_procfs_open` method to create a new `ProcfsHandle` with a
+  custom configuration (a-la `ProcfsHandleBuilder`). As with
+  `ProcfsHandleBuilder`, most users do not need to use this.
 
 ### Changed ###
 - procfs: the caching strategy for the internal procfs handle has been

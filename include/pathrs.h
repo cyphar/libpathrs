@@ -34,6 +34,7 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -99,6 +100,15 @@
 #define __PATHRS_PROC_TYPE_PID 9223372036854775808ull
 
 /**
+ * Construct a completely unmasked procfs handle.
+ *
+ * This is equivalent to [`ProcfsHandleBuilder::unmasked`], and is meant as
+ * a flag argument to [`ProcfsOpenFlags`] (the `flags` field in `struct
+ * pathrs_procfs_open_how`) for use with pathrs_procfs_open().
+ */
+#define PATHRS_PROCFS_NEW_UNMASKED 1
+
+/**
  * Indicate what base directory should be used when doing operations with
  * `pathrs_proc_*`. In addition to the values defined here, the following
  * macros can be used for other values:
@@ -135,6 +145,10 @@ enum pathrs_proc_base_t {
     PATHRS_PROC_THREAD_SELF = 18446744066171166239ull,
 };
 typedef uint64_t pathrs_proc_base_t;
+
+typedef struct {
+    uint64_t flags;
+} pathrs_procfs_open_how;
 
 /**
  * Attempts to represent a Rust Error type in C. This structure must be freed
@@ -507,6 +521,96 @@ int pathrs_inroot_symlink(int root_fd, const char *path, const char *target);
  * pathrs_errorinfo().
  */
 int pathrs_inroot_hardlink(int root_fd, const char *path, const char *target);
+
+/**
+ * Create a new (custom) procfs root handle.
+ *
+ * This is effectively a C wrapper around [`ProcfsHandleBuilder`], allowing you
+ * to create a custom procfs root handle that can be used with other
+ * `pathrs_proc_*at` methods.
+ *
+ * While most users should just use `PATHRS_PROC_DEFAULT_ROOTFD` (or the
+ * non-`at` variants of `pathrs_proc_*`), creating an unmasked procfs root
+ * handle (using `PATHRS_PROCFS_NEW_UNMASKED`) can be useful for programs that
+ * need to operate on a lot of global procfs files. (Note that accessing global
+ * procfs files does not *require* creating a custom procfs handle --
+ * `pathrs_proc_*` will automatically create a global-friendly handle
+ * internally when necessary but will close it immediately after operating on
+ * it.)
+ *
+ * # Extensible Structs
+ *
+ * The [`ProcfsOpenHow`] (`struct pathrs_procfs_open_how`) argument is
+ * designed to be extensible, modelled after the extensible structs scheme used
+ * by Linux (for syscalls such as [clone3(2)], [openat2(2)] and other such
+ * syscalls). Normally one would use symbol versioning to achieve this, but
+ * unfortunately Rust's symbol versioning support is incredibly primitive (one
+ * might even say "non-existent") and so this system is more robust, even if
+ * the calling convention is a little strange for userspace libraries.
+ *
+ * In addition to a pointer argument, the caller must also provide the size of
+ * the structure it is passing. By providing this information, it is possible
+ * for `pathrs_procfs_open()` to provide both forwards- and
+ * backwards-compatibility, with size acting as an implicit version number.
+ * (Because new extension fields will always be appended, the structure size
+ * will always increase.)
+ *
+ * If we let `usize` be the structure specified by the caller, and `lsize` be
+ * the size of the structure internal to libpathrs, then there are three cases
+ * to consider:
+ *
+ * * If `usize == lsize`, then there is no version mismatch and the structure
+ *   provided by the caller can be used verbatim.
+ * * If `usize < lsize`, then there are some extension fields which libpathrs
+ *   supports that the caller does not. Because a zero value in any added
+ *   extension field signifies a no-op, libpathrs treats all of the extension
+ *   fields not provided by the caller as having zero values. This provides
+ *   backwards-compatibility.
+ * * If `usize > lsize`, then there are some extension fields which the caller
+ *   is aware of but this version of libpathrs does not support. Because any
+ *   extension field must have its zero values signify a no-op, libpathrs can
+ *   safely ignore the unsupported extension fields if they are all-zero. If
+ *   any unsupported extension fields are nonzero, then an `E2BIG` error is
+ *   returned. This provides forwards-compatibility.
+ *
+ * Because the definition of `struct pathrs_procfs_open_how` may open in the
+ * future
+ *
+ * Because the definition of `struct pathrs_procfs_open_how` may change in the
+ * future (with new fields being added when headers are updated), callers
+ * should zero-fill the structure to ensure that recompiling the program with
+ * new headers will not result in spurious errors at run time. The simplest
+ * way is to use a designated initialiser:
+ *
+ * ```c
+ *     struct pathrs_procfs_open_how how = {
+ *         .flags = PATHRS_PROCFS_NEW_UNMASKED,
+ *     };
+ * ```
+ *
+ * or explicitly using `memset(3)` or similar:
+ *
+ * ```c
+ * struct pathrs_procfs_open_how how;
+ * memset(&how, 0, sizeof(how));
+ * how.flags = PATHRS_PROCFS_NEW_UNMASKED;
+ * ```
+ *
+ * # Return Value
+ *
+ * On success, this function returns *either* a file descriptor *or*
+ * `PATHRS_PROC_DEFAULT_ROOTFD` (this is a negative number, equal to `-EBADF`).
+ * The file descriptor will have the `O_CLOEXEC` flag automatically applied.
+ *
+ * If an error occurs, this function will return a negative error code. To
+ * retrieve information about the error (such as a string describing the error,
+ * the system errno(7) value associated with the error, etc), use
+ * pathrs_errorinfo().
+ *
+ * [clone3(2)]: https://www.man7.org/linux/man-pages/man2/clone3.2.html
+ * [openat2(2)]: https://www.man7.org/linux/man-pages/man2/openat2.2.html
+ */
+int pathrs_procfs_open(const pathrs_procfs_open_how *args, size_t size);
 
 /**
  * `pathrs_proc_open` but with a caller-provided file descriptor for `/proc`.

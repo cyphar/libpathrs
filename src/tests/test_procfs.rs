@@ -173,16 +173,7 @@ macro_rules! procfs_tests {
         procfs_tests! {
             $(#[$meta])*
             @capi-fn [<capi_unmasked_ $test_name>]
-                {
-                    let proc = ProcfsHandleBuilder::new()
-                        .unmasked()
-                        .build()
-                        .expect("ProcfsHandleBuilder with unmasked should never fail");
-                    let fd = proc
-                        .into_owned_fd()
-                        .expect("unmasked should give OwnedFd");
-                    Ok(CapiProcfsHandleFd(fd))
-                }.$procfs_op($($args)*) => (over_mounts: false, $($tt)*);
+                { CapiProcfsHandleFd::new_unmasked() }.$procfs_op($($args)*) => (over_mounts: false, $($tt)*);
         }
     };
 

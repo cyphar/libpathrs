@@ -24,11 +24,13 @@ use crate::{
     },
     error::{Error, ErrorExt, ErrorImpl},
     flags::OpenFlags,
-    procfs::{ProcfsBase, ProcfsHandle, ProcfsHandleRef},
+    procfs::{ProcfsBase, ProcfsHandle, ProcfsHandleBuilder, ProcfsHandleRef},
 };
 
-use std::os::unix::io::{OwnedFd, RawFd};
+use std::os::unix::io::{AsRawFd, IntoRawFd, OwnedFd, RawFd};
 
+use bitflags::bitflags;
+use bytemuck::{Pod, Zeroable};
 use libc::{c_char, c_int, size_t};
 use open_enum::open_enum;
 
@@ -243,6 +245,176 @@ fn parse_proc_rootfd<'fd>(fd: CBorrowedFd<'fd>) -> Result<ProcfsHandleRef<'fd>, 
     }
 }
 
+// This is needed because the macro expansion cbindgen produces for
+// bitflags! is not really usable for regular structs.
+/// Construct a completely unmasked procfs handle.
+///
+/// This is equivalent to [`ProcfsHandleBuilder::unmasked`], and is meant as
+/// a flag argument to [`ProcfsOpenFlags`] (the `flags` field in `struct
+/// pathrs_procfs_open_how`) for use with pathrs_procfs_open().
+pub const PATHRS_PROCFS_NEW_UNMASKED: u64 = 0x0000_0000_0000_0001;
+
+bitflags! {
+    #[repr(C)]
+    #[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]
+    pub struct ProcfsOpenFlags: u64 {
+        const PATHRS_PROCFS_NEW_UNMASKED = PATHRS_PROCFS_NEW_UNMASKED;
+        // NOTE: Make sure to add a `pub const` for any new flags to make
+        // sure they show up when cbindgen generates our header.
+    }
+}
+
+impl ProcfsOpenFlags {
+    const fn contains_unknown_bits(&self) -> bool {
+        Self::from_bits(self.bits()).is_none()
+    }
+}
+
+static_assertions::const_assert_eq!(
+    ProcfsOpenFlags::PATHRS_PROCFS_NEW_UNMASKED.contains_unknown_bits(),
+    false,
+);
+static_assertions::const_assert_eq!(
+    ProcfsOpenFlags::from_bits_retain(0x1000_0000).contains_unknown_bits(),
+    true,
+);
+static_assertions::const_assert_eq!(
+    ProcfsOpenFlags::from_bits_retain(0xF000_0001).contains_unknown_bits(),
+    true,
+);
+
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]
+pub struct ProcfsOpenHow {
+    pub flags: ProcfsOpenFlags,
+}
+
+impl ProcfsOpenHow {
+    fn into_builder(self) -> Result<ProcfsHandleBuilder, Error> {
+        let mut builder = ProcfsHandleBuilder::new();
+
+        if self.flags.contains_unknown_bits() {
+            return Err(ErrorImpl::InvalidArgument {
+                name: "flags".into(),
+                description: format!(
+                    "contains unknown flag bits {:#x}",
+                    self.flags.difference(ProcfsOpenFlags::all())
+                )
+                .into(),
+            })?;
+        }
+        if self
+            .flags
+            .contains(ProcfsOpenFlags::PATHRS_PROCFS_NEW_UNMASKED)
+        {
+            builder.set_unmasked();
+        }
+
+        Ok(builder)
+    }
+}
+
+/// Create a new (custom) procfs root handle.
+///
+/// This is effectively a C wrapper around [`ProcfsHandleBuilder`], allowing you
+/// to create a custom procfs root handle that can be used with other
+/// `pathrs_proc_*at` methods.
+///
+/// While most users should just use `PATHRS_PROC_DEFAULT_ROOTFD` (or the
+/// non-`at` variants of `pathrs_proc_*`), creating an unmasked procfs root
+/// handle (using `PATHRS_PROCFS_NEW_UNMASKED`) can be useful for programs that
+/// need to operate on a lot of global procfs files. (Note that accessing global
+/// procfs files does not *require* creating a custom procfs handle --
+/// `pathrs_proc_*` will automatically create a global-friendly handle
+/// internally when necessary but will close it immediately after operating on
+/// it.)
+///
+/// # Extensible Structs
+///
+/// The [`ProcfsOpenHow`] (`struct pathrs_procfs_open_how`) argument is
+/// designed to be extensible, modelled after the extensible structs scheme used
+/// by Linux (for syscalls such as [clone3(2)], [openat2(2)] and other such
+/// syscalls). Normally one would use symbol versioning to achieve this, but
+/// unfortunately Rust's symbol versioning support is incredibly primitive (one
+/// might even say "non-existent") and so this system is more robust, even if
+/// the calling convention is a little strange for userspace libraries.
+///
+/// In addition to a pointer argument, the caller must also provide the size of
+/// the structure it is passing. By providing this information, it is possible
+/// for `pathrs_procfs_open()` to provide both forwards- and
+/// backwards-compatibility, with size acting as an implicit version number.
+/// (Because new extension fields will always be appended, the structure size
+/// will always increase.)
+///
+/// If we let `usize` be the structure specified by the caller, and `lsize` be
+/// the size of the structure internal to libpathrs, then there are three cases
+/// to consider:
+///
+/// * If `usize == lsize`, then there is no version mismatch and the structure
+///   provided by the caller can be used verbatim.
+/// * If `usize < lsize`, then there are some extension fields which libpathrs
+///   supports that the caller does not. Because a zero value in any added
+///   extension field signifies a no-op, libpathrs treats all of the extension
+///   fields not provided by the caller as having zero values. This provides
+///   backwards-compatibility.
+/// * If `usize > lsize`, then there are some extension fields which the caller
+///   is aware of but this version of libpathrs does not support. Because any
+///   extension field must have its zero values signify a no-op, libpathrs can
+///   safely ignore the unsupported extension fields if they are all-zero. If
+///   any unsupported extension fields are nonzero, then an `E2BIG` error is
+///   returned. This provides forwards-compatibility.
+///
+/// Because the definition of `struct pathrs_procfs_open_how` may open in the
+/// future
+///
+/// Because the definition of `struct pathrs_procfs_open_how` may change in the
+/// future (with new fields being added when headers are updated), callers
+/// should zero-fill the structure to ensure that recompiling the program with
+/// new headers will not result in spurious errors at run time. The simplest
+/// way is to use a designated initialiser:
+///
+/// ```c
+///     struct pathrs_procfs_open_how how = {
+///         .flags = PATHRS_PROCFS_NEW_UNMASKED,
+///     };
+/// ```
+///
+/// or explicitly using `memset(3)` or similar:
+///
+/// ```c
+/// struct pathrs_procfs_open_how how;
+/// memset(&how, 0, sizeof(how));
+/// how.flags = PATHRS_PROCFS_NEW_UNMASKED;
+/// ```
+///
+/// # Return Value
+///
+/// On success, this function returns *either* a file descriptor *or*
+/// `PATHRS_PROC_DEFAULT_ROOTFD` (this is a negative number, equal to `-EBADF`).
+/// The file descriptor will have the `O_CLOEXEC` flag automatically applied.
+///
+/// If an error occurs, this function will return a negative error code. To
+/// retrieve information about the error (such as a string describing the error,
+/// the system errno(7) value associated with the error, etc), use
+/// pathrs_errorinfo().
+///
+/// [clone3(2)]: https://www.man7.org/linux/man-pages/man2/clone3.2.html
+/// [openat2(2)]: https://www.man7.org/linux/man-pages/man2/openat2.2.html
+#[no_mangle]
+pub unsafe extern "C" fn pathrs_procfs_open(args: *const ProcfsOpenHow, size: usize) -> RawFd {
+    || -> Result<_, Error> {
+        unsafe { utils::copy_from_extensible_struct(args, size) }?
+            .into_builder()?
+            .build()
+            .map(ProcfsHandle::into_owned_fd)
+    }()
+    .map(|fd| match fd {
+        Some(fd) => fd.into_raw_fd(),
+        None => PATHRS_PROC_DEFAULT_ROOTFD.as_raw_fd(),
+    })
+    .into_c_return()
+}
+
 /// `pathrs_proc_open` but with a caller-provided file descriptor for `/proc`.
 ///
 /// Internally, `pathrs_proc_open` will attempt to use a cached copy of a very
@@ -437,7 +609,16 @@ pub unsafe extern "C" fn pathrs_proc_readlink(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{error::ErrorKind, procfs::ProcfsBase};
+    use crate::{
+        capi::{error as capi_error, utils::Leakable},
+        error::ErrorKind,
+        procfs::ProcfsBase,
+    };
+
+    use std::{
+        mem,
+        os::unix::io::{FromRawFd, OwnedFd},
+    };
 
     use pretty_assertions::assert_eq;
 
@@ -661,5 +842,135 @@ mod tests {
             ProcfsBase::ProcPid(u32::MAX),
             CProcfsBase(__PATHRS_PROC_TYPE_PID | u32::MAX as u64),
         );
+    }
+
+    #[test]
+    fn pathrs_procfs_open_cached() {
+        let procfs_is_cached = ProcfsHandle::new()
+            .expect("ProcfsHandle::new should not fail")
+            .into_owned_fd()
+            .is_none();
+
+        let how = ProcfsOpenHow::default();
+        let fd = unsafe { pathrs_procfs_open(&how as *const _, mem::size_of::<ProcfsOpenHow>()) };
+
+        let procfs = if procfs_is_cached {
+            assert_eq!(
+                fd,
+                PATHRS_PROC_DEFAULT_ROOTFD.as_raw_fd(),
+                "if ProcfsHandle::new() is cached then pathrs_procfs_open() should return PATHRS_PROC_DEFAULT_ROOTFD",
+            );
+            ProcfsHandle::new()
+        } else {
+            ProcfsHandle::try_from_fd(unsafe { OwnedFd::from_raw_fd(fd) })
+        }.expect("pathrs_procfs_open should return a valid procfs fd");
+
+        let _ = procfs
+            .open(ProcfsBase::ProcSelf, ".", OpenFlags::O_PATH)
+            .expect("open(.) should always succeed");
+    }
+
+    #[test]
+    fn pathrs_procfs_open_unmasked() {
+        let how = ProcfsOpenHow {
+            flags: ProcfsOpenFlags::PATHRS_PROCFS_NEW_UNMASKED,
+        };
+
+        let fd = unsafe { pathrs_procfs_open(&how as *const _, mem::size_of::<ProcfsOpenHow>()) };
+        assert!(fd >= 0, "fd value {fd:#x} should be >= 0");
+
+        let procfs = ProcfsHandle::try_from_fd(unsafe { OwnedFd::from_raw_fd(fd) })
+            .expect("pathrs_procfs_open should return a valid procfs fd");
+
+        let _ = procfs
+            .open(ProcfsBase::ProcSelf, ".", OpenFlags::O_PATH)
+            .expect("open(.) should always succeed");
+    }
+
+    #[test]
+    fn pathrs_procfs_open_bad_flag() {
+        let how_bad_flags = ProcfsOpenHow {
+            flags: ProcfsOpenFlags::from_bits_retain(0xF000),
+        };
+
+        let ret = unsafe {
+            pathrs_procfs_open(&how_bad_flags as *const _, mem::size_of::<ProcfsOpenHow>())
+        };
+        assert!(
+            ret < capi_error::__PATHRS_MAX_ERR_VALUE,
+            "ret value {ret:#x} should be error value"
+        );
+        {
+            let err = unsafe {
+                capi_error::pathrs_errorinfo(ret)
+                    .expect("error must be retrievable")
+                    .unleak()
+            };
+            // err.kind() == ErrorKind::InvalidArgument
+            assert_eq!(
+                err.saved_errno,
+                libc::EINVAL as _,
+                "invalid flag should return EINVAL"
+            );
+        }
+    }
+
+    #[test]
+    fn pathrs_procfs_open_bad_struct() {
+        #[repr(C)]
+        #[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]
+        struct ProcfsOpenHowV2 {
+            inner: ProcfsOpenHow,
+            extra: u64,
+        }
+
+        let how_ok_struct = ProcfsOpenHowV2 {
+            inner: ProcfsOpenHow {
+                flags: ProcfsOpenFlags::PATHRS_PROCFS_NEW_UNMASKED,
+            },
+            extra: 0,
+        };
+
+        let fd = unsafe {
+            pathrs_procfs_open(
+                &how_ok_struct as *const _ as *const _,
+                mem::size_of::<ProcfsOpenHowV2>(),
+            )
+        };
+        assert!(fd >= 0, "fd value {fd:#x} should be >= 0");
+        {
+            // Close the file.
+            let _ = unsafe { OwnedFd::from_raw_fd(fd) };
+        }
+
+        let how_bad_struct = ProcfsOpenHowV2 {
+            inner: ProcfsOpenHow {
+                flags: ProcfsOpenFlags::PATHRS_PROCFS_NEW_UNMASKED,
+            },
+            extra: 0xFF,
+        };
+        let ret = unsafe {
+            pathrs_procfs_open(
+                &how_bad_struct as *const _ as *const _,
+                mem::size_of::<ProcfsOpenHowV2>(),
+            )
+        };
+        assert!(
+            ret < capi_error::__PATHRS_MAX_ERR_VALUE,
+            "ret value {ret:#x} should be error value"
+        );
+        {
+            let err = unsafe {
+                capi_error::pathrs_errorinfo(ret)
+                    .expect("error must be retrievable")
+                    .unleak()
+            };
+            // err.kind() == ErrorKind::UnsupportedStructureData
+            assert_eq!(
+                err.saved_errno,
+                libc::E2BIG as _,
+                "structure with extra trailing bytes should return E2BIG"
+            );
+        }
     }
 }

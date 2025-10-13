@@ -109,6 +109,7 @@ after_includes = """
 # Basic kernel-style formatting (can't use tabs so just use 4-spaces).
 line_length = 80
 tab_width = 4
+usize_is_size_t = true
 style = "type"
 
 [layout]
@@ -132,6 +133,9 @@ exclude = [
 # Clean up the naming of structs.
 [export.rename]
 "CProcfsBase" = "pathrs_proc_base_t"
+
+"ProcfsOpenFlags" = "uint64_t"
+"ProcfsOpenHow" = "pathrs_procfs_open_how"
 
 # Error API.
 "CError" = "pathrs_error_t"

@@ -38,7 +38,7 @@ crate-type = ["rlib"]
 
 [features]
 default = []
-capi = ["dep:bytemuck", "dep:rand", "dep:open-enum"]
+capi = ["dep:bytemuck", "bitflags/bytemuck", "dep:rand", "dep:open-enum"]
 # All of these _test_* features are only used for our own tests -- they must
 # not be used by actual users of libpathrs! The leading "_" should mean that
 # they are hidden from documentation (such as the features list on crates.io).

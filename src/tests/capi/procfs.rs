@@ -18,7 +18,10 @@
  */
 
 use crate::{
-    capi::{self, procfs::CProcfsBase},
+    capi::{
+        self,
+        procfs::{CProcfsBase, ProcfsOpenFlags, ProcfsOpenHow},
+    },
     flags::OpenFlags,
     procfs::ProcfsBase,
     tests::{
@@ -29,6 +32,7 @@ use crate::{
 
 use std::{
     fs::File,
+    mem,
     os::unix::io::{AsFd, OwnedFd},
     path::{Path, PathBuf},
 };
@@ -113,6 +117,17 @@ impl From<CapiProcfsHandleFd> for OwnedFd {
 }
 
 impl CapiProcfsHandleFd {
+    pub fn new_unmasked() -> Result<Self, CapiError> {
+        capi_utils::call_capi_fd(|| unsafe {
+            let how = ProcfsOpenHow {
+                flags: ProcfsOpenFlags::PATHRS_PROCFS_NEW_UNMASKED,
+            };
+
+            capi::procfs::pathrs_procfs_open(&how as *const _, mem::size_of::<ProcfsOpenHow>())
+        })
+        .map(CapiProcfsHandleFd)
+    }
+
     fn open_follow(
         &self,
         base: ProcfsBase,

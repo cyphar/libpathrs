@@ -89,6 +89,12 @@ impl<'fd> CBorrowedFd<'fd> {
     }
 }
 
+impl<'fd> AsRawFd for CBorrowedFd<'fd> {
+    fn as_raw_fd(&self) -> RawFd {
+        self.inner
+    }
+}
+
 impl<'fd> From<BorrowedFd<'fd>> for CBorrowedFd<'fd> {
     fn from(fd: BorrowedFd<'_>) -> CBorrowedFd<'_> {
         CBorrowedFd {
