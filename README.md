@@ -243,27 +243,50 @@ different to the version described by LWN):
 
 ### License ###
 
-`SPDX-License-Identifier: LGPL-3.0-or-later`
+`SPDX-License-Identifier: MPL-2.0 OR LGPL-3.0-or-later`
 
-`libpathrs` is licensed under the GNU LGPLv3 (or any later version).
+`libpathrs` is licensed under the terms of the [Mozilla Public License version
+2.0][MPL-2.0] or the [GNU Lesser General Public License version 3][LGPL-3.0],
+at your option.
+
+Unless otherwise stated, by intentionally submitting any Contribution (as
+defined by the Mozilla Public License version 2.0) for inclusion into the
+`libpathrs` project, you are agreeing to dual-license your Contribution as
+above, without any additional terms or conditions.
 
 ```
 libpathrs: safe path resolution on Linux
 Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
 Copyright (C) 2019-2025 SUSE LLC
 
-This program is free software: you can redistribute it and/or modify it under
-the terms of the GNU Lesser General Public License as published by the Free
-Software Foundation, either version 3 of the License, or (at your option) any
-later version.
+== MPL-2.0 ==
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ This Source Code Form is subject to the terms of the Mozilla Public
+ License, v. 2.0. If a copy of the MPL was not distributed with this
+ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-You should have received a copy of the GNU Lesser General Public License along
-with this program. If not, see <https://www.gnu.org/licenses/>.
+Alternatively, this Source Code Form may also (at your option) be used
+under the terms of the GNU Lesser General Public License Version 3, as
+described below:
+
+== LGPL-3.0-or-later ==
+
+ This program is free software: you can redistribute it and/or modify it
+ under the terms of the GNU Lesser General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or (at
+ your option) any later version.
+
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+ for more details.
+
+ You should have received a copy of the GNU Lesser General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>.
 ```
+
+[MPL-2.0]: LICENSE.MPL-2.0
+[LGPL-3.0]: LICENSE.LGPL-3.0
 
 #### Bindings ####
 
@@ -274,10 +297,7 @@ The language-specific bindings (the code in `contrib/bindings/` and
 (available in [`LICENSE.MPL-2.0`][MPL-2.0]).
 
 **NOTE**: If you compile `libpathrs.so` into your binary statically, you still
-need to abide by the license terms of the main `libpathrs` project. In practice
-this means at least providing the object files necessary to allow someone to
-recompile your program using a modified libpathrs. See the LGPLv3 license for
-more details.
+need to abide by the license terms of the main `libpathrs` project.
 
 ```
 libpathrs: safe path resolution on Linux
