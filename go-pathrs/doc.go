@@ -1,5 +1,6 @@
 //go:build linux
 
+// SPDX-License-Identifier: Apache-2.0
 /*
  * libpathrs: safe path resolution on Linux
  * Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>

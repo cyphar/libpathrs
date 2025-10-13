@@ -243,6 +243,8 @@ different to the version described by LWN):
 
 ### License ###
 
+`SPDX-License-Identifier: LGPL-3.0-or-later`
+
 `libpathrs` is licensed under the GNU LGPLv3 (or any later version).
 
 ```
@@ -263,7 +265,9 @@ You should have received a copy of the GNU Lesser General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>.
 ```
 
-<hr/>
+#### Bindings ####
+
+`SPDX-License-Identifier: Apache-2.0`
 
 The language-specific bindings (the code in `contrib/bindings/` and
 `go-pathrs/`) are licensed under the Apache-2.0 license, to allow for wider

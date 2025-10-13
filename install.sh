@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: LGPL-3.0-or-later
+#
 # libpathrs: safe path resolution on Linux
 # Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
 # Copyright (C) 2019-2025 SUSE LLC
@@ -144,6 +146,8 @@ native_static_libs="-lgcc_s -lutil -lrt -lpthread -lm -ldl -lc"
 
 echo "[pkg-config] generating pathrs pkg-config"
 cat >"pathrs.pc" <<EOF
+# SPDX-License-Identifier: LGPL-3.0-or-later
+#
 # libpathrs: safe path resolution on Linux
 # Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
 # Copyright (C) 2019-2025 SUSE LLC
