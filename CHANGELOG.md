@@ -6,9 +6,30 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
-> **NOTE**: As of this release, the libpathrs repository has been moved to
+> [!NOTE]
+> As of this release, the libpathrs repository has been moved to
 > https://github.com/cyphar/libpathrs. Please update any references you have
 > (though GitHub will redirect the old repository name to the new one).
+
+> [!IMPORTANT]
+> The license of this project has changed. Now, the entire project (including
+> all language bindings and examples) is licensed under the terms of the
+> Mozilla Public License version 2.0. Additionally, the Rust crate (and
+> `cdylib`) may also be used (at your option) under the terms of the GNU Lesser
+> General Public License version 3 (or later).
+>
+> For more information, see [`COPYING.md`](./COPYING.md) and the "License"
+> section of the [README](./README.md).
+>
+> The long-term plan is to restructure the project so that `src/capi` is a
+> separate crate that is only licensed as GNU LGPLv3+ and the Rust crate is
+> only licensed under as MPLv2, but for technical reasons this is difficult to
+> achieve at the moment. The primary purpose for dual-licensing is to try to
+> assuage possible concerns around the GNU LGPLv3 requirements to be able to
+> "recombine or relink the Application with a modified version of the Linked
+> Version to produce a modified Combined Work" in the context of the Rust build
+> system, while also allowing us to license the `cdylib` portion under the GNU
+> LGPLv3+.
 
 ### Breaking ###
 - python bindings: `Root.creat` has had its `filemode` and `flags` arguments

@@ -243,52 +243,87 @@ different to the version described by LWN):
 
 ### License ###
 
-`libpathrs` is licensed under the GNU LGPLv3 (or any later version).
+`SPDX-License-Identifier: MPL-2.0 OR LGPL-3.0-or-later`
+
+`libpathrs` is licensed under the terms of the [Mozilla Public License version
+2.0][MPL-2.0] or the [GNU Lesser General Public License version 3][LGPL-3.0],
+at your option.
+
+Unless otherwise stated, by intentionally submitting any Contribution (as
+defined by the Mozilla Public License version 2.0) for inclusion into the
+`libpathrs` project, you are agreeing to dual-license your Contribution as
+above, without any additional terms or conditions.
 
 ```
 libpathrs: safe path resolution on Linux
 Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
 Copyright (C) 2019-2025 SUSE LLC
 
-This program is free software: you can redistribute it and/or modify it under
-the terms of the GNU Lesser General Public License as published by the Free
-Software Foundation, either version 3 of the License, or (at your option) any
-later version.
+== MPL-2.0 ==
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ This Source Code Form is subject to the terms of the Mozilla Public
+ License, v. 2.0. If a copy of the MPL was not distributed with this
+ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-You should have received a copy of the GNU Lesser General Public License along
-with this program. If not, see <https://www.gnu.org/licenses/>.
+Alternatively, this Source Code Form may also (at your option) be used
+under the terms of the GNU Lesser General Public License Version 3, as
+described below:
+
+== LGPL-3.0-or-later ==
+
+ This program is free software: you can redistribute it and/or modify it
+ under the terms of the GNU Lesser General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or (at
+ your option) any later version.
+
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+ for more details.
+
+ You should have received a copy of the GNU Lesser General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>.
 ```
 
-<hr/>
+[MPL-2.0]: LICENSE.MPL-2.0
+[LGPL-3.0]: LICENSE.LGPL-3.0
+
+#### Bindings ####
+
+`SPDX-License-Identifier: MPL-2.0`
 
 The language-specific bindings (the code in `contrib/bindings/` and
-`go-pathrs/`) are licensed under the Apache-2.0 license, to allow for wider
-usage of `libpathrs` from languages where language libraries are not
-dynamically linked.
+`go-pathrs/`) are licensed under the Mozilla Public License version 2.0
+(available in [`LICENSE.MPL-2.0`][MPL-2.0]).
 
-**NOTE**: If you compile libpathrs.so into your binary statically, you still
-need to abide by the LGPLv3 license. In practice this means at least providing
-the object files necessary to allow someone to recompile your program using a
-modified libpathrs. See the LGPLv3 license for more details.
+**NOTE**: If you compile `libpathrs.so` into your binary statically, you still
+need to abide by the license terms of the main `libpathrs` project.
 
 ```
 libpathrs: safe path resolution on Linux
 Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
 Copyright (C) 2019-2025 SUSE LLC
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
+```
 
-    http://www.apache.org/licenses/LICENSE-2.0
+[MPL-2.0]: LICENSE.MPL-2.0
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+#### Examples ####
+
+`SPDX-License-Identifier: MPL-2.0`
+
+The example code in `examples/` is licensed under the Mozilla Public License
+version 2.0 (available in [`LICENSE.MPL-2.0`][MPL-2.0]).
+
+```
+libpathrs: safe path resolution on Linux
+Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
+Copyright (C) 2019-2025 SUSE LLC
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
 ```
