@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   also now makes `filemode` have a default value of `0o644` if unspecified.
 - Most of the C FFI functions have been renamed:
   - Operations on a `Root` have been renamed to have a `pathrs_inroot_` prefix.
-  - `pathrs_open_root` has been renamed to `pathrs_open_root`, to avoid
+  - `pathrs_root_open` has been renamed to `pathrs_open_root`, to avoid
     confusion with `pathrs_inroot_*` functions and clarify what it is opening.
 - python bindings: `Root.open` has been changed to be a wrapper of
   `pathrs_inroot_open` instead of being a wrapper around the `Root`
