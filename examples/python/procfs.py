@@ -24,7 +24,7 @@ import os
 import sys
 
 sys.path.append(os.path.dirname(__file__) + "/../contrib/bindings/python")
-import pathrs
+from pathrs import procfs
 
 
 def chomp(s):
@@ -39,11 +39,11 @@ def chomp(s):
 
 def base_str(args):
     base = args.procfs_base
-    if base == pathrs.PROC_ROOT:
+    if base == procfs.PROC_ROOT:
         return "/proc"
-    elif base == pathrs.PROC_SELF:
+    elif base == procfs.PROC_SELF:
         return "/proc/self"
-    elif base == pathrs.PROC_THREAD_SELF:
+    elif base == procfs.PROC_THREAD_SELF:
         return "/proc/thread-self"
     elif args._pid is not None:
         return f"/proc/{args._pid}"
@@ -63,7 +63,7 @@ def do_open(args):
         print(f"fullpath: {base_str(args)}/{subpath}")
         print("---")
 
-    with pathrs.proc_open(base, subpath, extra_flags=extra_flags) as f:
+    with procfs.open(base, subpath, extra_flags=extra_flags) as f:
         for line in f:
             print(chomp(line))
 
@@ -76,7 +76,7 @@ def do_readlink(args):
         print(f"fullpath: {base_str(args)}/{subpath}")
         print("---")
 
-    link_target = pathrs.proc_readlink(base, subpath)
+    link_target = procfs.readlink(base, subpath)
     print(link_target)
 
 
@@ -92,7 +92,7 @@ def main(*args):
         def __call__(self, parser, namespace, values, option_string=None):
             pid = int(values)
             setattr(namespace, "_pid", pid)
-            setattr(namespace, self.dest, pathrs.PROC_PID(pid))
+            setattr(namespace, self.dest, procfs.PROC_PID(pid))
 
     parser = argparse.ArgumentParser(prog="procfs.py")
     parser.add_argument("--debug", action="store_true", help="output debug messages")
@@ -107,7 +107,7 @@ def main(*args):
         "--root",
         dest="procfs_base",
         action="store_const",
-        const=pathrs.PROC_ROOT,
+        const=procfs.PROC_ROOT,
         help="/proc",
     )
     procfs_base.add_argument(
@@ -115,14 +115,14 @@ def main(*args):
         "--self",
         dest="procfs_base",
         action="store_const",
-        const=pathrs.PROC_SELF,
+        const=procfs.PROC_SELF,
         help="/proc/self",
     )
     procfs_base.add_argument(
         "--thread-self",
         dest="procfs_base",
         action="store_const",
-        const=pathrs.PROC_THREAD_SELF,
+        const=procfs.PROC_THREAD_SELF,
         help="/proc/thread-self",
     )
     procfs_base.add_argument(
