@@ -11,7 +11,8 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-package pathrs
+// Package libpathrs is an internal thin wrapper around the libpathrs C API.
+package libpathrs
 
 import (
 	"fmt"
@@ -49,7 +50,8 @@ func fetchError(errID C.int) error {
 	return err
 }
 
-func pathrsOpenRoot(path string) (uintptr, error) {
+// OpenRoot wraps pathrs_open_root.
+func OpenRoot(path string) (uintptr, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -57,12 +59,14 @@ func pathrsOpenRoot(path string) (uintptr, error) {
 	return uintptr(fd), fetchError(fd)
 }
 
-func pathrsReopen(fd uintptr, flags int) (uintptr, error) {
+// Reopen wraps pathrs_reopen.
+func Reopen(fd uintptr, flags int) (uintptr, error) {
 	newFd := C.pathrs_reopen(C.int(fd), C.int(flags))
 	return uintptr(newFd), fetchError(newFd)
 }
 
-func pathrsInRootResolve(rootFd uintptr, path string) (uintptr, error) {
+// InRootResolve wraps pathrs_inroot_resolve.
+func InRootResolve(rootFd uintptr, path string) (uintptr, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -70,7 +74,8 @@ func pathrsInRootResolve(rootFd uintptr, path string) (uintptr, error) {
 	return uintptr(fd), fetchError(fd)
 }
 
-func pathrsInRootResolveNoFollow(rootFd uintptr, path string) (uintptr, error) {
+// InRootResolveNoFollow wraps pathrs_inroot_resolve_nofollow.
+func InRootResolveNoFollow(rootFd uintptr, path string) (uintptr, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -78,7 +83,8 @@ func pathrsInRootResolveNoFollow(rootFd uintptr, path string) (uintptr, error) {
 	return uintptr(fd), fetchError(fd)
 }
 
-func pathrsInRootOpen(rootFd uintptr, path string, flags int) (uintptr, error) {
+// InRootOpen wraps pathrs_inroot_open.
+func InRootOpen(rootFd uintptr, path string, flags int) (uintptr, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -86,7 +92,8 @@ func pathrsInRootOpen(rootFd uintptr, path string, flags int) (uintptr, error) {
 	return uintptr(fd), fetchError(fd)
 }
 
-func pathrsInRootReadlink(rootFd uintptr, path string) (string, error) {
+// InRootReadlink wraps pathrs_inroot_readlink.
+func InRootReadlink(rootFd uintptr, path string) (string, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -110,7 +117,8 @@ func pathrsInRootReadlink(rootFd uintptr, path string) (string, error) {
 	}
 }
 
-func pathrsInRootRmdir(rootFd uintptr, path string) error {
+// InRootRmdir wraps pathrs_inroot_rmdir.
+func InRootRmdir(rootFd uintptr, path string) error {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -118,7 +126,8 @@ func pathrsInRootRmdir(rootFd uintptr, path string) error {
 	return fetchError(err)
 }
 
-func pathrsInRootUnlink(rootFd uintptr, path string) error {
+// InRootUnlink wraps pathrs_inroot_unlink.
+func InRootUnlink(rootFd uintptr, path string) error {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -126,7 +135,8 @@ func pathrsInRootUnlink(rootFd uintptr, path string) error {
 	return fetchError(err)
 }
 
-func pathrsInRootRemoveAll(rootFd uintptr, path string) error {
+// InRootRemoveAll wraps pathrs_inroot_remove_all.
+func InRootRemoveAll(rootFd uintptr, path string) error {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -134,7 +144,8 @@ func pathrsInRootRemoveAll(rootFd uintptr, path string) error {
 	return fetchError(err)
 }
 
-func pathrsInRootCreat(rootFd uintptr, path string, flags int, mode uint32) (uintptr, error) {
+// InRootCreat wraps pathrs_inroot_creat.
+func InRootCreat(rootFd uintptr, path string, flags int, mode uint32) (uintptr, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -142,7 +153,8 @@ func pathrsInRootCreat(rootFd uintptr, path string, flags int, mode uint32) (uin
 	return uintptr(fd), fetchError(fd)
 }
 
-func pathrsInRootRename(rootFd uintptr, src, dst string, flags uint) error {
+// InRootRename wraps pathrs_inroot_rename.
+func InRootRename(rootFd uintptr, src, dst string, flags uint) error {
 	cSrc := C.CString(src)
 	defer C.free(unsafe.Pointer(cSrc))
 
@@ -153,7 +165,8 @@ func pathrsInRootRename(rootFd uintptr, src, dst string, flags uint) error {
 	return fetchError(err)
 }
 
-func pathrsInRootMkdir(rootFd uintptr, path string, mode uint32) error {
+// InRootMkdir wraps pathrs_inroot_mkdir.
+func InRootMkdir(rootFd uintptr, path string, mode uint32) error {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -161,7 +174,8 @@ func pathrsInRootMkdir(rootFd uintptr, path string, mode uint32) error {
 	return fetchError(err)
 }
 
-func pathrsInRootMkdirAll(rootFd uintptr, path string, mode uint32) (uintptr, error) {
+// InRootMkdirAll wraps pathrs_inroot_mkdir_all.
+func InRootMkdirAll(rootFd uintptr, path string, mode uint32) (uintptr, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -169,7 +183,8 @@ func pathrsInRootMkdirAll(rootFd uintptr, path string, mode uint32) (uintptr, er
 	return uintptr(fd), fetchError(fd)
 }
 
-func pathrsInRootMknod(rootFd uintptr, path string, mode uint32, dev uint64) error {
+// InRootMknod wraps pathrs_inroot_mknod.
+func InRootMknod(rootFd uintptr, path string, mode uint32, dev uint64) error {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -177,7 +192,8 @@ func pathrsInRootMknod(rootFd uintptr, path string, mode uint32, dev uint64) err
 	return fetchError(err)
 }
 
-func pathrsInRootSymlink(rootFd uintptr, path, target string) error {
+// InRootSymlink wraps pathrs_inroot_symlink.
+func InRootSymlink(rootFd uintptr, path, target string) error {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -188,7 +204,8 @@ func pathrsInRootSymlink(rootFd uintptr, path, target string) error {
 	return fetchError(err)
 }
 
-func pathrsInRootHardlink(rootFd uintptr, path, target string) error {
+// InRootHardlink wraps pathrs_inroot_hardlink.
+func InRootHardlink(rootFd uintptr, path, target string) error {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -199,21 +216,28 @@ func pathrsInRootHardlink(rootFd uintptr, path, target string) error {
 	return fetchError(err)
 }
 
-type pathrsProcBase C.pathrs_proc_base_t
+// ProcBase is pathrs_proc_base_t (uint64_t).
+type ProcBase C.pathrs_proc_base_t
 
 // FIXME: We need to open-code the constants because CGo unfortunately will
 // implicitly convert any non-literal constants (i.e. those resolved using gcc)
 // to signed integers. See <https://github.com/golang/go/issues/39136> for some
 // more information on the underlying issue (though.
 const (
-	pathrsProcRoot       pathrsProcBase = 0xFFFF_FFFE_7072_6F63 // C.PATHRS_PROC_ROOT
-	pathrsProcSelf       pathrsProcBase = 0xFFFF_FFFE_091D_5E1F // C.PATHRS_PROC_SELF
-	pathrsProcThreadSelf pathrsProcBase = 0xFFFF_FFFE_3EAD_5E1F // C.PATHRS_PROC_THREAD_SELF
+	// ProcRoot is PATHRS_PROC_ROOT.
+	ProcRoot ProcBase = 0xFFFF_FFFE_7072_6F63 // C.PATHRS_PROC_ROOT
+	// ProcSelf is PATHRS_PROC_SELF.
+	ProcSelf ProcBase = 0xFFFF_FFFE_091D_5E1F // C.PATHRS_PROC_SELF
+	// ProcThreadSelf is PATHRS_PROC_THREAD_SELF.
+	ProcThreadSelf ProcBase = 0xFFFF_FFFE_3EAD_5E1F // C.PATHRS_PROC_THREAD_SELF
 
-	pathrsProcBaseTypeMask pathrsProcBase = 0xFFFF_FFFF_0000_0000 // C.__PATHRS_PROC_TYPE_MASK
-	pathrsProcBaseTypePid  pathrsProcBase = 0x8000_0000_0000_0000 // C.__PATHRS_PROC_TYPE_PID
+	// ProcBaseTypeMask is __PATHRS_PROC_TYPE_MASK.
+	ProcBaseTypeMask ProcBase = 0xFFFF_FFFF_0000_0000 // C.__PATHRS_PROC_TYPE_MASK
+	// ProcBaseTypePid is __PATHRS_PROC_TYPE_PID.
+	ProcBaseTypePid ProcBase = 0x8000_0000_0000_0000 // C.__PATHRS_PROC_TYPE_PID
 
-	pathrsProcDefaultRootFd = -int(syscall.EBADF) // C._PATHRS_PROC_DEFAULT_ROOTFD
+	// ProcDefaultRootFd is PATHRS_PROC_DEFAULT_ROOTFD.
+	ProcDefaultRootFd = -int(syscall.EBADF) // C.PATHRS_PROC_DEFAULT_ROOTFD
 )
 
 func assertEqual[T comparable](a, b T, msg string) {
@@ -234,24 +258,26 @@ func init() {
 		actualProcThreadSelf int64 = C.PATHRS_PROC_THREAD_SELF
 	)
 
-	assertEqual(pathrsProcRoot, pathrsProcBase(actualProcRoot), "PATHRS_PROC_ROOT")
-	assertEqual(pathrsProcSelf, pathrsProcBase(actualProcSelf), "PATHRS_PROC_SELF")
-	assertEqual(pathrsProcThreadSelf, pathrsProcBase(actualProcThreadSelf), "PATHRS_PROC_THREAD_SELF")
+	assertEqual(ProcRoot, ProcBase(actualProcRoot), "PATHRS_PROC_ROOT")
+	assertEqual(ProcSelf, ProcBase(actualProcSelf), "PATHRS_PROC_SELF")
+	assertEqual(ProcThreadSelf, ProcBase(actualProcThreadSelf), "PATHRS_PROC_THREAD_SELF")
 
 	var (
 		actualProcBaseTypeMask uint64 = C.__PATHRS_PROC_TYPE_MASK
 		actualProcBaseTypePid  uint64 = C.__PATHRS_PROC_TYPE_PID
 	)
 
-	assertEqual(pathrsProcBaseTypeMask, pathrsProcBase(actualProcBaseTypeMask), "__PATHRS_PROC_TYPE_MASK")
-	assertEqual(pathrsProcBaseTypePid, pathrsProcBase(actualProcBaseTypePid), "__PATHRS_PROC_TYPE_PID")
+	assertEqual(ProcBaseTypeMask, ProcBase(actualProcBaseTypeMask), "__PATHRS_PROC_TYPE_MASK")
+	assertEqual(ProcBaseTypePid, ProcBase(actualProcBaseTypePid), "__PATHRS_PROC_TYPE_PID")
 
-	assertEqual(pathrsProcDefaultRootFd, int(C.PATHRS_PROC_DEFAULT_ROOTFD), "PATHRS_PROC_DEFAULT_ROOTFD")
+	assertEqual(ProcDefaultRootFd, int(C.PATHRS_PROC_DEFAULT_ROOTFD), "PATHRS_PROC_DEFAULT_ROOTFD")
 }
 
-func pathrsProcPid(pid uint32) pathrsProcBase { return pathrsProcBaseTypePid | pathrsProcBase(pid) }
+// ProcPid reimplements the PROC_PID(x) conversion.
+func ProcPid(pid uint32) ProcBase { return ProcBaseTypePid | ProcBase(pid) }
 
-func pathrsProcOpenat(procRootFd int, base pathrsProcBase, path string, flags int) (uintptr, error) {
+// ProcOpenat wraps pathrs_proc_openat.
+func ProcOpenat(procRootFd int, base ProcBase, path string, flags int) (uintptr, error) {
 	cBase := C.pathrs_proc_base_t(base)
 
 	cPath := C.CString(path)
@@ -261,8 +287,9 @@ func pathrsProcOpenat(procRootFd int, base pathrsProcBase, path string, flags in
 	return uintptr(fd), fetchError(fd)
 }
 
-func pathrsProcReadlinkat(procRootFd int, base pathrsProcBase, path string) (string, error) {
-	// TODO: See if we can unify this code with pathrsInRootReadlink.
+// ProcReadlinkat wraps pathrs_proc_readlinkat.
+func ProcReadlinkat(procRootFd int, base ProcBase, path string) (string, error) {
+	// TODO: See if we can unify this code with InRootReadlink.
 
 	cBase := C.pathrs_proc_base_t(base)
 
@@ -291,13 +318,20 @@ func pathrsProcReadlinkat(procRootFd int, base pathrsProcBase, path string) (str
 	}
 }
 
-type pathrsProcfsOpenHow = C.pathrs_procfs_open_how
+// ProcfsOpenHow is pathrs_procfs_open_how (struct).
+type ProcfsOpenHow C.pathrs_procfs_open_how
 
 const (
-	pathrsProcfsNewUnmasked = C.PATHRS_PROCFS_NEW_UNMASKED
+	// ProcfsNewUnmasked is PATHRS_PROCFS_NEW_UNMASKED.
+	ProcfsNewUnmasked = C.PATHRS_PROCFS_NEW_UNMASKED
 )
 
-func pathrsProcfsOpen(how *pathrsProcfsOpenHow) (uintptr, error) {
-	fd := C.pathrs_procfs_open(how, C.size_t(unsafe.Sizeof(*how)))
+// Flags returns a pointer to the internal flags field to allow other packages
+// to modify structure fields that are internal due to Go's visibility model.
+func (how *ProcfsOpenHow) Flags() *C.uint64_t { return &how.flags }
+
+// ProcfsOpen is pathrs_procfs_open (sizeof(*how) is passed automatically).
+func ProcfsOpen(how *ProcfsOpenHow) (uintptr, error) {
+	fd := C.pathrs_procfs_open((*C.pathrs_procfs_open_how)(how), C.size_t(unsafe.Sizeof(*how)))
 	return uintptr(fd), fetchError(fd)
 }

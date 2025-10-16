@@ -1,5 +1,3 @@
-//go:build linux
-
 // SPDX-License-Identifier: MPL-2.0
 /*
  * libpathrs: safe path resolution on Linux

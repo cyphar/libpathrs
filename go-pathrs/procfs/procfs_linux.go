@@ -11,38 +11,41 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-package pathrs
+// Package procfs provides a safe API for operating on /proc on Linux.
+package procfs
 
 import (
 	"fmt"
 	"os"
 	"runtime"
+
+	"github.com/cyphar/libpathrs/go-pathrs/internal/libpathrs"
 )
 
 // ProcBase is used with [ProcReadlink] and related functions to indicate what
 // /proc subpath path operations should be done relative to.
 type ProcBase struct {
-	inner pathrsProcBase
+	inner libpathrs.ProcBase
 }
 
 var (
-	// ProcBaseRoot indicates to use /proc. Note that this mode may be more
+	// ProcRoot indicates to use /proc. Note that this mode may be more
 	// expensive because we have to take steps to try to avoid leaking unmasked
 	// procfs handles, so you should use [ProcBaseSelf] if you can.
-	ProcBaseRoot = ProcBase{inner: pathrsProcRoot}
-	// ProcBaseSelf indicates to use /proc/self. For most programs, this is the
+	ProcRoot = ProcBase{inner: libpathrs.ProcRoot}
+	// ProcSelf indicates to use /proc/self. For most programs, this is the
 	// standard choice.
-	ProcBaseSelf = ProcBase{inner: pathrsProcSelf}
-	// ProcBaseThreadSelf indicates to use /proc/thread-self. In multi-threaded
+	ProcSelf = ProcBase{inner: libpathrs.ProcSelf}
+	// ProcThreadSelf indicates to use /proc/thread-self. In multi-threaded
 	// programs where one thread has a different CLONE_FS, it is possible for
 	// /proc/self to point the wrong thread and so /proc/thread-self may be
 	// necessary.
-	ProcBaseThreadSelf = ProcBase{inner: pathrsProcThreadSelf}
+	ProcThreadSelf = ProcBase{inner: libpathrs.ProcThreadSelf}
 )
 
-// ProcBasePid returns a ProcBase which indicates to use /proc/$pid for the
-// given PID (or TID). Be aware that due to PID recycling, using this is
-// generally not safe except in certain circumstances. Namely:
+// ProcPid returns a ProcBase which indicates to use /proc/$pid for the given
+// PID (or TID). Be aware that due to PID recycling, using this is generally
+// not safe except in certain circumstances. Namely:
 //
 //   - PID 1 (the init process), as that PID cannot ever get recycled.
 //   - Your current PID (though you should just use [ProcBaseSelf]).
@@ -52,47 +55,48 @@ var (
 //     your program incorrectly catches or ignores SIGCHLD, and that you do it
 //     *before* you call wait(2)or any equivalent method that could reap
 //     zombies).
-func ProcBasePid(pid int) ProcBase {
+func ProcPid(pid int) ProcBase {
 	if pid < 0 || pid >= 1<<31 {
 		panic("invalid ProcBasePid value") // TODO: should this be an error?
 	}
-	return ProcBase{inner: pathrsProcPid(uint32(pid))}
+	return ProcBase{inner: libpathrs.ProcPid(uint32(pid))}
 }
 
 func (b ProcBase) namePrefix() string {
 	switch b {
-	case ProcBaseRoot:
+	case ProcRoot:
 		return "/proc/"
-	case ProcBaseSelf:
+	case ProcSelf:
 		return "/proc/self/"
-	case ProcBaseThreadSelf:
+	case ProcThreadSelf:
 		return "/proc/thread-self/"
 	}
-	switch b.inner & pathrsProcBaseTypeMask { //nolint:exhaustive // we only care about some types
-	case pathrsProcBaseTypePid:
-		return fmt.Sprintf("/proc/%d/", b.inner&^pathrsProcBaseTypeMask)
+	const typeMask = libpathrs.ProcBaseTypeMask
+	switch b.inner & typeMask { //nolint:exhaustive // we only care about some types
+	case libpathrs.ProcBaseTypePid:
+		return fmt.Sprintf("/proc/%d/", b.inner&^typeMask)
 	default:
 	}
 	return "<invalid procfs base>/"
 }
 
-// ProcHandleCloser is a callback that needs to be called when you are done
-// operating on an [os.File] fetched using [ProcThreadSelfOpen].
+// ThreadCloser is a callback that needs to be called when you are done
+// operating on an [os.File] fetched using [Handle.OpenThreadSelf].
 //
 // [os.File]: https://pkg.go.dev/os#File
-type ProcHandleCloser func()
+type ThreadCloser func()
 
-// ProcfsHandle is a wrapper around an *os.File handle to "/proc", which can be
+// Handle is a wrapper around an *os.File handle to "/proc", which can be
 // used to do further procfs-related operations in a safe way.
-type ProcfsHandle struct {
+type Handle struct {
 	inner *os.File
 }
 
-// Close releases all internal resources for this [ProcfsHandle].
+// Close releases all internal resources for this [Handle].
 //
 // Note that if the handle is actually the global cached handle, this operation
 // is a no-op.
-func (proc *ProcfsHandle) Close() error {
+func (proc *Handle) Close() error {
 	var err error
 	if proc.inner != nil {
 		err = proc.inner.Close()
@@ -100,29 +104,28 @@ func (proc *ProcfsHandle) Close() error {
 	return err
 }
 
-// OpenProcRootOption is a configuration function passed as an argument to
-// [OpenProcRoot].
-type OpenProcRootOption func(*pathrsProcfsOpenHow) error
+// OpenOption is a configuration function passed as an argument to [Open].
+type OpenOption func(*libpathrs.ProcfsOpenHow) error
 
-// UnmaskedProcRoot can be passed to [OpenProcRoot] to request an unmasked
-// procfs handle be created.
+// UnmaskedProcRoot can be passed to [Open] to request an unmasked procfs
+// handle be created.
 //
-//	procfs, err := OpenProcRoot(UnmaskedProcRoot)
-func UnmaskedProcRoot(how *pathrsProcfsOpenHow) error {
-	how.flags |= pathrsProcfsNewUnmasked
+//	procfs, err := procfs.OpenRoot(procfs.UnmaskedProcRoot)
+func UnmaskedProcRoot(how *libpathrs.ProcfsOpenHow) error {
+	*how.Flags() |= libpathrs.ProcfsNewUnmasked
 	return nil
 }
 
-// OpenProcRoot creates a new [ProcfsHandle] based on the passed configuration
-// options (in the form of a series of [OpenProcRootOption]).
-func OpenProcRoot(opts ...OpenProcRootOption) (*ProcfsHandle, error) {
-	var how pathrsProcfsOpenHow
+// Open creates a new [Handle] to a safe "/proc", based on the passed
+// configuration options (in the form of a series of [OpenOption]s).
+func Open(opts ...OpenOption) (*Handle, error) {
+	var how libpathrs.ProcfsOpenHow
 	for _, opt := range opts {
 		if err := opt(&how); err != nil {
 			return nil, err
 		}
 	}
-	fd, err := pathrsProcfsOpen(&how)
+	fd, err := libpathrs.ProcfsOpen(&how)
 	if err != nil {
 		return nil, err
 	}
@@ -131,22 +134,22 @@ func OpenProcRoot(opts ...OpenProcRootOption) (*ProcfsHandle, error) {
 		procFile = os.NewFile(fd, "/proc")
 	}
 	// TODO: Check that fd == PATHRS_PROC_DEFAULT_ROOTFD in the <0 case?
-	return &ProcfsHandle{inner: procFile}, nil
+	return &Handle{inner: procFile}, nil
 }
 
-func (proc *ProcfsHandle) fd() int {
+func (proc *Handle) fd() int {
 	if proc.inner != nil {
 		return int(proc.inner.Fd())
 	}
-	return pathrsProcDefaultRootFd
+	return libpathrs.ProcDefaultRootFd
 }
 
 // TODO: Should we expose open?
-func (proc *ProcfsHandle) open(base ProcBase, path string, flags int) (_ *os.File, Closer ProcHandleCloser, Err error) {
+func (proc *Handle) open(base ProcBase, path string, flags int) (_ *os.File, Closer ThreadCloser, Err error) {
 	namePrefix := base.namePrefix()
 
-	var closer ProcHandleCloser
-	if base == ProcBaseThreadSelf {
+	var closer ThreadCloser
+	if base == ProcThreadSelf {
 		runtime.LockOSThread()
 		closer = runtime.UnlockOSThread
 	}
@@ -157,7 +160,7 @@ func (proc *ProcfsHandle) open(base ProcBase, path string, flags int) (_ *os.Fil
 		}
 	}()
 
-	fd, err := pathrsProcOpenat(proc.fd(), base.inner, path, flags)
+	fd, err := libpathrs.ProcOpenat(proc.fd(), base.inner, path, flags)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -169,12 +172,12 @@ func (proc *ProcfsHandle) open(base ProcBase, path string, flags int) (_ *os.Fil
 // This function must only be used for accessing global information from procfs
 // (such as /proc/cpuinfo) or information about other processes (such as
 // /proc/1). Accessing your own process information should be done using
-// [ProcfsHandle.OpenSelf] or [ProcfsHandle.OpenThreadSelf].
-func (proc *ProcfsHandle) OpenRoot(path string, flags int) (*os.File, error) {
-	file, closer, err := proc.open(ProcBaseRoot, path, flags)
+// [Handle.OpenSelf] or [Handle.OpenThreadSelf].
+func (proc *Handle) OpenRoot(path string, flags int) (*os.File, error) {
+	file, closer, err := proc.open(ProcRoot, path, flags)
 	if closer != nil {
 		// should not happen
-		panic("non-zero closer returned from procOpen(ProcBaseRoot)")
+		panic("non-zero closer returned from procOpen(ProcRoot)")
 	}
 	return file, err
 }
@@ -188,21 +191,21 @@ func (proc *ProcfsHandle) OpenRoot(path string, flags int) (*os.File, error) {
 //
 // For such non-heterogeneous processes, /proc/self may reference to a task
 // that has different state from the current goroutine and so it may be
-// preferable to use [ProcfsHandle.OpenThreadSelf]. The same is true if a user
+// preferable to use [Handle.OpenThreadSelf]. The same is true if a user
 // really wants to inspect the current OS thread's information (such as
 // /proc/thread-self/stack or /proc/thread-self/status which is always uniquely
 // per-thread).
 //
-// Unlike [ProcfsHandle.OpenThreadSelf], this method does not involve locking
+// Unlike [Handle.OpenThreadSelf], this method does not involve locking
 // the goroutine to the current OS thread and so is simpler to use and
 // theoretically has slightly less overhead.
 //
 // [runtime.LockOSThread]: https://pkg.go.dev/runtime#LockOSThread
-func (proc *ProcfsHandle) OpenSelf(path string, flags int) (*os.File, error) {
-	file, closer, err := proc.open(ProcBaseSelf, path, flags)
+func (proc *Handle) OpenSelf(path string, flags int) (*os.File, error) {
+	file, closer, err := proc.open(ProcSelf, path, flags)
 	if closer != nil {
 		// should not happen
-		panic("non-zero closer returned from procOpen(ProcBaseSelf)")
+		panic("non-zero closer returned from procOpen(ProcSelf)")
 	}
 	return file, err
 }
@@ -210,14 +213,14 @@ func (proc *ProcfsHandle) OpenSelf(path string, flags int) (*os.File, error) {
 // OpenPid safely opens a given path from inside /proc/$pid/, where pid can be
 // either a PID or TID.
 //
-// This is effectively equivalent to calling [ProcfsHandle.OpenRoot] with the
+// This is effectively equivalent to calling [Handle.OpenRoot] with the
 // pid prefixed to the subpath.
 //
 // Be aware that due to PID recycling, using this is generally not safe except
-// in certain circumstances. See the documentation of [ProcBasePid] for more
+// in certain circumstances. See the documentation of [ProcPid] for more
 // details.
-func (proc *ProcfsHandle) OpenPid(pid int, path string, flags int) (*os.File, error) {
-	file, closer, err := proc.open(ProcBasePid(pid), path, flags)
+func (proc *Handle) OpenPid(pid int, path string, flags int) (*os.File, error) {
+	file, closer, err := proc.open(ProcPid(pid), path, flags)
 	if closer != nil {
 		// should not happen
 		panic("non-zero closer returned from procOpen(ProcPidOpen)")
@@ -228,7 +231,7 @@ func (proc *ProcfsHandle) OpenPid(pid int, path string, flags int) (*os.File, er
 // OpenThreadSelf safely opens a given path from inside /proc/thread-self/.
 //
 // Most Go processes have heterogeneous threads (all threads have most of the
-// same kernel state such as CLONE_FS) and so [ProcfsHandle.OpenSelf] is
+// same kernel state such as CLONE_FS) and so [Handle.OpenSelf] is
 // preferable for most users.
 //
 // For non-heterogeneous threads, or users that actually want thread-specific
@@ -239,7 +242,7 @@ func (proc *ProcfsHandle) OpenPid(pid int, path string, flags int) (*os.File, er
 // (and then subsequently kill the old thread), this method will lock the
 // current goroutine to the OS thread (with [runtime.LockOSThread]) and the
 // caller is responsible for unlocking the the OS thread with the
-// ProcHandleCloser callback once they are done using the returned file. This
+// [ThreadCloser] callback once they are done using the returned file. This
 // callback MUST be called AFTER you have finished using the returned
 // [os.File]. This callback is completely separate to [os.File.Close], so it
 // must be called regardless of how you close the handle.
@@ -247,15 +250,15 @@ func (proc *ProcfsHandle) OpenPid(pid int, path string, flags int) (*os.File, er
 // [runtime.LockOSThread]: https://pkg.go.dev/runtime#LockOSThread
 // [os.File]: https://pkg.go.dev/os#File
 // [os.File.Close]: https://pkg.go.dev/os#File.Close
-func (proc *ProcfsHandle) OpenThreadSelf(path string, flags int) (*os.File, ProcHandleCloser, error) {
-	return proc.open(ProcBaseThreadSelf, path, flags)
+func (proc *Handle) OpenThreadSelf(path string, flags int) (*os.File, ThreadCloser, error) {
+	return proc.open(ProcThreadSelf, path, flags)
 }
 
 // Readlink safely reads the contents of a symlink from the given procfs base.
 //
 // This is effectively equivalent to doing an Open*(O_PATH|O_NOFOLLOW) of the
 // path and then doing unix.Readlinkat(fd, ""), but with the benefit that
-// thread locking is not necessary for [ProcBaseThreadSelf].
-func (proc *ProcfsHandle) Readlink(base ProcBase, path string) (string, error) {
-	return pathrsProcReadlinkat(proc.fd(), base.inner, path)
+// thread locking is not necessary for [ProcThreadSelf].
+func (proc *Handle) Readlink(base ProcBase, path string) (string, error) {
+	return libpathrs.ProcReadlinkat(proc.fd(), base.inner, path)
 }

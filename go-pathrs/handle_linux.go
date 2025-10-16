@@ -16,6 +16,8 @@ package pathrs
 import (
 	"fmt"
 	"os"
+
+	"github.com/cyphar/libpathrs/go-pathrs/internal/libpathrs"
 )
 
 // Handle is a handle for a path within a given [Root]. This handle references
@@ -72,7 +74,7 @@ func (h *Handle) Open() (*os.File, error) {
 // TODO: Rename these to "Reopen" or something.
 func (h *Handle) OpenFile(flags int) (*os.File, error) {
 	return withFileFd(h.inner, func(fd uintptr) (*os.File, error) {
-		newFd, err := pathrsReopen(fd, flags)
+		newFd, err := libpathrs.Reopen(fd, flags)
 		if err != nil {
 			return nil, err
 		}

@@ -18,6 +18,8 @@ import (
 	"os"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/cyphar/libpathrs/go-pathrs/procfs"
 )
 
 // dupFd makes a duplicate of the given fd.
@@ -91,14 +93,14 @@ func dupFile(file *os.File) (*os.File, error) {
 // unlike os.NewFile, the file's Name is based on the real path (provided by
 // /proc/self/fd/$n).
 func mkFile(fd uintptr) (*os.File, error) {
-	proc, err := OpenProcRoot()
+	proc, err := procfs.Open()
 	if err != nil {
 		return nil, err
 	}
 	defer proc.Close() //nolint:errcheck // Close errors are not critical
 
 	fdPath := fmt.Sprintf("fd/%d", fd)
-	fdName, err := proc.Readlink(ProcBaseThreadSelf, fdPath)
+	fdName, err := proc.Readlink(procfs.ProcThreadSelf, fdPath)
 	if err != nil {
 		_ = unix.Close(int(fd))
 		return nil, fmt.Errorf("failed to fetch real name of fd %d: %w", fd, err)

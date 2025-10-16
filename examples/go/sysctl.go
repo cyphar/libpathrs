@@ -20,15 +20,15 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/cyphar/libpathrs/go-pathrs"
+	"github.com/cyphar/libpathrs/go-pathrs/procfs"
 )
 
 func Main(names ...string) error {
-	proc, err := pathrs.OpenProcRoot(pathrs.UnmaskedProcRoot)
+	proc, err := procfs.Open(procfs.UnmaskedProcRoot)
 	if err != nil {
 		return fmt.Errorf("open proc root: %w", err)
 	}
-	defer proc.Close()
+	defer proc.Close() //nolint:errcheck // example code
 
 	for _, name := range names {
 		path := "sys/" + strings.ReplaceAll(name, ".", "/")

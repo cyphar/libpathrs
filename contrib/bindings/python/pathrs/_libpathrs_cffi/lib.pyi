@@ -13,7 +13,8 @@ from typing import type_check_only, Union
 # TODO: Remove this once we only support Python >= 3.10.
 from typing_extensions import TypeAlias, Literal
 
-from .._pathrs import CBuffer, CString, ProcfsBase
+from .._pathrs import CBuffer, CString
+from ..procfs import ProcfsBase
 
 RawFd: TypeAlias = int
 
