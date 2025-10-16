@@ -24,6 +24,7 @@ import flask.json
 
 sys.path.append(os.path.dirname(__file__) + "/../contrib/bindings/python")
 import pathrs
+from pathrs import PathrsError
 
 app = flask.Flask(__name__)
 
@@ -49,7 +50,7 @@ def json_dentry(dentry):
 def get(path):
     try:
         handle = root.resolve(path)
-    except pathrs.Error as e:
+    except PathrsError as e:
         e.pprint()
         status_code = {
             # No such file or directory => 404 Not Found.
