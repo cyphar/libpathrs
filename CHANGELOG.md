@@ -59,6 +59,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   This will cause build errors for existing users which used the old repository
   path, but can easily be fixed by updating `go.mod` and `go.sum` to use the
   new repository name.
+- go bindings: the procfs APIs have been moved to a `procfs` subpackage, and
+  several of the exported types and functions have changed names. We have not
+  provided any compatibility aliases.
 
 ### Added ###
 - python bindings: add `Root.creat_raw` to create a new file and wrap it in a
@@ -132,8 +135,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
     `ProcfsHandle.cached()` returns the cached global `ProcfsHandle`. The
     top-level `proc_*` functions (which may be removed in future versions) are
     now just bound methods of `ProcfsHandle.cached()`.
-  - go bindings: `ProcfsHandle` wraps this new API, and you can construct
- a   custom `ProcfsHandle`s with `OpenProcRoot` (calling this with no arguments
+  - go bindings: `ProcfsHandle` wraps this new API, and you can construct a
+    custom `ProcfsHandle`s with `OpenProcRoot` (calling this with no arguments
     will produce the global cached handle if the handle is being cached). The
     old `Proc*` functions have been removed entirely.
 
