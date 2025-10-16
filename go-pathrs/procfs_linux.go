@@ -17,27 +17,29 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+
+	"github.com/cyphar/libpathrs/go-pathrs/internal/libpathrs"
 )
 
 // ProcBase is used with [ProcReadlink] and related functions to indicate what
 // /proc subpath path operations should be done relative to.
 type ProcBase struct {
-	inner pathrsProcBase
+	inner libpathrs.ProcBase
 }
 
 var (
 	// ProcBaseRoot indicates to use /proc. Note that this mode may be more
 	// expensive because we have to take steps to try to avoid leaking unmasked
 	// procfs handles, so you should use [ProcBaseSelf] if you can.
-	ProcBaseRoot = ProcBase{inner: pathrsProcRoot}
+	ProcBaseRoot = ProcBase{inner: libpathrs.ProcRoot}
 	// ProcBaseSelf indicates to use /proc/self. For most programs, this is the
 	// standard choice.
-	ProcBaseSelf = ProcBase{inner: pathrsProcSelf}
+	ProcBaseSelf = ProcBase{inner: libpathrs.ProcSelf}
 	// ProcBaseThreadSelf indicates to use /proc/thread-self. In multi-threaded
 	// programs where one thread has a different CLONE_FS, it is possible for
 	// /proc/self to point the wrong thread and so /proc/thread-self may be
 	// necessary.
-	ProcBaseThreadSelf = ProcBase{inner: pathrsProcThreadSelf}
+	ProcBaseThreadSelf = ProcBase{inner: libpathrs.ProcThreadSelf}
 )
 
 // ProcBasePid returns a ProcBase which indicates to use /proc/$pid for the
@@ -56,7 +58,7 @@ func ProcBasePid(pid int) ProcBase {
 	if pid < 0 || pid >= 1<<31 {
 		panic("invalid ProcBasePid value") // TODO: should this be an error?
 	}
-	return ProcBase{inner: pathrsProcPid(uint32(pid))}
+	return ProcBase{inner: libpathrs.ProcPid(uint32(pid))}
 }
 
 func (b ProcBase) namePrefix() string {
@@ -68,9 +70,10 @@ func (b ProcBase) namePrefix() string {
 	case ProcBaseThreadSelf:
 		return "/proc/thread-self/"
 	}
-	switch b.inner & pathrsProcBaseTypeMask { //nolint:exhaustive // we only care about some types
-	case pathrsProcBaseTypePid:
-		return fmt.Sprintf("/proc/%d/", b.inner&^pathrsProcBaseTypeMask)
+	const typeMask = libpathrs.ProcBaseTypeMask
+	switch b.inner & typeMask { //nolint:exhaustive // we only care about some types
+	case libpathrs.ProcBaseTypePid:
+		return fmt.Sprintf("/proc/%d/", b.inner&^typeMask)
 	default:
 	}
 	return "<invalid procfs base>/"
@@ -102,27 +105,27 @@ func (proc *ProcfsHandle) Close() error {
 
 // OpenProcRootOption is a configuration function passed as an argument to
 // [OpenProcRoot].
-type OpenProcRootOption func(*pathrsProcfsOpenHow) error
+type OpenProcRootOption func(*libpathrs.ProcfsOpenHow) error
 
 // UnmaskedProcRoot can be passed to [OpenProcRoot] to request an unmasked
 // procfs handle be created.
 //
 //	procfs, err := OpenProcRoot(UnmaskedProcRoot)
-func UnmaskedProcRoot(how *pathrsProcfsOpenHow) error {
-	how.flags |= pathrsProcfsNewUnmasked
+func UnmaskedProcRoot(how *libpathrs.ProcfsOpenHow) error {
+	*how.Flags() |= libpathrs.ProcfsNewUnmasked
 	return nil
 }
 
 // OpenProcRoot creates a new [ProcfsHandle] based on the passed configuration
 // options (in the form of a series of [OpenProcRootOption]).
 func OpenProcRoot(opts ...OpenProcRootOption) (*ProcfsHandle, error) {
-	var how pathrsProcfsOpenHow
+	var how libpathrs.ProcfsOpenHow
 	for _, opt := range opts {
 		if err := opt(&how); err != nil {
 			return nil, err
 		}
 	}
-	fd, err := pathrsProcfsOpen(&how)
+	fd, err := libpathrs.ProcfsOpen(&how)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +141,7 @@ func (proc *ProcfsHandle) fd() int {
 	if proc.inner != nil {
 		return int(proc.inner.Fd())
 	}
-	return pathrsProcDefaultRootFd
+	return libpathrs.ProcDefaultRootFd
 }
 
 // TODO: Should we expose open?
@@ -157,7 +160,7 @@ func (proc *ProcfsHandle) open(base ProcBase, path string, flags int) (_ *os.Fil
 		}
 	}()
 
-	fd, err := pathrsProcOpenat(proc.fd(), base.inner, path, flags)
+	fd, err := libpathrs.ProcOpenat(proc.fd(), base.inner, path, flags)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -257,5 +260,5 @@ func (proc *ProcfsHandle) OpenThreadSelf(path string, flags int) (*os.File, Proc
 // path and then doing unix.Readlinkat(fd, ""), but with the benefit that
 // thread locking is not necessary for [ProcBaseThreadSelf].
 func (proc *ProcfsHandle) Readlink(base ProcBase, path string) (string, error) {
-	return pathrsProcReadlinkat(proc.fd(), base.inner, path)
+	return libpathrs.ProcReadlinkat(proc.fd(), base.inner, path)
 }

@@ -1,5 +1,7 @@
 //go:build linux
 
+// TODO: Use "go:build unix" once we bump the minimum Go version 1.19.
+
 // SPDX-License-Identifier: MPL-2.0
 /*
  * libpathrs: safe path resolution on Linux
@@ -11,7 +13,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-package pathrs
+package libpathrs
 
 import (
 	"syscall"
