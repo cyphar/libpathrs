@@ -59,12 +59,12 @@ def _is_pathrs_err(ret: int) -> bool:
     return ret < libpathrs_so.__PATHRS_MAX_ERR_VALUE
 
 
-class Error(Exception):
+class PathrsError(Exception):
     """
     Represents a libpathrs error. All libpathrs errors have a description
-    (Error.message) and errors that were caused by an underlying OS error (or
-    can be translated to an OS error) also include the errno value
-    (Error.errno).
+    (PathrsError.message) and errors that were caused by an underlying OS error
+    (or can be translated to an OS error) also include the errno value
+    (PathrsError.errno).
     """
 
     message: str
@@ -124,7 +124,7 @@ class Error(Exception):
         print("  %s" % (self.message,), file=out)
 
 
-INTERNAL_ERROR = Error("tried to fetch libpathrs error but no error found")
+INTERNAL_ERROR = PathrsError("tried to fetch libpathrs error but no error found")
 
 
 class FilenoFile(typing.Protocol):

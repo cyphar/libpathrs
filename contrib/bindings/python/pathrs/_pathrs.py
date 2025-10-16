@@ -23,7 +23,7 @@ from ._internal import (
     WrappedFd,
     _convert_mode,
     # Error API.
-    Error,
+    PathrsError,
     _is_pathrs_err,
     INTERNAL_ERROR,
     # CFFI helpers.
@@ -52,7 +52,7 @@ __all__ = [
     "Root",
     "Handle",
     # Error api (re-export).
-    "Error",
+    "PathrsError",
 ]
 
 
@@ -84,7 +84,7 @@ class Handle(WrappedFd):
         """
         fd = libpathrs_so.pathrs_reopen(self.fileno(), flags)
         if _is_pathrs_err(fd):
-            raise Error._fetch(fd) or INTERNAL_ERROR
+            raise PathrsError._fetch(fd) or INTERNAL_ERROR
         return WrappedFd(fd)
 
 
@@ -107,7 +107,7 @@ class Root(WrappedFd):
             path = _cstr(file_or_path)
             fd = libpathrs_so.pathrs_open_root(path)
             if _is_pathrs_err(fd):
-                raise Error._fetch(fd) or INTERNAL_ERROR
+                raise PathrsError._fetch(fd) or INTERNAL_ERROR
             file: FileLike = fd
         else:
             file = file_or_path
@@ -131,7 +131,7 @@ class Root(WrappedFd):
         else:
             fd = libpathrs_so.pathrs_inroot_resolve_nofollow(self.fileno(), _cstr(path))
         if _is_pathrs_err(fd):
-            raise Error._fetch(fd) or INTERNAL_ERROR
+            raise PathrsError._fetch(fd) or INTERNAL_ERROR
         return Handle(fd)
 
     def open(
@@ -179,7 +179,7 @@ class Root(WrappedFd):
         """
         fd = libpathrs_so.pathrs_inroot_open(self.fileno(), _cstr(path), flags)
         if _is_pathrs_err(fd):
-            raise Error._fetch(fd) or INTERNAL_ERROR
+            raise PathrsError._fetch(fd) or INTERNAL_ERROR
         return WrappedFd(fd)
 
     def readlink(self, path: str, /) -> str:
@@ -196,7 +196,7 @@ class Root(WrappedFd):
                 self.fileno(), cpath, linkbuf, linkbuf_size
             )
             if _is_pathrs_err(n):
-                raise Error._fetch(n) or INTERNAL_ERROR
+                raise PathrsError._fetch(n) or INTERNAL_ERROR
             elif n <= linkbuf_size:
                 buf = typing.cast(bytes, ffi.buffer(linkbuf, linkbuf_size)[:n])
                 return buf.decode("latin1")
@@ -231,7 +231,7 @@ class Root(WrappedFd):
             self.fileno(), _cstr(path), flags, filemode
         )
         if _is_pathrs_err(fd):
-            raise Error._fetch(fd) or INTERNAL_ERROR
+            raise PathrsError._fetch(fd) or INTERNAL_ERROR
         return os.fdopen(fd, mode)
 
     def creat_raw(self, path: str, flags: int, filemode: int = 0o644, /) -> WrappedFd:
@@ -253,7 +253,7 @@ class Root(WrappedFd):
             self.fileno(), _cstr(path), flags, filemode
         )
         if _is_pathrs_err(fd):
-            raise Error._fetch(fd) or INTERNAL_ERROR
+            raise PathrsError._fetch(fd) or INTERNAL_ERROR
         return WrappedFd(fd)
 
     def rename(self, src: str, dst: str, flags: int = 0, /) -> None:
@@ -269,7 +269,7 @@ class Root(WrappedFd):
             self.fileno(), _cstr(src), _cstr(dst), flags
         )
         if _is_pathrs_err(err):
-            raise Error._fetch(err) or INTERNAL_ERROR
+            raise PathrsError._fetch(err) or INTERNAL_ERROR
 
     def rmdir(self, path: str, /) -> None:
         """
@@ -280,7 +280,7 @@ class Root(WrappedFd):
         """
         err = libpathrs_so.pathrs_inroot_rmdir(self.fileno(), _cstr(path))
         if _is_pathrs_err(err):
-            raise Error._fetch(err) or INTERNAL_ERROR
+            raise PathrsError._fetch(err) or INTERNAL_ERROR
 
     def unlink(self, path: str, /) -> None:
         """
@@ -292,7 +292,7 @@ class Root(WrappedFd):
         """
         err = libpathrs_so.pathrs_inroot_unlink(self.fileno(), _cstr(path))
         if _is_pathrs_err(err):
-            raise Error._fetch(err) or INTERNAL_ERROR
+            raise PathrsError._fetch(err) or INTERNAL_ERROR
 
     def remove_all(self, path: str, /) -> None:
         """
@@ -301,7 +301,7 @@ class Root(WrappedFd):
         """
         err = libpathrs_so.pathrs_inroot_remove_all(self.fileno(), _cstr(path))
         if _is_pathrs_err(err):
-            raise Error._fetch(err) or INTERNAL_ERROR
+            raise PathrsError._fetch(err) or INTERNAL_ERROR
 
     def mkdir(self, path: str, mode: int, /) -> None:
         """
@@ -318,7 +318,7 @@ class Root(WrappedFd):
         """
         err = libpathrs_so.pathrs_inroot_mkdir(self.fileno(), _cstr(path), mode)
         if _is_pathrs_err(err):
-            raise Error._fetch(err) or INTERNAL_ERROR
+            raise PathrsError._fetch(err) or INTERNAL_ERROR
 
     def mkdir_all(self, path: str, mode: int, /) -> Handle:
         """
@@ -336,7 +336,7 @@ class Root(WrappedFd):
         """
         fd = libpathrs_so.pathrs_inroot_mkdir_all(self.fileno(), _cstr(path), mode)
         if _is_pathrs_err(fd):
-            raise Error._fetch(fd) or INTERNAL_ERROR
+            raise PathrsError._fetch(fd) or INTERNAL_ERROR
         return Handle(fd)
 
     def mknod(self, path: str, mode: int, device: int = 0, /) -> None:
@@ -357,7 +357,7 @@ class Root(WrappedFd):
         """
         err = libpathrs_so.pathrs_inroot_mknod(self.fileno(), _cstr(path), mode, device)
         if _is_pathrs_err(err):
-            raise Error._fetch(err) or INTERNAL_ERROR
+            raise PathrsError._fetch(err) or INTERNAL_ERROR
 
     def hardlink(self, path: str, target: str, /) -> None:
         """
@@ -373,7 +373,7 @@ class Root(WrappedFd):
             self.fileno(), _cstr(path), _cstr(target)
         )
         if _is_pathrs_err(err):
-            raise Error._fetch(err) or INTERNAL_ERROR
+            raise PathrsError._fetch(err) or INTERNAL_ERROR
 
     def symlink(self, path: str, target: str, /) -> None:
         """
@@ -390,4 +390,4 @@ class Root(WrappedFd):
             self.fileno(), _cstr(path), _cstr(target)
         )
         if _is_pathrs_err(err):
-            raise Error._fetch(err) or INTERNAL_ERROR
+            raise PathrsError._fetch(err) or INTERNAL_ERROR

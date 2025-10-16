@@ -20,7 +20,7 @@ from ._internal import (
     WrappedFd,
     _convert_mode,
     # Error API.
-    Error,
+    PathrsError,
     _is_pathrs_err,
     INTERNAL_ERROR,
     # CFFI helpers.
@@ -126,7 +126,7 @@ class ProcfsHandle(WrappedFd):
 
         fd = libpathrs_so.pathrs_procfs_open(how, how_size)
         if _is_pathrs_err(fd):
-            raise Error._fetch(fd) or INTERNAL_ERROR
+            raise PathrsError._fetch(fd) or INTERNAL_ERROR
         return cls.from_raw_fd(fd)
 
     def open_raw(self, base: ProcfsBase, path: str, flags: int, /) -> WrappedFd:
@@ -149,7 +149,7 @@ class ProcfsHandle(WrappedFd):
         # TODO: Should we default to O_NOFOLLOW or put a separate argument for it?
         fd = libpathrs_so.pathrs_proc_openat(self.fileno(), base, _cstr(path), flags)
         if _is_pathrs_err(fd):
-            raise Error._fetch(fd) or INTERNAL_ERROR
+            raise PathrsError._fetch(fd) or INTERNAL_ERROR
         return WrappedFd(fd)
 
     def open(
@@ -197,7 +197,7 @@ class ProcfsHandle(WrappedFd):
                 self.fileno(), base, cpath, linkbuf, linkbuf_size
             )
             if _is_pathrs_err(n):
-                raise Error._fetch(n) or INTERNAL_ERROR
+                raise PathrsError._fetch(n) or INTERNAL_ERROR
             elif n <= linkbuf_size:
                 buf = typing.cast(bytes, ffi.buffer(linkbuf, linkbuf_size)[:n])
                 return buf.decode("latin1")
