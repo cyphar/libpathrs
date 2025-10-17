@@ -25,7 +25,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/cyphar/libpathrs/go-pathrs"
+	"cyphar.com/go-pathrs"
 )
 
 func Main(args ...string) error {

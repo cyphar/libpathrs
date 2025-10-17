@@ -19,7 +19,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/cyphar/libpathrs/go-pathrs/internal/libpathrs"
+	"cyphar.com/go-pathrs/internal/libpathrs"
 )
 
 // ProcBase is used with [ProcReadlink] and related functions to indicate what

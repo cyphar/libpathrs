@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 > As of this release, the libpathrs repository has been moved to
 > https://github.com/cyphar/libpathrs. Please update any references you have
 > (though GitHub will redirect the old repository name to the new one).
+>
+> In addition, the `go-pathrs` package has been moved to a vanity URL of
+> `cyphar.com/go-pathrs`. Please update your Go import paths accordingly.
 
 > [!IMPORTANT]
 > The license of this project has changed. Now, the entire project (including
@@ -57,11 +60,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
     `ProcfsBase` is now an opaque `struct` type rather than a simple `int`
     wrapper -- this was necessary in order to add support for
     `ProcfsBase::ProcPid` in the form of the `ProcBasePid` helper function.
-- go bindings: due to the change in repository name, the Go module name for the
-  libpathrs Go bindings has also been renamed to `github.com/cyphar/libpathrs`.
-  This will cause build errors for existing users which used the old repository
-  path, but can easily be fixed by updating `go.mod` and `go.sum` to use the
-  new repository name.
+- go bindings: the Go module name for the libpathrs Go bindings has been
+  renamed to `cyphar.com/go-pathrs`. This will cause build errors for existing
+  users which used the old repository path, but can easily be fixed by updating
+  `go.mod` and `go.sum` to use the new name.
 - go bindings: the procfs APIs have been moved to a `procfs` subpackage, and
   several of the exported types and functions have changed names. We have not
   provided any compatibility aliases.

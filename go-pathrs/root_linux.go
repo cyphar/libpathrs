@@ -19,7 +19,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/cyphar/libpathrs/go-pathrs/internal/libpathrs"
+	"cyphar.com/go-pathrs/internal/libpathrs"
 )
 
 // Root is a handle to the root of a directory tree to resolve within. The only

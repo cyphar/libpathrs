@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cyphar/libpathrs/go-pathrs/internal/libpathrs"
+	"cyphar.com/go-pathrs/internal/libpathrs"
 )
 
 // Handle is a handle for a path within a given [Root]. This handle references
