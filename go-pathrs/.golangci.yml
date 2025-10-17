@@ -37,3 +37,7 @@ formatters:
   enable:
     - gofumpt
     - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - cyphar.com/go-pathrs

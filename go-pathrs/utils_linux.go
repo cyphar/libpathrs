@@ -19,7 +19,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/cyphar/libpathrs/go-pathrs/procfs"
+	"cyphar.com/go-pathrs/procfs"
 )
 
 // dupFd makes a duplicate of the given fd.

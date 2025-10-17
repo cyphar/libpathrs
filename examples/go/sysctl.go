@@ -20,7 +20,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/cyphar/libpathrs/go-pathrs/procfs"
+	"cyphar.com/go-pathrs/procfs"
 )
 
 func Main(names ...string) error {

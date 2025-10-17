@@ -1,4 +1,5 @@
-module github.com/cyphar/libpathrs/go-pathrs
+// Hosted at <https://github.com/cyphar/libpathrs>.
+module cyphar.com/go-pathrs
 
 go 1.18
 
