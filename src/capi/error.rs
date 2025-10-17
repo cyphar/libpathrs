@@ -31,7 +31,7 @@
  */
 
 use crate::{
-    capi::{ret::CReturn, utils::Leakable},
+    capi::{ret::CReturn, utils, utils::Leakable},
     error::Error,
 };
 
@@ -196,6 +196,9 @@ pub unsafe extern "C" fn pathrs_errorinfo(err_id: c_int) -> Option<&'static mut 
         .map(CError::from)
         .map(Leakable::leak)
 }
+utils::symver! {
+    fn pathrs_errorinfo <- (pathrs_errorinfo, version = "LIBPATHRS_0.1", default);
+}
 
 /// Free the pathrs_error_t object returned by pathrs_errorinfo().
 #[no_mangle]
@@ -207,6 +210,9 @@ pub unsafe extern "C" fn pathrs_errorinfo_free(ptr: *mut CError) {
     // SAFETY: The C caller guarantees that the pointer is of the correct type
     // and that this isn't a double-free.
     unsafe { (*ptr).free() }
+}
+utils::symver! {
+    fn pathrs_errorinfo_free <- (pathrs_errorinfo_free, version = "LIBPATHRS_0.1", default);
 }
 
 #[cfg(test)]

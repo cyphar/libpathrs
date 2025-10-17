@@ -98,6 +98,9 @@ paste = "^1"
 path-clean = "^1"
 pretty_assertions = { version = "^1", features = ["unstable"] }
 
+[build-dependencies]
+tempfile = "^3"
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
 	# We have special handling for coverage runs (which set cfg(coverage)).

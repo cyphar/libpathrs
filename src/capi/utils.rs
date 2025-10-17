@@ -48,6 +48,102 @@ use std::{
 use bytemuck::Pod;
 use libc::{c_char, c_int, size_t};
 
+/// Generate `.symver` entries for a given function.
+///
+/// On platforms without stabilised
+///
+/// ```ignore
+/// # use pathrs::capi::utils::symver;
+/// // Create a symbol version with the same name.
+/// #[no_mangle]
+/// fn foo_bar(a: u64) -> u64 { a + 32 }
+/// symver!{
+///     fn foo_bar <- (foo_bar, version = "LIBFOO_2.0", default);
+/// }
+/// // Create a compatibility symbol with a different name. In this case, you
+/// // should actually name the implementation function something like __foo_v1
+/// // because the symbol will still be public (still unclear why...).
+/// fn __foo_bar_v1(a: u64) -> u64 { a + 16 }
+/// symver!{
+///     #[cfg(feature = "v1_compat")] // meta attributes work
+///     fn __foo_bar_v1 <- (foo_bar, version = "LIBFOO_1.0");
+/// }
+/// ```
+macro_rules! symver {
+    () => {};
+    ($(#[$meta:meta])* fn $implsym:ident <- ($symname:ident, version = $version:literal); $($tail:tt)*) => {
+        // Some architectures still have unstable ASM, which stops us from
+        // injecting the ".symver" section. You can see the list in
+        // LoweringContext::lower_inline_asm (compiler/rustc_asm_lowering).
+        #[cfg(any(
+            target_arch = "arm",
+            target_arch = "aarch64",
+            target_arch = "x86",
+            target_arch = "x86_64",
+            target_arch = "riscv32",
+            target_arch = "riscv64",
+            // TODO: We should have a "rust_$ver" cfg to let us add attributes
+            // based on the Rust version being used for building, so we can
+            // maximise the usage of .symver without needing to bump the MSRV.
+            //target_arch = "arm64ec", // MSRV(1.84)
+            //target_arch = "loongarch32", // MSRV(1.91?)
+            //target_arch = "loongarch64", // MSRV(1.72)
+            //target_arch = "s390x", // MSRV(1.84)
+            // TODO: Once stabilised, add these arches:
+            //target_arch = "powerpc",
+            //target_arch = "powerpc64",
+            //target_arch = "sparc64",
+        ))]
+        // .symver $implsym, $symname@$version
+        $(#[$meta])*
+        ::std::arch::global_asm! {concat!(
+            ".symver ",
+            stringify!($implsym),
+            ", ",
+            stringify!($symname),
+            "@",
+            $version,
+        )}
+        $crate::capi::utils::symver! { $($tail)* }
+    };
+    ($(#[$meta:meta])* fn $implsym:ident <- ($symname:ident, version = $version:literal, default); $($tail:tt)*) => {
+        // Some architectures still have unstable ASM, which stops us from
+        // injecting the ".symver" section. You can see the list in
+        // LoweringContext::lower_inline_asm (compiler/rustc_asm_lowering).
+        #[cfg(any(
+            target_arch = "arm",
+            target_arch = "aarch64",
+            target_arch = "x86",
+            target_arch = "x86_64",
+            target_arch = "riscv32",
+            target_arch = "riscv64",
+            // TODO: We should have a "rust_$ver" cfg to let us add attributes
+            // based on the Rust version being used for building, so we can
+            // maximise the usage of .symver without needing to bump the MSRV.
+            //target_arch = "arm64ec", // MSRV(1.84)
+            //target_arch = "loongarch32", // MSRV(1.91?)
+            //target_arch = "loongarch64", // MSRV(1.72)
+            //target_arch = "s390x", // MSRV(1.84)
+            // TODO: Once stabilised, add these arches:
+            //target_arch = "powerpc",
+            //target_arch = "powerpc64",
+            //target_arch = "sparc64",
+        ))]
+        // .symver $implsym, $symname@@$version
+        $(#[$meta])*
+        ::std::arch::global_asm! {concat!(
+            ".symver ",
+            stringify!($implsym),
+            ", ",
+            stringify!($symname),
+            "@@",
+            $version,
+        )}
+        $crate::capi::utils::symver! { $($tail)* }
+    };
+}
+pub(crate) use symver;
+
 /// Equivalent to [`BorrowedFd`], except that there are no restrictions on what
 /// value the inner [`RawFd`] can take. This is necessary because C callers
 /// could reasonably pass `-1` as a file descriptor value and we need to verify

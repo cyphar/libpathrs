@@ -30,15 +30,45 @@
  *  along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::env;
+use std::{env, io::Write};
+
+use tempfile::NamedTempFile;
 
 fn main() {
-    // Add DT_SONAME to our cdylibs. We can't check the crate-type here
-    // directly, but we can at least avoid needless warnings for "cargo build"
-    // by only emitting this when the capi feature is enabled.
+    // Add DT_SONAME and other ELF metadata to our cdylibs. We can't check the
+    // crate-type here directly, but we can at least avoid needless warnings for
+    // "cargo build" by only emitting this when the capi feature is enabled.
     if cfg!(feature = "capi") {
         let name = "pathrs";
+        // TODO: Since we use symbol versioning, it seems quite unlikely that we
+        // would ever bump the major version in the SONAME, so we should
+        // probably hard-code this or define it elsewhere.
         let major = env::var("CARGO_PKG_VERSION_MAJOR").unwrap();
         println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,lib{name}.so.{major}");
+
+        let (mut version_script_file, version_script_path) =
+            NamedTempFile::with_prefix("libpathrs-version-script.")
+                .expect("mktemp")
+                .keep()
+                .expect("persist mktemp");
+        let version_script_path = version_script_path
+            .to_str()
+            .expect("mktemp should be utf-8 safe string");
+        writeln!(
+            version_script_file,
+            // All of the symbol versions are done with in-line .symver entries.
+            // This version script is only needed to define the version nodes
+            // (and their dependencies).
+            // FIXME: "local" doesn't appear to actually hide symbols in the
+            // output .so. For more information about getting all of this to
+            // work nicely, see <https://internals.rust-lang.org/t/23626>.
+            r#"
+            LIBPATHRS_0.2 {{ local: *; }} LIBPATHRS_0.1;
+            LIBPATHRS_0.1 {{  }};
+            "#
+        )
+        .expect("write version script");
+        println!("cargo:rustc-cdylib-link-arg=-Wl,--version-script={version_script_path}");
+        println!("cargo:rustc-cdylib-link-arg=-Wl,--wrap=pathrs_inroot_open_bad");
     }
 }

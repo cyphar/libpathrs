@@ -39,6 +39,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   - Operations on a `Root` have been renamed to have a `pathrs_inroot_` prefix.
   - `pathrs_root_open` has been renamed to `pathrs_open_root`, to avoid
     confusion with `pathrs_inroot_*` functions and clarify what it is opening.
+  - However, `libpathrs.so` now uses symbol versioning and so (mostly as a
+    proof-of-concept) programs compiled against libpathrs 0.1 will continue to
+    function with libpathrs 0.2.
 - python bindings: `Root.open` has been changed to be a wrapper of
   `pathrs_inroot_open` instead of being a wrapper around the `Root`
   constructor.
@@ -143,6 +146,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
     custom `ProcfsHandle`s with `OpenProcRoot` (calling this with no arguments
     will produce the global cached handle if the handle is being cached). The
     old `Proc*` functions have been removed entirely.
+- capi: We now use symbol versioning for `libpathrs.so`, which should avoid
+  concerns about future API breakages. I have tested all of the key aspects of
+  this new symbol versioning setup and it seems Rust provides everything
+  necessary (when testing this last year, I was unable to get
+  backward-compatibity working).
 
 ### Changed ###
 - procfs: the caching strategy for the internal procfs handle has been
