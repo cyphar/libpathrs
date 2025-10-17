@@ -427,6 +427,9 @@ pub unsafe extern "C" fn pathrs_procfs_open(args: *const ProcfsOpenHow, size: us
     })
     .into_c_return()
 }
+utils::symver! {
+    fn pathrs_procfs_open <- (pathrs_procfs_open, version = "LIBPATHRS_0.2", default);
+}
 
 /// `pathrs_proc_open` but with a caller-provided file descriptor for `/proc`.
 ///
@@ -477,6 +480,9 @@ pub unsafe extern "C" fn pathrs_proc_openat(
     .map(OwnedFd::from)
     .into_c_return()
 }
+utils::symver! {
+    fn pathrs_proc_openat <- (pathrs_proc_openat, version = "LIBPATHRS_0.2", default);
+}
 
 /// Safely open a path inside a `/proc` handle.
 ///
@@ -523,6 +529,9 @@ pub unsafe extern "C" fn pathrs_proc_open(
 ) -> RawFd {
     pathrs_proc_openat(PATHRS_PROC_DEFAULT_ROOTFD, base, path, flags)
 }
+utils::symver! {
+    fn pathrs_proc_open <- (pathrs_proc_open, version = "LIBPATHRS_0.1", default);
+}
 
 /// `pathrs_proc_readlink` but with a caller-provided file descriptor for
 /// `/proc`.
@@ -565,6 +574,9 @@ pub unsafe extern "C" fn pathrs_proc_readlinkat(
         unsafe { utils::copy_path_into_buffer(link_target, linkbuf, linkbuf_size) }
     }()
     .into_c_return()
+}
+utils::symver! {
+    fn pathrs_proc_readlinkat <- (pathrs_proc_readlinkat, version = "LIBPATHRS_0.2", default);
 }
 
 /// Safely read the contents of a symlink inside `/proc`.
@@ -617,6 +629,9 @@ pub unsafe extern "C" fn pathrs_proc_readlink(
         linkbuf,
         linkbuf_size,
     )
+}
+utils::symver! {
+    fn pathrs_proc_readlink <- (pathrs_proc_readlink, version = "LIBPATHRS_0.1", default);
 }
 
 #[cfg(test)]

@@ -76,6 +76,13 @@ pub unsafe extern "C" fn pathrs_open_root(path: *const c_char) -> RawFd {
         .and_then(Root::open)
         .into_c_return()
 }
+utils::symver! {
+    fn pathrs_open_root <- (pathrs_open_root, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so
+    // that loaders will pick it when searching for the unversioned name.
+    fn pathrs_open_root <- (pathrs_root_open, version = "LIBPATHRS_0.1", default);
+}
 
 /// "Upgrade" an O_PATH file descriptor to a usable fd, suitable for reading and
 /// writing. This does not consume the original file descriptor. (This can be
@@ -108,6 +115,9 @@ pub extern "C" fn pathrs_reopen(fd: CBorrowedFd<'_>, flags: c_int) -> RawFd {
     }()
     .into_c_return()
 }
+utils::symver! {
+    fn pathrs_reopen <- (pathrs_reopen, version = "LIBPATHRS_0.1", default);
+}
 
 /// Resolve the given path within the rootfs referenced by root_fd. The path
 /// *must already exist*, otherwise an error will occur.
@@ -138,6 +148,13 @@ pub unsafe extern "C" fn pathrs_inroot_resolve(
     }()
     .into_c_return()
 }
+utils::symver! {
+    fn pathrs_inroot_resolve <- (pathrs_inroot_resolve, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so that
+    // loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_resolve <- (pathrs_resolve, version = "LIBPATHRS_0.1", default);
+}
 
 /// pathrs_inroot_resolve_nofollow() is effectively an O_NOFOLLOW version of
 /// pathrs_inroot_resolve(). Their behaviour is identical, except that
@@ -166,6 +183,13 @@ pub unsafe extern "C" fn pathrs_inroot_resolve_nofollow(
         root.resolve_nofollow(path)
     }()
     .into_c_return()
+}
+utils::symver! {
+    fn pathrs_inroot_resolve_nofollow <- (pathrs_inroot_resolve_nofollow, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so that
+    // loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_resolve_nofollow <- (pathrs_resolve_nofollow, version = "LIBPATHRS_0.1", default);
 }
 
 /// pathrs_inroot_open() is effectively shorthand for pathrs_inroot_resolve()
@@ -205,6 +229,9 @@ pub unsafe extern "C" fn pathrs_inroot_open(
         root.open_subpath(path, flags)
     }()
     .into_c_return()
+}
+utils::symver! {
+    fn pathrs_inroot_open <- (pathrs_inroot_open, version = "LIBPATHRS_0.2", default);
 }
 
 /// Get the target of a symlink within the rootfs referenced by root_fd.
@@ -260,6 +287,13 @@ pub unsafe extern "C" fn pathrs_inroot_readlink(
     }()
     .into_c_return()
 }
+utils::symver! {
+    fn pathrs_inroot_readlink <- (pathrs_inroot_readlink, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so that
+    // loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_readlink <- (pathrs_readlink, version = "LIBPATHRS_0.1", default);
+}
 
 /// Rename a path within the rootfs referenced by root_fd. The flags argument is
 /// identical to the renameat2(2) flags that are supported on the system.
@@ -290,6 +324,13 @@ pub unsafe extern "C" fn pathrs_inroot_rename(
     }()
     .into_c_return()
 }
+utils::symver! {
+    fn pathrs_inroot_rename <- (pathrs_inroot_rename, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so
+    // that loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_rename <- (pathrs_rename, version = "LIBPATHRS_0.1", default);
+}
 
 /// Remove the empty directory at path within the rootfs referenced by root_fd.
 ///
@@ -317,6 +358,13 @@ pub unsafe extern "C" fn pathrs_inroot_rmdir(
         root.remove_dir(path)
     }()
     .into_c_return()
+}
+utils::symver! {
+    fn pathrs_inroot_rmdir <- (pathrs_inroot_rmdir, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so
+    // that loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_rmdir <- (pathrs_rmdir, version = "LIBPATHRS_0.1", default);
 }
 
 /// Remove the file (a non-directory inode) at path within the rootfs referenced
@@ -346,6 +394,13 @@ pub unsafe extern "C" fn pathrs_inroot_unlink(
     }()
     .into_c_return()
 }
+utils::symver! {
+    fn pathrs_inroot_unlink <- (pathrs_inroot_unlink, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so
+    // that loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_unlink <- (pathrs_unlink, version = "LIBPATHRS_0.1", default);
+}
 
 /// Recursively delete the path and any children it contains if it is a
 /// directory. The semantics are equivalent to `rm -r`.
@@ -370,6 +425,13 @@ pub unsafe extern "C" fn pathrs_inroot_remove_all(
         root.remove_all(path)
     }()
     .into_c_return()
+}
+utils::symver! {
+    fn pathrs_inroot_remove_all <- (pathrs_inroot_remove_all, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so
+    // that loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_remove_all <- (pathrs_remove_all, version = "LIBPATHRS_0.1", default);
 }
 
 // Within the root, create an inode at the path with the given mode. If the
@@ -424,6 +486,13 @@ pub unsafe extern "C" fn pathrs_inroot_creat(
     }()
     .into_c_return()
 }
+utils::symver! {
+    fn pathrs_inroot_creat <- (pathrs_inroot_creat, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so
+    // that loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_creat <- (pathrs_creat, version = "LIBPATHRS_0.1", default);
+}
 
 /// Create a new directory within the rootfs referenced by root_fd.
 ///
@@ -445,6 +514,13 @@ pub unsafe extern "C" fn pathrs_inroot_mkdir(
 ) -> c_int {
     let mode = mode & !libc::S_IFMT;
     pathrs_inroot_mknod(root_fd, path, libc::S_IFDIR | mode, 0)
+}
+utils::symver! {
+    fn pathrs_inroot_mkdir <- (pathrs_inroot_mkdir, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so
+    // that loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_mkdir <- (pathrs_mkdir, version = "LIBPATHRS_0.1", default);
 }
 
 /// Create a new directory (and any of its path components if they don't exist)
@@ -473,6 +549,13 @@ pub unsafe extern "C" fn pathrs_inroot_mkdir_all(
         root.mkdir_all(path, &perm)
     }()
     .into_c_return()
+}
+utils::symver! {
+    fn pathrs_inroot_mkdir_all <- (pathrs_inroot_mkdir_all, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so
+    // that loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_mkdir_all <- (pathrs_mkdir_all, version = "LIBPATHRS_0.1", default);
 }
 
 /// Create a inode within the rootfs referenced by root_fd. The type of inode to
@@ -518,6 +601,13 @@ pub unsafe extern "C" fn pathrs_inroot_mknod(
     }()
     .into_c_return()
 }
+utils::symver! {
+    fn pathrs_inroot_mknod <- (pathrs_inroot_mknod, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so
+    // that loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_mknod <- (pathrs_mknod, version = "LIBPATHRS_0.1", default);
+}
 
 /// Create a symlink within the rootfs referenced by root_fd. Note that the
 /// symlink target string is not modified when creating the symlink.
@@ -545,6 +635,13 @@ pub unsafe extern "C" fn pathrs_inroot_symlink(
     }()
     .into_c_return()
 }
+utils::symver! {
+    fn pathrs_inroot_symlink <- (pathrs_inroot_symlink, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so
+    // that loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_symlink <- (pathrs_symlink, version = "LIBPATHRS_0.1", default);
+}
 
 /// Create a hardlink within the rootfs referenced by root_fd. Both the hardlink
 /// path and target are resolved within the rootfs.
@@ -571,4 +668,11 @@ pub unsafe extern "C" fn pathrs_inroot_hardlink(
         root.create(path, &InodeType::Hardlink(target.into()))
     }()
     .into_c_return()
+}
+utils::symver! {
+    fn pathrs_inroot_hardlink <- (pathrs_inroot_hardlink, version = "LIBPATHRS_0.2", default);
+    // This symbol was renamed in libpathrs 0.2. For backward compatibility with
+    // pre-symbol-versioned builds of libpathrs, it needs to be a default so
+    // that loaders will pick it when searching for the unversioned name.
+    fn pathrs_inroot_hardlink <- (pathrs_hardlink, version = "LIBPATHRS_0.1", default);
 }
