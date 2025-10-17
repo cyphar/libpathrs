@@ -82,18 +82,15 @@ macro_rules! symver {
             target_arch = "x86_64",
             target_arch = "riscv32",
             target_arch = "riscv64",
-            // TODO: We should have a "rust_$ver" cfg to let us add attributes
-            // based on the Rust version being used for building, so we can
-            // maximise the usage of .symver without needing to bump the MSRV.
-            //target_arch = "arm64ec", // MSRV(1.84)
             //target_arch = "loongarch32", // MSRV(1.91?)
-            //target_arch = "loongarch64", // MSRV(1.72)
-            //target_arch = "s390x", // MSRV(1.84)
             // TODO: Once stabilised, add these arches:
             //target_arch = "powerpc",
             //target_arch = "powerpc64",
             //target_arch = "sparc64",
         ))]
+        #[::rustversion::attr(since(1.72), cfg(target_arch = "loongarch64"))]
+        #[::rustversion::attr(since(1.84), cfg(target_arch = "arm64ec"))]
+        #[::rustversion::attr(since(1.84), cfg(target_arch = "s390x"))]
         // .symver $implsym, $symname@$version
         $(#[$meta])*
         ::std::arch::global_asm! {concat!(
@@ -117,18 +114,15 @@ macro_rules! symver {
             target_arch = "x86_64",
             target_arch = "riscv32",
             target_arch = "riscv64",
-            // TODO: We should have a "rust_$ver" cfg to let us add attributes
-            // based on the Rust version being used for building, so we can
-            // maximise the usage of .symver without needing to bump the MSRV.
-            //target_arch = "arm64ec", // MSRV(1.84)
-            //target_arch = "loongarch32", // MSRV(1.91?)
-            //target_arch = "loongarch64", // MSRV(1.72)
-            //target_arch = "s390x", // MSRV(1.84)
             // TODO: Once stabilised, add these arches:
+            //target_arch = "loongarch32", // MSRV(1.91?)
             //target_arch = "powerpc",
             //target_arch = "powerpc64",
             //target_arch = "sparc64",
         ))]
+        #[::rustversion::attr(since(1.72), cfg(target_arch = "loongarch64"))]
+        #[::rustversion::attr(since(1.84), cfg(target_arch = "arm64ec"))]
+        #[::rustversion::attr(since(1.84), cfg(target_arch = "s390x"))]
         // .symver $implsym, $symname@@$version
         $(#[$meta])*
         ::std::arch::global_asm! {concat!(
