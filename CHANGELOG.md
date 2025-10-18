@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Fixed ###
+- python bindings: fix `pathrs.procfs` examples in README.
+
 ## [0.2.0] - 2025-10-17 ##
 
 > You're gonna need a bigger boat.

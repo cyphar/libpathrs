@@ -68,16 +68,16 @@ that have to operate in untrusted mount namespaces need to handle this
 properly or risk serious security issues.
 
 ```python
-import pathrs
+from pathrs import procfs
 
 # readlink("/proc/thread-self/fd/0")
-stdin_path = pathrs.proc_readlink(pathrs.PROC_THREAD_SELF, "fd/0")
+stdin_path = procfs.readlink(procfs.PROC_THREAD_SELF, "fd/0")
 
 # readlink("/proc/self/exe")
-exe_path = pathrs.proc_readlink(pathrs.PROC_SELF, "exe")
+exe_path = procfs.readlink(procfs.PROC_SELF, "exe")
 
 # Read data from /proc/cpuinfo.
-with pathrs.proc_open(pathrs.PROC_ROOT, "cpuinfo", "r") as cpuinfo:
+with procfs.open(procfs.PROC_ROOT, "cpuinfo", "r") as cpuinfo:
     for line in cpuinfo:
         print(line.rstrip("\n"))
 ```
