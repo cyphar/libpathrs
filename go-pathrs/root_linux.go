@@ -147,7 +147,7 @@ func (r *Root) OpenFile(path string, flags int) (*os.File, error) {
 //
 // [os.Create]: https://pkg.go.dev/os#Create
 func (r *Root) Create(path string, flags int, mode os.FileMode) (*os.File, error) {
-	unixMode, err := toUnixMode(mode)
+	unixMode, err := toUnixMode(mode, false)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func (r *Root) RemoveAll(path string) error {
 //
 // [os.Mkdir]: https://pkg.go.dev/os#Mkdir
 func (r *Root) Mkdir(path string, mode os.FileMode) error {
-	unixMode, err := toUnixMode(mode)
+	unixMode, err := toUnixMode(mode, false)
 	if err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func (r *Root) Mkdir(path string, mode os.FileMode) error {
 //
 // [os.MkdirAll]: https://pkg.go.dev/os#MkdirAll
 func (r *Root) MkdirAll(path string, mode os.FileMode) (*Handle, error) {
-	unixMode, err := toUnixMode(mode)
+	unixMode, err := toUnixMode(mode, false)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +281,7 @@ func (r *Root) MkdirAll(path string, mode os.FileMode) (*Handle, error) {
 //
 // [unix.Mknod]: https://pkg.go.dev/golang.org/x/sys/unix#Mknod
 func (r *Root) Mknod(path string, mode os.FileMode, dev uint64) error {
-	unixMode, err := toUnixMode(mode)
+	unixMode, err := toUnixMode(mode, true)
 	if err != nil {
 		return err
 	}
