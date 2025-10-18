@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed ###
 - python bindings: fix `pathrs.procfs` examples in README.
+- go bindings: fix the internal `os.FileMode` to `S_IF*` conversion to not
+  auto-include `S_IFREG` for non-`Mknod` operations (previously this would
+  cause `MkdirAll` to error out).
 
 ## [0.2.0] - 2025-10-17 ##
 
