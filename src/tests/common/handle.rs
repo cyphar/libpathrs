@@ -58,6 +58,20 @@ impl<H, E> PartialLookup<H, E> {
     }
 }
 
+pub(in crate::tests) trait AsError<E> {
+    fn as_error(&self) -> Option<&E>;
+}
+
+impl<H, E> AsError<E> for Result<PartialLookup<H, E>, E> {
+    fn as_error(&self) -> Option<&E> {
+        match self {
+            Ok(PartialLookup::Complete(_)) => None,
+            Ok(PartialLookup::Partial { last_error, .. }) => Some(last_error),
+            Err(err) => Some(err),
+        }
+    }
+}
+
 impl<H, E> PartialEq for PartialLookup<H, E>
 where
     H: PartialEq,

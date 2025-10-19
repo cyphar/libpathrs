@@ -796,7 +796,7 @@ mod utils {
         resolvers::PartialLookup,
         syscalls,
         tests::{
-            common::{self as tests_common, LookupResult},
+            common::{self as tests_common, AsError, LookupResult},
             traits::RootImpl,
         },
         utils::FdExt,
@@ -872,9 +872,18 @@ mod utils {
         let unsafe_path = unsafe_path.as_ref();
 
         // Resolve the path.
-        let result = root
-            .resolver()
-            .resolve_partial(root, unsafe_path, no_follow_trailing);
+        let result = loop {
+            let res = root
+                .resolver()
+                .resolve_partial(root, unsafe_path, no_follow_trailing);
+            if !res
+                .as_error()
+                .map(|err| matches!(err.kind().errno(), Some(libc::EAGAIN) | Some(libc::EINTR)))
+                .unwrap_or_default()
+            {
+                break res;
+            }
+        };
 
         // Pause the rename attack so that we can get the "unswapped" path with
         // as_unsafe_path_unchecked().
