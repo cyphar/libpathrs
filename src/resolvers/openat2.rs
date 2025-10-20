@@ -108,17 +108,21 @@ pub(crate) fn resolve(
     // *anywhere on the system*. This can happen pretty frequently, so what we
     // do is attempt the openat2(2) a couple of times. If it still fails, just
     // error out.
-    for _ in 0..16 {
+    const MAX_RETRIES: u8 = 32;
+    let mut tries = 0u8;
+    loop {
+        tries += 1;
         match syscalls::openat2_follow(&root, path.as_ref(), how) {
             Ok(file) => return Ok(Handle::from_fd(file)),
-            Err(err) => match err.root_cause().raw_os_error() {
-                Some(libc::ENOSYS) => {
+            Err(err) => match (tries, err.root_cause().raw_os_error()) {
+                // MSRV(1.66): Use ..=MAX_RETRIES (half_open_range_patterns).
+                (0..=MAX_RETRIES, Some(libc::EAGAIN)) => continue,
+                (_, Some(libc::ENOSYS)) => {
                     // shouldn't happen
                     Err(ErrorImpl::NotSupported {
                         feature: "openat2".into(),
                     })?
                 }
-                Some(libc::EAGAIN) => continue,
                 // TODO: Add wrapper for known-bad openat2 return codes.
                 //Some(libc::EXDEV) | Some(libc::ELOOP) => { ... }
                 _ => Err(ErrorImpl::RawOsError {
@@ -128,10 +132,6 @@ pub(crate) fn resolve(
             },
         }
     }
-
-    Err(ErrorImpl::SafetyViolation {
-        description: "racing filesystem changes caused openat2 to abort".into(),
-    })?
 }
 
 /// Resolve as many components as possible in `path` within `root` using

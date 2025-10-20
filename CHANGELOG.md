@@ -6,11 +6,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Added ###
+- `Error` and `ErrorKind` now have a `can_retry` helper that can be used to
+  make retry loops easier for callers.
+
 ### Fixed ###
 - python bindings: fix `pathrs.procfs` examples in README.
 - go bindings: fix the internal `os.FileMode` to `S_IF*` conversion to not
   auto-include `S_IFREG` for non-`Mknod` operations (previously this would
   cause `MkdirAll` to error out).
+
+### Changed ###
+- The `openat2` resolver will now return `-EAGAIN` if the number of `openat2`
+  retries is exceeded -- this allows higher-level users easily detect if an
+  error is an indication they should retry (based on their own retry policy).
 
 ## [0.2.0] - 2025-10-17 ##
 
