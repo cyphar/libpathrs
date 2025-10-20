@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Added ###
+- `Error` and `ErrorKind` now have a `can_retry` helper that can be used to
+  make retry loops easier for callers.
+
 ### Fixed ###
 - python bindings: fix `pathrs.procfs` examples in README.
 - go bindings: fix the internal `os.FileMode` to `S_IF*` conversion to not

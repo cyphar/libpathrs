@@ -878,7 +878,7 @@ mod utils {
                 .resolve_partial(root, unsafe_path, no_follow_trailing);
             if !res
                 .as_error()
-                .map(|err| matches!(err.kind().errno(), Some(libc::EAGAIN) | Some(libc::EINTR)))
+                .map(|err| err.can_retry())
                 .unwrap_or_default()
             {
                 break res;

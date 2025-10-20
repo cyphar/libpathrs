@@ -66,8 +66,14 @@ impl<E: Into<ErrorImpl>> From<E> for Error {
 }
 
 impl Error {
+    /// Get the [`ErrorKind`] of this error.
     pub fn kind(&self) -> ErrorKind {
         self.0.kind()
+    }
+
+    /// Shorthand for [`.kind().can_retry()`](ErrorKind::can_retry).
+    pub fn can_retry(&self) -> bool {
+        self.0.kind().can_retry()
     }
 
     pub(crate) fn is_safety_violation(&self) -> bool {
@@ -222,6 +228,14 @@ impl ErrorKind {
             ErrorKind::OsError(errno) => *errno,
             _ => None,
         }
+    }
+
+    /// Indicates whether an [`ErrorKind`] was associated with a transient error
+    /// and that the operation might succeed if retried.
+    ///
+    /// Callers can make use of this if they wish to have custom retry logic.
+    pub fn can_retry(&self) -> bool {
+        matches!(self.errno(), Some(libc::EAGAIN) | Some(libc::EINTR))
     }
 
     pub(crate) fn is_safety_violation(&self) -> bool {
