@@ -323,6 +323,17 @@ func (r *Root) Hardlink(path, target string) error {
 	return err
 }
 
+// Readlink returns the target of a symlink with a [Root]'s directory tree.
+//
+// This is effectively equivalent to [os.Readlink].
+//
+// [os.Readlink]: https://pkg.go.dev/os#Readlink
+func (r *Root) Readlink(path string) (string, error) {
+	return withFileFd(r.inner, func(rootFd uintptr) (string, error) {
+		return libpathrs.InRootReadlink(rootFd, path)
+	})
+}
+
 // IntoFile unwraps the [Root] into its underlying [os.File].
 //
 // It is critical that you do not operate on this file descriptor yourself,
