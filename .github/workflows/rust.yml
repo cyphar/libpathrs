@@ -127,7 +127,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo doc --document-private-items --workspace --all-features
       - name: upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: rustdoc
           path: target/doc
@@ -162,7 +162,7 @@ jobs:
       - name: generate coverage html
         run: cargo llvm-cov report --html
       - name: upload coverage html
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-report
           path: target/llvm-cov/html
