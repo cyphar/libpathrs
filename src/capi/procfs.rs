@@ -472,9 +472,10 @@ pub unsafe extern "C" fn pathrs_proc_openat(
         let oflags = OpenFlags::from_bits_retain(flags);
         let procfs = parse_proc_rootfd(proc_rootfd)?;
 
-        match oflags.contains(OpenFlags::O_NOFOLLOW) {
-            true => procfs.open(base, path, oflags),
-            false => procfs.open_follow(base, path, oflags),
+        if oflags.contains(OpenFlags::O_NOFOLLOW) {
+            procfs.open(base, path, oflags)
+        } else {
+            procfs.open_follow(base, path, oflags)
         }
     }()
     .map(OwnedFd::from)
