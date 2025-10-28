@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 
+	"cyphar.com/go-pathrs/internal/fdutils"
 	"cyphar.com/go-pathrs/internal/libpathrs"
 )
 
@@ -45,7 +46,7 @@ type Handle struct {
 // This is effectively the inverse operation of [Handle.IntoRaw], and is used
 // for "deserialising" pathrs root handles.
 func HandleFromFile(file *os.File) (*Handle, error) {
-	newFile, err := dupFile(file)
+	newFile, err := fdutils.DupFile(file)
 	if err != nil {
 		return nil, fmt.Errorf("duplicate handle fd: %w", err)
 	}
@@ -73,7 +74,7 @@ func (h *Handle) Open() (*os.File, error) {
 //
 // TODO: Rename these to "Reopen" or something.
 func (h *Handle) OpenFile(flags int) (*os.File, error) {
-	return withFileFd(h.inner, func(fd uintptr) (*os.File, error) {
+	return fdutils.WithFileFd(h.inner, func(fd uintptr) (*os.File, error) {
 		newFd, err := libpathrs.Reopen(fd, flags)
 		if err != nil {
 			return nil, err

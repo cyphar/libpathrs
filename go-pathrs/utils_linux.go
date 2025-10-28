@@ -18,18 +18,7 @@ import (
 	"os"
 
 	"golang.org/x/sys/unix"
-
-	"cyphar.com/go-pathrs/procfs"
 )
-
-// dupFd makes a duplicate of the given fd.
-func dupFd(fd uintptr, name string) (*os.File, error) {
-	newFd, err := unix.FcntlInt(fd, unix.F_DUPFD_CLOEXEC, 0)
-	if err != nil {
-		return nil, fmt.Errorf("fcntl(F_DUPFD_CLOEXEC): %w", err)
-	}
-	return os.NewFile(uintptr(newFd), name), nil
-}
 
 //nolint:cyclop // this function needs to handle a lot of cases
 func toUnixMode(mode os.FileMode, needsType bool) (uint32, error) {
@@ -64,51 +53,4 @@ func toUnixMode(mode os.FileMode, needsType bool) (uint32, error) {
 		sysMode |= unix.S_ISVTX
 	}
 	return sysMode, nil
-}
-
-// withFileFd is a more ergonomic wrapper around file.SyscallConn().Control().
-func withFileFd[T any](file *os.File, fn func(fd uintptr) (T, error)) (T, error) {
-	conn, err := file.SyscallConn()
-	if err != nil {
-		return *new(T), err
-	}
-	var (
-		ret      T
-		innerErr error
-	)
-	if err := conn.Control(func(fd uintptr) {
-		ret, innerErr = fn(fd)
-	}); err != nil {
-		return *new(T), err
-	}
-	return ret, innerErr
-}
-
-// dupFile makes a duplicate of the given file.
-func dupFile(file *os.File) (*os.File, error) {
-	return withFileFd(file, func(fd uintptr) (*os.File, error) {
-		return dupFd(fd, file.Name())
-	})
-}
-
-// mkFile creates a new *os.File from the provided file descriptor. However,
-// unlike os.NewFile, the file's Name is based on the real path (provided by
-// /proc/self/fd/$n).
-func mkFile(fd uintptr) (*os.File, error) {
-	proc, err := procfs.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer proc.Close() //nolint:errcheck // Close errors are not critical
-
-	fdPath := fmt.Sprintf("fd/%d", fd)
-	fdName, err := proc.Readlink(procfs.ProcThreadSelf, fdPath)
-	if err != nil {
-		_ = unix.Close(int(fd))
-		return nil, fmt.Errorf("failed to fetch real name of fd %d: %w", fd, err)
-	}
-	// TODO: Maybe we should prefix this name with something to indicate to
-	// users that they must not use this path as a "safe" path. Something like
-	// "//pathrs-handle:/foo/bar"?
-	return os.NewFile(fd, fdName), nil
 }
