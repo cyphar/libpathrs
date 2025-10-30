@@ -129,8 +129,13 @@ test-rust:
 	-rm -rf target/llvm-cov*
 	make test-rust-{doctest,unpriv,root}
 
+.PHONY: test-e2e
+test-e2e:
+	make -C e2e-tests test-all
+	make -C e2e-tests RUN_AS=root test-all
+
 .PHONY: test
-test: test-rust
+test: test-rust test-e2e
 	$(CARGO_NIGHTLY) llvm-cov report
 	$(CARGO_NIGHTLY) llvm-cov report --open
 
