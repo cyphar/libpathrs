@@ -62,15 +62,20 @@ function strjoin() {
 	echo "$str"
 }
 
-TEMP="$(getopt -o sc:p:S: --long sudo,cargo:,partition:,enosys: -- "$@")"
+TEMP="$(getopt -o sc:p:S: --long sudo,cargo:,partition:,enosys:,archive-file: -- "$@")"
 eval set -- "$TEMP"
 
 sudo=
 partition=
 enosys_syscalls=()
+nextest_archive=
 CARGO="${CARGO_NIGHTLY:-cargo +nightly}"
 while [ "$#" -gt 0 ]; do
 	case "$1" in
+		--archive-file)
+			nextest_archive="$2"
+			shift 2
+			;;
 		-s|--sudo)
 			sudo=1
 			shift
@@ -182,17 +187,38 @@ function nextest_run() {
 		export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="sudo -E "
 	fi
 
+	build_args=()
+	if [ "${#features[@]}" -gt 0 ]; then
+		build_args=("--workspace" "--features" "$(strjoin , "${features[@]}")")
+	fi
+
 	if [ "${#enosys_syscalls[@]}" -gt 0 ]; then
 		export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER
 		CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER+="$FAKE_ENOSYS -s $(strjoin , "${enosys_syscalls[@]}") -- "
 	fi
 
+	archive_args=()
+	if [ -n "$nextest_archive" ]; then
+		archive_args+=(--archive-file "$nextest_archive" --workspace-remap "$SRC_ROOT")
+		# When using --archive-file we cannot set --features.
+		echo "features '${features[*]}' are ignored with --archive-file" >&2
+		build_args=()
+	fi
+
 	for partnum in $(seq "$partitions"); do
 		part="${partition:-hash:$partnum/$partitions}"
 
+		if [ -n "$nextest_archive" ]; then
+			# When using --archive-file, using the same target dir for multiple
+			# "cargo llvm-cov nextest run" instances causes errors:
+			#   error: error extracting archive `./pathrs.tar.zst`
+			#   destination `/home/cyphar/src/libpathrs/target/llvm-cov-target/target` already exists
+			rm -rf "$SRC_ROOT/target/llvm-cov-target/target"
+		fi
+
 		$CARGO \
-			llvm-cov --no-report --branch --workspace --features="$(strjoin , "${features[@]}")" \
-			nextest --partition="$part" "$@"
+			llvm-cov --no-report --branch "${build_args[@]}" \
+			nextest --partition="$part" "${archive_args[@]}" "$@"
 
 		# It turns out that a very large amount of diskspace gets used up by
 		# the thousands of tiny .profraw files generated during each
