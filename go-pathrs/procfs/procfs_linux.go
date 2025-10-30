@@ -15,10 +15,10 @@
 package procfs
 
 import (
-	"fmt"
 	"os"
 	"runtime"
 
+	"cyphar.com/go-pathrs/internal/fdutils"
 	"cyphar.com/go-pathrs/internal/libpathrs"
 )
 
@@ -60,24 +60,6 @@ func ProcPid(pid int) ProcBase {
 		panic("invalid ProcBasePid value") // TODO: should this be an error?
 	}
 	return ProcBase{inner: libpathrs.ProcPid(uint32(pid))}
-}
-
-func (b ProcBase) namePrefix() string {
-	switch b {
-	case ProcRoot:
-		return "/proc/"
-	case ProcSelf:
-		return "/proc/self/"
-	case ProcThreadSelf:
-		return "/proc/thread-self/"
-	}
-	const typeMask = libpathrs.ProcBaseTypeMask
-	switch b.inner & typeMask { //nolint:exhaustive // we only care about some types
-	case libpathrs.ProcBaseTypePid:
-		return fmt.Sprintf("/proc/%d/", b.inner&^typeMask)
-	default:
-	}
-	return "<invalid procfs base>/"
 }
 
 // ThreadCloser is a callback that needs to be called when you are done
@@ -137,6 +119,7 @@ func Open(opts ...OpenOption) (*Handle, error) {
 	return &Handle{inner: procFile}, nil
 }
 
+// TODO: Switch to something fdutils.WithFileFd-like.
 func (proc *Handle) fd() int {
 	if proc.inner != nil {
 		return int(proc.inner.Fd())
@@ -146,8 +129,6 @@ func (proc *Handle) fd() int {
 
 // TODO: Should we expose open?
 func (proc *Handle) open(base ProcBase, path string, flags int) (_ *os.File, Closer ThreadCloser, Err error) {
-	namePrefix := base.namePrefix()
-
 	var closer ThreadCloser
 	if base == ProcThreadSelf {
 		runtime.LockOSThread()
@@ -164,7 +145,8 @@ func (proc *Handle) open(base ProcBase, path string, flags int) (_ *os.File, Clo
 	if err != nil {
 		return nil, nil, err
 	}
-	return os.NewFile(fd, namePrefix+path), closer, nil
+	file, err := fdutils.MkFile(fd)
+	return file, closer, err
 }
 
 // OpenRoot safely opens a given path from inside /proc/.

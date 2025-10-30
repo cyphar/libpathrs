@@ -109,3 +109,9 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 	# We set these cfgs when building with --features=capi.
 	'cfg(cdylib)', 'cfg(staticlib)'
 ] }
+
+[workspace]
+resolver = "2"
+members = [
+	"e2e-tests/cmd/rust",
+]

@@ -19,6 +19,7 @@ import (
 	"os"
 	"syscall"
 
+	"cyphar.com/go-pathrs/internal/fdutils"
 	"cyphar.com/go-pathrs/internal/libpathrs"
 )
 
@@ -41,7 +42,7 @@ func OpenRoot(path string) (*Root, error) {
 	if err != nil {
 		return nil, err
 	}
-	file, err := mkFile(fd)
+	file, err := fdutils.MkFile(fd)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,7 @@ func OpenRoot(path string) (*Root, error) {
 //
 // [os.File]: https://pkg.go.dev/os#File
 func RootFromFile(file *os.File) (*Root, error) {
-	newFile, err := dupFile(file)
+	newFile, err := fdutils.DupFile(file)
 	if err != nil {
 		return nil, fmt.Errorf("duplicate root fd: %w", err)
 	}
@@ -71,12 +72,12 @@ func RootFromFile(file *os.File) (*Root, error) {
 // resolved within the rootfs. If you wish to open a handle to the symlink
 // itself, use [ResolveNoFollow].
 func (r *Root) Resolve(path string) (*Handle, error) {
-	return withFileFd(r.inner, func(rootFd uintptr) (*Handle, error) {
+	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (*Handle, error) {
 		handleFd, err := libpathrs.InRootResolve(rootFd, path)
 		if err != nil {
 			return nil, err
 		}
-		handleFile, err := mkFile(handleFd)
+		handleFile, err := fdutils.MkFile(handleFd)
 		if err != nil {
 			return nil, err
 		}
@@ -89,12 +90,12 @@ func (r *Root) Resolve(path string) (*Handle, error) {
 // followed. If the final component is a trailing symlink, an O_PATH|O_NOFOLLOW
 // handle to the symlink itself is returned.
 func (r *Root) ResolveNoFollow(path string) (*Handle, error) {
-	return withFileFd(r.inner, func(rootFd uintptr) (*Handle, error) {
+	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (*Handle, error) {
 		handleFd, err := libpathrs.InRootResolveNoFollow(rootFd, path)
 		if err != nil {
 			return nil, err
 		}
-		handleFile, err := mkFile(handleFd)
+		handleFile, err := fdutils.MkFile(handleFd)
 		if err != nil {
 			return nil, err
 		}
@@ -129,12 +130,12 @@ func (r *Root) Open(path string) (*os.File, error) {
 //
 // [os.OpenFile]: https://pkg.go.dev/os#OpenFile
 func (r *Root) OpenFile(path string, flags int) (*os.File, error) {
-	return withFileFd(r.inner, func(rootFd uintptr) (*os.File, error) {
+	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (*os.File, error) {
 		fd, err := libpathrs.InRootOpen(rootFd, path, flags)
 		if err != nil {
 			return nil, err
 		}
-		return mkFile(fd)
+		return fdutils.MkFile(fd)
 	})
 }
 
@@ -151,19 +152,19 @@ func (r *Root) Create(path string, flags int, mode os.FileMode) (*os.File, error
 	if err != nil {
 		return nil, err
 	}
-	return withFileFd(r.inner, func(rootFd uintptr) (*os.File, error) {
+	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (*os.File, error) {
 		handleFd, err := libpathrs.InRootCreat(rootFd, path, flags, unixMode)
 		if err != nil {
 			return nil, err
 		}
-		return mkFile(handleFd)
+		return fdutils.MkFile(handleFd)
 	})
 }
 
 // Rename two paths within a [Root]'s directory tree. The flags argument is
 // identical to the RENAME_* flags to the renameat2(2) system call.
 func (r *Root) Rename(src, dst string, flags uint) error {
-	_, err := withFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
+	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
 		err := libpathrs.InRootRename(rootFd, src, dst, flags)
 		return struct{}{}, err
 	})
@@ -173,7 +174,7 @@ func (r *Root) Rename(src, dst string, flags uint) error {
 // RemoveDir removes the named empty directory within a [Root]'s directory
 // tree.
 func (r *Root) RemoveDir(path string) error {
-	_, err := withFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
+	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
 		err := libpathrs.InRootRmdir(rootFd, path)
 		return struct{}{}, err
 	})
@@ -182,7 +183,7 @@ func (r *Root) RemoveDir(path string) error {
 
 // RemoveFile removes the named file within a [Root]'s directory tree.
 func (r *Root) RemoveFile(path string) error {
-	_, err := withFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
+	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
 		err := libpathrs.InRootUnlink(rootFd, path)
 		return struct{}{}, err
 	})
@@ -221,7 +222,7 @@ func (r *Root) Remove(path string) error {
 //
 // [os.RemoveAll]: https://pkg.go.dev/os#RemoveAll
 func (r *Root) RemoveAll(path string) error {
-	_, err := withFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
+	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
 		err := libpathrs.InRootRemoveAll(rootFd, path)
 		return struct{}{}, err
 	})
@@ -240,7 +241,7 @@ func (r *Root) Mkdir(path string, mode os.FileMode) error {
 		return err
 	}
 
-	_, err = withFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
+	_, err = fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
 		err := libpathrs.InRootMkdir(rootFd, path, unixMode)
 		return struct{}{}, err
 	})
@@ -260,12 +261,12 @@ func (r *Root) MkdirAll(path string, mode os.FileMode) (*Handle, error) {
 		return nil, err
 	}
 
-	return withFileFd(r.inner, func(rootFd uintptr) (*Handle, error) {
+	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (*Handle, error) {
 		handleFd, err := libpathrs.InRootMkdirAll(rootFd, path, unixMode)
 		if err != nil {
 			return nil, err
 		}
-		handleFile, err := mkFile(handleFd)
+		handleFile, err := fdutils.MkFile(handleFd)
 		if err != nil {
 			return nil, err
 		}
@@ -286,7 +287,7 @@ func (r *Root) Mknod(path string, mode os.FileMode, dev uint64) error {
 		return err
 	}
 
-	_, err = withFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
+	_, err = fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
 		err := libpathrs.InRootMknod(rootFd, path, unixMode, dev)
 		return struct{}{}, err
 	})
@@ -300,7 +301,7 @@ func (r *Root) Mknod(path string, mode os.FileMode, dev uint64) error {
 //
 // [os.Symlink]: https://pkg.go.dev/os#Symlink
 func (r *Root) Symlink(path, target string) error {
-	_, err := withFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
+	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
 		err := libpathrs.InRootSymlink(rootFd, path, target)
 		return struct{}{}, err
 	})
@@ -316,7 +317,7 @@ func (r *Root) Symlink(path, target string) error {
 //
 // [os.Link]: https://pkg.go.dev/os#Link
 func (r *Root) Hardlink(path, target string) error {
-	_, err := withFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
+	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
 		err := libpathrs.InRootHardlink(rootFd, path, target)
 		return struct{}{}, err
 	})
@@ -329,7 +330,7 @@ func (r *Root) Hardlink(path, target string) error {
 //
 // [os.Readlink]: https://pkg.go.dev/os#Readlink
 func (r *Root) Readlink(path string) (string, error) {
-	return withFileFd(r.inner, func(rootFd uintptr) (string, error) {
+	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (string, error) {
 		return libpathrs.InRootReadlink(rootFd, path)
 	})
 }
