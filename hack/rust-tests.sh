@@ -32,8 +32,7 @@
 
 set -Eeuo pipefail
 
-TEMP="$(getopt -o sc:p: --long sudo,cargo:,partitions: -- "$@")"
-eval set -- "$TEMP"
+SRC_ROOT="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/..")"
 
 function bail() {
 	echo "rust tests: $*" >&2
@@ -63,8 +62,12 @@ function strjoin() {
 	echo "$str"
 }
 
+TEMP="$(getopt -o sc:p:S: --long sudo,cargo:,partition:,enosys: -- "$@")"
+eval set -- "$TEMP"
+
 sudo=
-partitions=
+partition=
+enosys_syscalls=()
 CARGO="${CARGO_NIGHTLY:-cargo +nightly}"
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -76,8 +79,12 @@ while [ "$#" -gt 0 ]; do
 			CARGO="$2"
 			shift 2
 			;;
-		-p|--partitions)
-			partitions="$2"
+		-p|--partition)
+			partition="$2"
+			shift 2
+			;;
+		-S|--enosys)
+			[ -n "$2" ] && enosys_syscalls+=("$2")
 			shift 2
 			;;
 		--)
@@ -90,17 +97,35 @@ while [ "$#" -gt 0 ]; do
 done
 tests_to_run=("$@")
 
-[ -n "$partitions" ] || {
-	partitions=1
-	[[ "${GITHUB_ACTIONS:-}" == "true" ]] && partitions=2
+[ -n "$partition" ] || {
+	partition=1
+	# When running in GHA, if we run the *entire* test suite without splitting
+	# it to compact the profraw coverage data, we run out of disk space, so by
+	# default we should at least partition the run into 2. If the caller
+	# specified an explicit test set then instead we should just stick to one.
+	if [ "${#tests_to_run[@]}" -eq 0 ] && [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+		partition=2
+	fi
 }
+# If --partition contains a slash then it indicates that we are running as
+# a _specific_ partition. If it is just numeric then it is indicating the
+# _number_ of partitions.
+partitions=
+if [[ "$partition" == *"/"* ]]; then
+	partitions=1
+	partition="hash:$partition"
+else
+	partitions="$partition"
+	partition=
+fi
 
-# These are features that do not make sense to add to the powerset of feature
-# combinations we test for:
-# * "capi" only adds tests and modules in a purely additive way, so re-running
-#   the whole suite without them makes no sense.
-# * "_test_as_root" requires special handling to enable (the "sudo -E" runner).
-SPECIAL_FEATURES=("capi" "_test_as_root")
+[ "${#enosys_syscalls[@]}" -gt 0 ] && {
+	cargo build --release --manifest-path "$SRC_ROOT/contrib/fake-enosys/Cargo.toml"
+	FAKE_ENOSYS="$SRC_ROOT/target/release/fake-enosys"
+	# Make sure the syscalls are valid.
+	"$FAKE_ENOSYS" -s "$(strjoin , "${enosys_syscalls[@]}")" true || \
+		bail "--enosys=$(strjoin , "${enosys_syscalls[@]}") contains invalid syscalls"
+}
 
 function llvm-profdata() {
 	local profdata
@@ -152,49 +177,21 @@ function nextest_run() {
 	if [ -n "$sudo" ]; then
 		features+=("_test_as_root")
 
-		# This CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER magic lets us run Rust
-		# tests as root without needing to run the build step as root.
-		export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="sudo -E"
+		# This CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER magic lets us run
+		# Rust tests as root without needing to run the build step as root.
+		export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="sudo -E "
 	fi
 
-	# For SPECIAL_FEATURES not explicitly set with --features, we need to add
-	# them to --disabled-features to make sure that we don't add them to the
-	# powerset.
-	local disabled_features=()
-	for feature in "${SPECIAL_FEATURES[@]}"; do
-		if ! contains "$feature" "${features[@]}"; then
-			disabled_features+=("$feature")
-		fi
-	done
-	# By definition the default featureset is going to be included in
-	# the powerset, so there's no need to duplicate it as well.
-	disabled_features+=("default")
-
-	local cargo_hack_args=()
-	if command -v cargo-hack &>/dev/null ; then
-		cargo_hack_args=(
-			# Do a powerset run.
-			"hack" "--feature-powerset"
-			# With all disabled features (i.e. _test_as_root when not running
-			# as root) dropped completely.
-			"--exclude-features=$(strjoin , "${disabled_features[@]}")"
-			# Also, since SPECIAL_FEATURES are all guaranteed to either be in
-			# --features or --exclude-features, we do not need to do an
-			# --all-features run with "cargo hack".
-			"--exclude-all-features"
-		)
+	if [ "${#enosys_syscalls[@]}" -gt 0 ]; then
+		export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER
+		CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER+="$FAKE_ENOSYS -s $(strjoin , "${enosys_syscalls[@]}") -- "
 	fi
 
 	for partnum in $(seq "$partitions"); do
-		# FIXME: Ideally we would use *nextest* partitioning, but because
-		#        cargo-hack has a --partition flag we can only use that one.
-		#        This should still resolve the issue but in a less granular
-		#        way. See <https://github.com/taiki-e/cargo-hack/issues/286>.
-		#part="hash:$partnum/$partitions"
-		part="$partnum/$partitions"
+		part="${partition:-hash:$partnum/$partitions}"
 
-		$CARGO "${cargo_hack_args[@]}" \
-			llvm-cov --no-report --branch --features="$(strjoin , "${features[@]}")" \
+		$CARGO \
+			llvm-cov --no-report --branch --workspace --features="$(strjoin , "${features[@]}")" \
 			nextest --partition="$part" "$@"
 
 		# It turns out that a very large amount of diskspace gets used up by
@@ -229,19 +226,10 @@ if [ "${#tests_to_run[@]}" -gt 0 ]; then
 		nextest_run --no-fail-fast -E "$test_spec"
 	done
 else
-	# "_test_enosys_statx" is not used with a whole-suite run because it would
-	# just be wasteful -- we only set it for a smaller run of the procfs code.
-	SPECIAL_FEATURES+=("_test_enosys_statx")
-
 	# We need to run race and non-race tests separately because the racing
 	# tests can cause the non-race tests to error out spuriously. Hopefully in
 	# the future <https://github.com/nextest-rs/nextest/discussions/2054> will
 	# be resolved and nextest will make it easier to do this.
 	nextest_run --no-fail-fast -E "not test(#tests::test_race_*)"
 	nextest_run --no-fail-fast -E "test(#tests::test_race_*)"
-
-	# In order to avoid re-running the entire test suite with just statx
-	# disabled, we re-run the key procfs tests with statx disabled.
-	EXTRA_FEATURES=_test_enosys_statx \
-		nextest_run --no-fail-fast -E "test(#tests::*procfs*)"
 fi

@@ -169,7 +169,6 @@ jobs:
           components: llvm-tools
       - uses: taiki-e/install-action@cargo-llvm-cov
       - uses: taiki-e/install-action@nextest
-      - uses: taiki-e/install-action@cargo-hack
       - name: install llvm-tools wrappers
         uses: taiki-e/install-action@v2
         with:

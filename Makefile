@@ -48,10 +48,6 @@ CARGO_CHECK := $(call cargo_hack,$(CARGO),check)
 CARGO_CLIPPY := $(call cargo_hack,$(CARGO),clippy)
 CARGO_LLVM_COV := $(call cargo_hack,$(CARGO_NIGHTLY),llvm-cov)
 
-# What features should be used for cargo hack --feature-powerset when running
-# tests? TODO: Auto-generate this in hack/rust-tests.sh.
-TEST_POWERSET_FEATURES ?= openat2
-
 RUSTC_FLAGS := --features=capi -- -C panic=abort
 CARGO_FLAGS ?=
 
@@ -119,10 +115,18 @@ test-rust-doctest:
 .PHONY: test-rust-unpriv
 test-rust-unpriv:
 	./hack/rust-tests.sh --cargo="$(CARGO_NIGHTLY)"
+	./hack/rust-tests.sh --cargo="$(CARGO_NIGHTLY)" --enosys=openat2
+	# In order to avoid re-running the entire test suite with just statx
+	# disabled, we re-run the key procfs tests with statx disabled.
+	./hack/rust-tests.sh --cargo="$(CARGO_NIGHTLY)" --enosys=statx "test(#tests::*procfs*)"
 
 .PHONY: test-rust-root
 test-rust-root:
 	./hack/rust-tests.sh --cargo="$(CARGO_NIGHTLY)" --sudo
+	./hack/rust-tests.sh --cargo="$(CARGO_NIGHTLY)" --sudo --enosys=openat2
+	# In order to avoid re-running the entire test suite with just statx
+	# disabled, we re-run the key procfs tests with statx disabled.
+	./hack/rust-tests.sh --cargo="$(CARGO_NIGHTLY)" --sudo --enosys=statx "test(#tests::*procfs*)"
 
 .PHONY: test-rust
 test-rust:

@@ -36,6 +36,7 @@ use crate::{
     error::ErrorKind,
     flags::{OpenFlags, RenameFlags},
     resolvers::ResolverBackend,
+    syscalls,
     tests::common as tests_common,
     InodeType, Root,
 };
@@ -67,7 +68,6 @@ macro_rules! root_op_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             $(#[$meta])*
             fn [<root_ $test_name _openat2>]() -> Result<(), Error> {
                 let root_dir = tests_common::create_basic_tree()?;
@@ -82,7 +82,6 @@ macro_rules! root_op_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             $(#[$meta])*
             fn [<rootref_ $test_name _openat2>]() -> Result<(), Error> {
                 let root_dir = tests_common::create_basic_tree()?;
@@ -99,9 +98,16 @@ macro_rules! root_op_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             $(#[$meta])*
             fn [<root_ $test_name _opath>]() -> Result<(), Error> {
+                // This test only makes sense if openat2 is supported (i.e., the
+                // default resolver is openat2 -- otherwise the default test
+                // already tested this case).
+                if !*syscalls::OPENAT2_IS_SUPPORTED {
+                    // skip this test
+                    return Ok(());
+                }
+
                 let root_dir = tests_common::create_basic_tree()?;
                 let $root_var = Root::open(&root_dir)?
                     .with_resolver_backend(ResolverBackend::EmulatedOpath);
@@ -115,9 +121,16 @@ macro_rules! root_op_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             $(#[$meta])*
             fn [<rootref_ $test_name _opath>]() -> Result<(), Error> {
+                // This test only makes sense if openat2 is supported (i.e., the
+                // default resolver is openat2 -- otherwise the default test
+                // already tested this case).
+                if !*syscalls::OPENAT2_IS_SUPPORTED {
+                    // skip this test
+                    return Ok(());
+                }
+
                 let root_dir = tests_common::create_basic_tree()?;
                 let root = Root::open(&root_dir)?;
                 let $root_var = root

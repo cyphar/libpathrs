@@ -32,7 +32,7 @@
 
 #[cfg(feature = "capi")]
 use crate::tests::capi::CapiRoot;
-use crate::{error::ErrorKind, flags::ResolverFlags, resolvers::ResolverBackend, Root};
+use crate::{error::ErrorKind, flags::ResolverFlags, resolvers::ResolverBackend, syscalls, Root};
 
 use std::path::Path;
 
@@ -87,7 +87,6 @@ macro_rules! resolve_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             $(#[cfg_attr(not($ignore_meta), ignore)])*
             fn [<root_ $test_name _openat2>]() -> Result<(), Error> {
                 utils::$with_root_fn(|root_dir: &Path| {
@@ -111,7 +110,6 @@ macro_rules! resolve_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             $(#[cfg_attr(not($ignore_meta), ignore)])*
             fn [<rootref_ $test_name _openat2>]() -> Result<(), Error> {
                 utils::$with_root_fn(|root_dir: &Path| {
@@ -135,9 +133,16 @@ macro_rules! resolve_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             $(#[cfg_attr(not($ignore_meta), ignore)])*
             fn [<root_ $test_name _opath>]() -> Result<(), Error> {
+                // This test only makes sense if openat2 is supported (i.e., the
+                // default resolver is openat2 -- otherwise the default test
+                // already tested this case).
+                if !*syscalls::OPENAT2_IS_SUPPORTED {
+                    // skip this test
+                    return Ok(());
+                }
+
                 utils::$with_root_fn(|root_dir: &Path| {
                     let mut $root_var = Root::open(root_dir)?;
                     $root_var.set_resolver_backend(ResolverBackend::EmulatedOpath);
@@ -159,9 +164,16 @@ macro_rules! resolve_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             $(#[cfg_attr(not($ignore_meta), ignore)])*
             fn [<rootref_ $test_name _opath>]() -> Result<(), Error> {
+                // This test only makes sense if openat2 is supported (i.e., the
+                // default resolver is openat2 -- otherwise the default test
+                // already tested this case).
+                if !*syscalls::OPENAT2_IS_SUPPORTED {
+                    // skip this test
+                    return Ok(());
+                }
+
                 utils::$with_root_fn(|root_dir: &Path| {
                     let root = Root::open(root_dir)?;
                     let mut $root_var = root
