@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Added ###
 - `Error` and `ErrorKind` now have a `can_retry` helper that can be used to
   make retry loops easier for callers.
+- libpathrs now has fairly comprehensive end-to-end tests for all our bindings
+  (written in a language-agnostic way), to ensure correctness and uniformty
+  when you use libpathrs, no matter which language you use.
 
 ### Fixed ###
 - python bindings: fix `pathrs.procfs` examples in README.
