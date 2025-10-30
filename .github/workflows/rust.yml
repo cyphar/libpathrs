@@ -56,7 +56,7 @@ jobs:
       - uses: taiki-e/install-action@cargo-hack
       - name: cargo check
         run: >-
-          cargo hack --workspace --each-feature --keep-going \
+          cargo hack --each-feature --keep-going \
             check --all-targets
 
   check-cross:
@@ -94,7 +94,7 @@ jobs:
             check --target=${{ matrix.target }} --all-targets
       - name: cargo build --target=${{ matrix.target }}
         run: >-
-          cargo hack --workspace --each-feature --keep-going \
+          cargo hack --each-feature --keep-going \
             build --target=${{ matrix.target }} --release
 
   check-lint-nohack:
