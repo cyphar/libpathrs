@@ -87,7 +87,7 @@ jobs:
       # TODO: Move this to a "make check" we can run locally as well.
       - name: check crate and python binding versions match
         run: |
-          CRATE_VERSION="$(cargo metadata --no-deps --format-version=1 | jq -rM '.packages[] | "\(.name)-\(.version)"')"
+          CRATE_VERSION="$(cargo metadata --no-deps --format-version=1 | jq -rM '.packages[] | select(.name == "pathrs") | "\(.name)-\(.version)"')"
           PY_VERSION="$(python3 -c 'import importlib.metadata; print("pathrs-" + importlib.metadata.version("pathrs"))')"
 
           echo "rust crate version: $CRATE_VERSION";
