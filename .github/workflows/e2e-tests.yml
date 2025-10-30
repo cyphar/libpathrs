@@ -1,0 +1,123 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# libpathrs: safe path resolution on Linux
+# Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
+# Copyright (C) 2019-2025 SUSE LLC
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+  schedule:
+    - cron: '0 0 * * *'
+
+name: e2e-tests
+
+env:
+  BATS_VERSION: "1.11.1"
+
+jobs:
+  e2e-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        lang:
+          - go
+          - rust
+          - python
+        runas:
+          - ""
+          - "root"
+        lang-desc: [""]
+        include:
+          # Test minimum python version.
+          # TODO: Switch to python 3.9 (pathrs bindings version).
+          #       typing.Self: python >= 3.11
+          #       match: python >= 3.10
+          - lang: python
+            lang-desc: python3.11
+            python-version: "3.11"
+          # Test minimum Go version.
+          # TODO: Switch to Go 1.18 (go-pathrs bindings version).
+          #       strings.FieldsFuncSeq: go >= 1.24
+          #       urfave/cli/v3: go >= 1.22
+          - lang: go
+            lang-desc: go1.24
+            go-version: "1.24"
+
+    # FIXME: This is horrific.
+    name: >-
+      run e2e-tests
+      ${{
+        format('({0}{1})',
+          matrix.lang-desc || matrix.lang,
+          matrix.runas && format(', {0}', matrix.runas) || '',
+        )
+      }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: install package
+        run: |-
+          sudo apt-get update -y
+          sudo apt-get install -y moreutils
+
+      # Build and install libpathrs.so.
+      - if: ${{ matrix.lang != 'rust' }}
+        uses: dtolnay/rust-toolchain@stable
+      - if: ${{ matrix.lang != 'rust' }}
+        name: build libpathrs
+        run: make release
+      - if: ${{ matrix.lang != 'rust' }}
+        name: install libpathrs
+        run: sudo ./install.sh --prefix=/usr --libdir=/usr/lib
+
+      # Setup go.
+      - if: ${{ matrix.lang == 'go' }}
+        name: install go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version || 'stable' }}
+          check-latest: true
+
+      # Setup python.
+      - if: ${{ matrix.lang == 'python' }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - if: ${{ matrix.lang == 'python' }}
+        name: install pypa/build
+        run: >-
+          python3 -m pip install --user build twine
+
+      # Install bats.
+      - name: install bats
+        uses: bats-core/bats-action@3.0.1
+        with:
+          bats-version: ${{ env.BATS_VERSION }}
+          support-install: false
+          assert-install: false
+          detik-install: false
+          file-install: false
+
+      # Run tests.
+      - name: make -C e2e-tests test-${{ matrix.lang }}
+        run: |-
+          export BATS=$(which bats)
+          make -C e2e-tests RUN_AS=${{ matrix.runas }} test-${{ matrix.lang }}
+
+  e2e-complete:
+    needs:
+      - e2e-test
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "End-to-end test CI jobs completed successfully."
