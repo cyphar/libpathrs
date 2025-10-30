@@ -113,5 +113,6 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 [workspace]
 resolver = "2"
 members = [
+	"contrib/fake-enosys",
 	"e2e-tests/cmd/rust",
 ]

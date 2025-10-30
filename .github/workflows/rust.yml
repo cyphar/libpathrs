@@ -90,7 +90,7 @@ jobs:
       - uses: taiki-e/install-action@cargo-hack
       - name: cargo check --target=${{ matrix.target }}
         run: >-
-          cargo hack --workspace --each-feature --keep-going \
+          cargo hack --each-feature --keep-going \
             check --target=${{ matrix.target }} --all-targets
       - name: cargo build --target=${{ matrix.target }}
         run: >-
