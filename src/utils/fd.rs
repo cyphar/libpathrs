@@ -224,7 +224,7 @@ fn proc_subpath<Fd: AsRawFd>(fd: Fd) -> Result<String, Error> {
 /// 3.6][kcommit-b5fb63c18315] up to Linux 6.11. Before Linux 3.6, the logic
 /// that became `nd_jump_link()` only existed in procfs. AppArmor [started using
 /// it in Linux 4.13 with the introduction of
-/// apparmorfs][kcommit-a481f4d917835].
+/// apparmorfs][kcommit-a481f4d91783].
 ///
 /// [kcommit-b5fb63c18315]: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b5fb63c18315c5510c1d0636179c057e0c761c77
 /// [kcommit-a481f4d91783]: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=a481f4d917835cad86701fc0d1e620c74bb5cd5f
