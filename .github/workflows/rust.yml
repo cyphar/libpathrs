@@ -97,6 +97,32 @@ jobs:
           cargo hack --each-feature --keep-going \
             build --target=${{ matrix.target }} --release
 
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # We need to use nightly Rust to check the formatting.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Pin the Rust version to avoid Rust updates breaking our clippy lints.
+      - uses: dtolnay/rust-toolchain@1.88
+        with:
+          components: clippy
+      - uses: taiki-e/install-action@cargo-hack
+      - name: cargo clippy
+        run: >-
+          cargo hack --workspace --each-feature --keep-going \
+            clippy --all-targets
+
   check-lint-nohack:
     name: make lint (no cargo-hack)
     runs-on: ubuntu-latest
@@ -176,32 +202,6 @@ jobs:
       - run: cargo build --examples
       - run: make -C examples smoke-test-rust
 
-  fmt:
-    name: rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      # We need to use nightly Rust to check the formatting.
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: rustfmt
-      - run: cargo fmt --all -- --check
-
-  clippy:
-    name: clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      # Pin the Rust version to avoid Rust updates breaking our clippy lints.
-      - uses: dtolnay/rust-toolchain@1.88
-        with:
-          components: clippy
-      - uses: taiki-e/install-action@cargo-hack
-      - name: cargo clippy
-        run: >-
-          cargo hack --workspace --each-feature --keep-going \
-            clippy --all-targets
-
   size:
     permissions:
       contents: read
@@ -263,14 +263,17 @@ jobs:
   release-crate:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs:
+      - codespell
       - check
       - check-msrv
       - check-cross
+      - fmt
+      - clippy
+      - check-lint-nohack
+      - validate-cbindgen
       - rustdoc
       - test
       - examples
-      - fmt
-      - clippy
     runs-on: ubuntu-latest
     environment:
       name: release-crate
@@ -291,13 +294,13 @@ jobs:
       - check
       - check-msrv
       - check-cross
+      - fmt
+      - clippy
       - check-lint-nohack
       - validate-cbindgen
       - rustdoc
       - test
       - examples
-      - fmt
-      - clippy
       - size
       - release-crate
     runs-on: ubuntu-latest
