@@ -212,12 +212,31 @@ jobs:
           path: "target/llvm-cov-target/*.profraw"
           retention-days: 7 # no need to waste disk space
 
+  compute-test-partitions:
+    name: compute test partitions
+    runs-on: ubuntu-latest
+    outputs:
+      tests: ${{ steps.test-partitions.outputs.data }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: compute test partitions
+        id: test-partitions
+        run: |-
+          # Compute the default test set then convert each object to a string
+          # so that we can double-fromJSON it (once as a list for
+          # test.strategy, and once again for test.name and the actual test).
+          partitions="$(./hack/ci-compute-test-partition.jq <<<"null")"
+          jq -CS <<<"$partitions" # for debugging
+          echo "data=$(jq -ScM 'map("\(.)")' <<<"$partitions")" >>"$GITHUB_OUTPUT"
+
   test:
     needs:
+      - compute-test-partitions
       - nextest-archive
     strategy:
       fail-fast: false
       matrix:
+        tests: ${{ fromJSON(needs.compute-test-partitions.outputs.tests) }}
         run-as:
           - unpriv
           - root
@@ -225,10 +244,21 @@ jobs:
           - ""
           - openat2
           - statx
+        exclude:
+          # The statx tests are quite slow with statx disabled, and there is no
+          # real benefit to including them since the fallback code is tested
+          # elsewhere and our race tests don't try even to attack fdinfo.
+          - enosys: statx
+            tests: >-
+              {"name":"race","pattern":"test(#tests::test_race*)"}
+
+    env:
+      NEXTEST_PATTERN_SPEC: ${{ fromJSON(matrix.tests).pattern }}
     name: >-
       cargo test
       ${{
-          format('({0}{1})',
+          format('({0}, {1}{2})',
+            fromJSON(matrix.tests).name,
             matrix.run-as,
             matrix.enosys && format(', {0}=enosys', matrix.enosys) || '',
           )
@@ -259,7 +289,8 @@ jobs:
             --cargo=cargo \
             ${{ matrix.run-as == 'root' && '--sudo' || '' }} \
             --enosys="${{ matrix.enosys }}" \
-            --archive-file="nextest-pathrs-${{ matrix.run-as }}.tar.zst"
+            --archive-file="nextest-pathrs-${{ matrix.run-as }}.tar.zst" \
+            "${{ env.NEXTEST_PATTERN_SPEC }}"
 
       - name: upload rust coverage
         uses: actions/upload-artifact@v5
