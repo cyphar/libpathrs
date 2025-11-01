@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   retries is exceeded -- this allows higher-level users easily detect if an
   error is an indication they should retry (based on their own retry policy).
 
+  In addition, the number of retries done has been bumped from `32` to `128`
+  based on some benchmarking which showed that `32` could fail up to 3% of the
+  time but `128` would only fail ~0.1% of the time in the worst case scenario
+  of an attacker that can saturate all cores with `rename(2)` operations.
+
+  Users that need stronger resiliency guarantees can do their own additional
+  retry loop on top of `libpathrs` by checking the return value for `EAGAIN`.
+  Please note that we would strongly recommend having some restriction to avoid
+  denial-of-service attacks (such as a deadline -- for reference, our testing
+  showed that even with >50k trials containing >200k operations a deadline of
+  1ms was never exceeded even in the most pessimistic attack scenario).
+
 ## [0.2.0] - 2025-10-17 ##
 
 > You're gonna need a bigger boat.
