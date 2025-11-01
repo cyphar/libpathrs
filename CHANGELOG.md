@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   auto-include `S_IFREG` for non-`Mknod` operations (previously this would
   cause `MkdirAll` to error out).
 - `Root::create_file` now supports `O_TMPFILE`.
+- Previously, trying to use `ProcfsHandle::open_follow` with a path whose
+  penultimate component was a symlink (i.e.,
+  `ProcfsHandle::open_follow(ProcfsBase::ProcRoot, "self/status")`) would
+  result in an error due to a mistake in how we handled looking up parent
+  directories. This has been fixed, and this will now work the way you expect
+  (though you should still use `ProcfsBase::ProcSelf` instead in the above
+  example).
 
 ### Changed ###
 - The `openat2` resolver will now return `-EAGAIN` if the number of `openat2`

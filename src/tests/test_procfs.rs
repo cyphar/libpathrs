@@ -285,6 +285,10 @@ procfs_tests! {
     global_cpuinfo_rd: open(ProcfsBase::ProcRoot, "cpuinfo", O_RDONLY) => (error: ErrOvermount("/proc/cpuinfo", ErrorKind::OsError(Some(libc::EXDEV))));
     global_meminfo_rd: open(ProcfsBase::ProcRoot, "meminfo", O_RDONLY) => (error: ErrOvermount("/proc/meminfo", ErrorKind::OsError(Some(libc::EXDEV))));
     global_fs_dir: open(ProcfsBase::ProcRoot, "fs", O_RDONLY|O_DIRECTORY) => (error: ErrOvermount("/proc/fs", ErrorKind::OsError(Some(libc::EXDEV))));
+    // Regular symlinks.
+    symlink_parentdir: open(ProcfsBase::ProcRoot, "self/mounts", O_PATH) => (error: Ok);
+    symlink_parentdir: open_follow(ProcfsBase::ProcRoot, "self/mounts", O_RDONLY) => (error: Ok);
+    symlink_parentdir: readlink(ProcfsBase::ProcRoot, "self/cwd") => (error: Ok);
     // Magic-links with no overmount.
     magiclink_nomount: open(self, "cwd", O_PATH) => (error: Ok);
     magiclink_nomount: open_follow(self, "cwd", O_RDONLY) => (error: Ok);

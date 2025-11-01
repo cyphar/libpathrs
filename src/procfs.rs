@@ -527,7 +527,11 @@ impl<'fd> ProcfsHandleRef<'fd> {
             description: "proc_open_follow path has trailing slash".into(),
         })?;
 
-        let parent = self.open(base, parent, OpenFlags::O_PATH | OpenFlags::O_DIRECTORY)?;
+        let parentdir = self.openat_raw(
+            self.open_base(base)?.as_fd(),
+            parent,
+            OpenFlags::O_PATH | OpenFlags::O_DIRECTORY,
+        )?;
 
         // Rather than using self.mnt_id for the following check, we use the
         // mount ID from parent. This is necessary because ProcfsHandle::open
@@ -535,7 +539,7 @@ impl<'fd> ProcfsHandleRef<'fd> {
         // However, ProcfsHandle::open already checks that the mount ID and
         // fstype are safe, so we can just reuse the mount ID we get without
         // issue.
-        let parent_mnt_id = utils::fetch_mnt_id(self.as_raw_procfs(), &parent, "")?;
+        let parent_mnt_id = utils::fetch_mnt_id(self.as_raw_procfs(), &parentdir, "")?;
 
         // Detect if the magic-link we are about to open is actually a
         // bind-mount. There is no "statfsat" so we can't check that the f_type
@@ -546,9 +550,9 @@ impl<'fd> ProcfsHandleRef<'fd> {
         //
         // NOTE: This check is only safe if there are no racing mounts, so only
         // for the ProcfsHandle::{new_fsopen,new_open_tree} cases.
-        verify_same_mnt(self.as_raw_procfs(), parent_mnt_id, &parent, trailing)?;
+        verify_same_mnt(self.as_raw_procfs(), parent_mnt_id, &parentdir, trailing)?;
 
-        syscalls::openat_follow(parent, trailing, oflags, 0)
+        syscalls::openat_follow(parentdir, trailing, oflags, 0)
             .map(File::from)
             .map_err(|err| {
                 ErrorImpl::RawOsError {

@@ -198,9 +198,6 @@ function teardown() {
 	[ "$status" -eq 0 ]
 	grep -E '^FILE-PATH (/proc)?/[0-9]+/fdinfo/0$' <<<"$output"
 
-	# FIXME FIXME FIXME
-	skip "known bug <https://github.com/cyphar/libpathrs/issues/274>"
-
 	exepath="$(readlink -f "$PATHRS_CMD")"
 
 	pathrs-cmd procfs --base root open self/exe
