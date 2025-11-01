@@ -106,9 +106,13 @@ pub(crate) fn resolve(
 
     // openat2(2) can fail with -EAGAIN if there was a racing rename or mount
     // *anywhere on the system*. This can happen pretty frequently, so what we
-    // do is attempt the openat2(2) a couple of times. If it still fails, just
-    // error out.
-    const MAX_RETRIES: u8 = 32;
+    // do is attempt the openat2(2) a couple of times.
+    //
+    // Based on some fairly extensive tests, with 128 retries you only have a
+    // ~0.1% chance of hitting the error path (even with an attacker pounding on
+    // rename on all cores). Users that need stricter retry requirements can do
+    // their own higher-level retry loop based on the errno.
+    const MAX_RETRIES: u8 = 128;
     let mut tries = 0u8;
     loop {
         tries += 1;
