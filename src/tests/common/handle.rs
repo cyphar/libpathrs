@@ -113,8 +113,17 @@ pub(in crate::tests) fn check_oflags(fd: impl AsFd, flags: OpenFlags) -> Result<
     // need to drop them from the expected flag set.
     wanted_flags.remove(OFlags::CREATE | OFlags::EXCL | OFlags::NOCTTY | OFlags::TRUNC);
 
-    // Check regular file flags.
+    // The O_PATH one-shot resolver (i.e., resolvers::procfs::opath_resolve)
+    // will add O_NOFOLLOW silently to returned files and there isn't a way for
+    // us to remove this (F_SETFL silently masks O_NOFOLLOW so we cannot clear
+    // it). So, add O_NOFOLLOW to the wanted flags if it is set. For a returned
+    // file, O_NOFOLLOW makes no practical difference anyway (and our tests
+    // check for the actually opened file anyway).
     let got_file_flags = rustix_fs::fcntl_getfl(fd).context("failed to F_GETFL")?;
+    if got_file_flags.contains(OFlags::NOFOLLOW) {
+        wanted_flags.insert(OFlags::NOFOLLOW)
+    }
+    // Check regular file flags.
     assert_eq!(
         // Ignore O_LARGEFILE since it's basically a kernel internal.
         got_file_flags & !OFlags::LARGEFILE,

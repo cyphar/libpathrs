@@ -361,6 +361,13 @@ fn opath_resolve(
             && oflags.intersection(OpenFlags::O_PATH | OpenFlags::O_NOFOLLOW | OpenFlags::O_DIRECTORY) != OpenFlags::O_PATH
         {
             match syscalls::openat(&current, &part, oflags | OpenFlags::O_NOFOLLOW, 0) {
+                // NOTE: This will silently add O_NOFOLLOW to the set of flags
+                // you see in fcntl(F_GETFL). In practice this isn't an issue,
+                // but it is a detectable difference between the O_PATH resolver
+                // and openat2. Unfortunately F_SETFL silently ignores
+                // O_NOFOLLOW so we cannot clear this flag (the only option
+                // would be a procfs re-open -- but this *is* the procfs re-open
+                // code!).
                 Ok(final_reopen) => {
                     // Re-verify the next component is on the same mount.
                     procfs::verify_same_mnt(proc_rootfd, root_mnt_id, &final_reopen, "")

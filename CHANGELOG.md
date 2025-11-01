@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Security ###
+- When using `ProcfsHandle::open_follow` on **non**-magic-links, libpathrs
+  could fall victim to an overmount attack because we had incorrectly assumed
+  that opening a symlink as a final component would be "atomic" (this is only
+  true for magic-links, which was the primary usecase we had in mind for this
+  API).
+
+  We now try to use the safe procfs resolver even on symlinks to handle the
+  "regular symlink case". Note that (due to a separate bug in
+  `ProcfsHandle::open_follow` that has also been fixed), privileged users would
+  likely still get an error in this case.
+
 ### Added ###
 - `Error` and `ErrorKind` now have a `can_retry` helper that can be used to
   make retry loops easier for callers.
@@ -26,6 +38,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   directories. This has been fixed, and this will now work the way you expect
   (though you should still use `ProcfsBase::ProcSelf` instead in the above
   example).
+- `ProcfsHandle::open_follow` was missing the logic to temporarily allocate a
+  non-`subset=pid` if the target does not exit. This ended up accidentally
+  mitigating the `ProcfsHandle::open_follow` security issue mentioned above
+  (for `fsopen(2)` users trying to open symlinks in `ProcfsBase::ProcRoot` --
+  note that only `ProcfsBase::ProcRoot` contains such symlinks in the first
+  place).
 
 ### Changed ###
 - The `openat2` resolver will now return `-EAGAIN` if the number of `openat2`

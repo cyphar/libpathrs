@@ -504,20 +504,41 @@ impl<'fd> ProcfsHandleRef<'fd> {
             oflags.insert(OpenFlags::O_DIRECTORY);
         }
 
-        // If the target is not a symlink, use an O_NOFOLLOW open. This defends
-        // against C users forgetting to set O_NOFOLLOW for files that aren't
-        // magic-links and thus shouldn't be followed.
+        // If the target is not actually a magic-link, we are able to just use
+        // the regular resolver to open the target (this even includes actual
+        // symlinks) which is much safer. This also defends against C user
+        // forgetting to set O_NOFOLLOW.
         //
-        // We could do this after splitting the path and getting the directory
-        // components (to reduce the amount of work on non-openat2 systems), but
-        // that would be more work for openat2 systems so let's give preference
-        // to openat2.
-        //
-        // NOTE: There is technically a race here, but it relies the target path
-        //       being a magic-link and then another thing being mounted on top.
-        //       This is the same race as below.
-        if self.readlink(base, subpath).is_err() {
-            return self.open(base, subpath, oflags);
+        // This also gives us a chance to check if the target path is not
+        // present because of subset=pid and retry (for magic-links we need to
+        // operate on the target path more than once, which makes the retry
+        // logic easier to do upfront here).
+        let basedir = self.open_base(base)?;
+        match self.openat_raw(basedir.as_fd(), subpath, oflags) {
+            Ok(file) => return Ok(file.into()),
+            Err(err) => {
+                if self.is_subset && err.kind() == ErrorKind::OsError(Some(libc::ENOENT)) {
+                    // If the trial lookup failed due to ENOENT and the current
+                    // procfs handle is "masked" in some way, try to create a
+                    // temporary unmasked handle and retry the operation.
+                    return ProcfsHandleBuilder::new()
+                        .unmasked()
+                        .build()
+                        // Use the old error if creating a new handle failed.
+                        .or(Err(err))?
+                        .open_follow(base, subpath, oflags);
+                }
+                // If the error is ELOOP then the resolver probably hit a
+                // magic-link, and so we have a reason to allow the
+                // no-validation open we do later.
+                // NOTE: Of course, this is not safe against races -- an
+                // attacker could bind-mount a magic-link over a regular symlink
+                // to trigger ELOOP and then unmount it after this point. As
+                // always, fsopen(2) is needed for true safety here.
+                if err.kind() != ErrorKind::OsError(Some(libc::ELOOP)) {
+                    return Err(err)?;
+                }
+            }
         }
 
         // Get a no-follow handle to the parent of the magic-link.
