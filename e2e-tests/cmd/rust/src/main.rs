@@ -28,6 +28,11 @@ fn cli() -> Command {
         .subcommand(procfs::cli())
 }
 
+#[test]
+fn verify_app() {
+    cli().debug_assert();
+}
+
 fn handle_error(func: impl FnOnce() -> Result<(), Error>) -> ExitCode {
     if let Err(err) = func() {
         let mut desc = err.to_string();
