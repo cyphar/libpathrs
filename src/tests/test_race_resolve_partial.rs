@@ -34,6 +34,7 @@ use crate::{
     error::ErrorKind,
     flags::ResolverFlags,
     resolvers::{PartialLookup, ResolverBackend},
+    syscalls,
     tests::common as tests_common,
     Root,
 };
@@ -41,16 +42,6 @@ use crate::{
 use std::{os::unix::io::AsFd, sync::mpsc, thread};
 
 use anyhow::Error;
-
-// If openat2 is disabled, the race tests get really slow (especially in CI), so
-// just reduce the number of rounds to something far more sane.
-// TODO: Maybe we should do more runs locally than in CI, since GHA boxes are
-// quite slow compared to my laptop?
-const TEST_RETRIES: usize = if cfg!(feature = "_test_enosys_openat2") {
-    1000
-} else {
-    20000
-};
 
 macro_rules! resolve_race_tests {
     // resolve_race_tests! {
@@ -79,7 +70,6 @@ macro_rules! resolve_race_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore)]
             fn [<root_ $test_name _openat2>]() -> Result<(), Error> {
                 let (tmpdir, root_dir) = $root_dir;
                 let mut $root_var = Root::open(&root_dir)?;
@@ -103,8 +93,15 @@ macro_rules! resolve_race_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore)]
             fn [<root_ $test_name _opath>]() -> Result<(), Error> {
+                // This test only makes sense if openat2 is supported (i.e., the
+                // default resolver is openat2 -- otherwise the default test
+                // already tested this case).
+                if !*syscalls::OPENAT2_IS_SUPPORTED {
+                    // skip this test
+                    return Ok(());
+                }
+
                 let (tmpdir, root_dir) = $root_dir;
                 let mut $root_var = Root::open(&root_dir)?;
                 $root_var.set_resolver_backend(ResolverBackend::EmulatedOpath);
@@ -151,8 +148,20 @@ macro_rules! resolve_race_tests {
                             )
                         });
 
+                        // If openat2 is disabled, the race tests get really
+                        // slow (especially in CI), so just reduce the number of
+                        // rounds to something far more sane.
+                        // TODO: Maybe we should do more runs locally than in
+                        // CI, since GHA boxes are quite slow compared to my
+                        // laptop?
+                        let test_retries = if *syscalls::OPENAT2_IS_SUPPORTED {
+                            20000
+                        } else {
+                            1000
+                        };
+
                         let expected = vec![ $($expected)* ];
-                        for _ in 0..TEST_RETRIES {
+                        for _ in 0..test_retries {
                             // Make sure the rename thread isn't paused.
                             ctl_tx
                                 .send(RenameStateMsg::Run)

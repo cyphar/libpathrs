@@ -90,7 +90,7 @@ jobs:
       - uses: taiki-e/install-action@cargo-hack
       - name: cargo check --target=${{ matrix.target }}
         run: >-
-          cargo hack --workspace --each-feature --keep-going \
+          cargo hack --each-feature --keep-going \
             check --target=${{ matrix.target }} --all-targets
       - name: cargo build --target=${{ matrix.target }}
         run: >-
@@ -158,8 +158,111 @@ jobs:
           name: rustdoc
           path: target/doc
 
+  nextest-archive:
+    strategy:
+      fail-fast: false
+      matrix:
+        run-as:
+          - unpriv
+          - root
+    name: cargo nextest archive (${{ matrix.run-as }})
+    runs-on: ubuntu-latest
+    env:
+      FEATURES: capi ${{ matrix.run-as == 'root' && '_test_as_root' || '' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+      # Nightly rust is required for llvm-cov --doc.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@nextest
+      - name: cargo nextest archive
+        run: >-
+          cargo llvm-cov \
+            nextest-archive \
+              --workspace \
+              -F "${{ env.FEATURES }}" \
+              --archive-file nextest-pathrs-${{ matrix.run-as }}.tar.zst
+      - name: upload nextest archive
+        uses: actions/upload-artifact@v5
+        with:
+          name: nextest-archive-${{ matrix.run-as }}
+          path: nextest-pathrs-${{ matrix.run-as }}.tar.zst
+          retention-days: 7 # no need to waste disk space
+
+  doctest:
+    name: cargo test --doc
+    runs-on: ubuntu-latest
+    env:
+      CARGO_NIGHTLY: cargo
+    steps:
+      - uses: actions/checkout@v5
+      # Nightly rust is required for llvm-cov --doc.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - run: make test-rust-doctest
+      - name: upload rust coverage
+        uses: actions/upload-artifact@v5
+        with:
+          name: profraw-${{ github.job }}-${{ strategy.job-index }}
+          path: "target/llvm-cov-target/*.profraw"
+          retention-days: 7 # no need to waste disk space
+
+  compute-test-partitions:
+    name: compute test partitions
+    runs-on: ubuntu-latest
+    outputs:
+      tests: ${{ steps.test-partitions.outputs.data }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: compute test partitions
+        id: test-partitions
+        run: |-
+          # Compute the default test set then convert each object to a string
+          # so that we can double-fromJSON it (once as a list for
+          # test.strategy, and once again for test.name and the actual test).
+          partitions="$(./hack/ci-compute-test-partition.jq <<<"null")"
+          jq -CS <<<"$partitions" # for debugging
+          echo "data=$(jq -ScM 'map("\(.)")' <<<"$partitions")" >>"$GITHUB_OUTPUT"
+
   test:
-    name: cargo test
+    needs:
+      - compute-test-partitions
+      - nextest-archive
+    strategy:
+      fail-fast: false
+      matrix:
+        tests: ${{ fromJSON(needs.compute-test-partitions.outputs.tests) }}
+        run-as:
+          - unpriv
+          - root
+        enosys:
+          - ""
+          - openat2
+          - statx
+        exclude:
+          # The statx tests are quite slow with statx disabled, and there is no
+          # real benefit to including them since the fallback code is tested
+          # elsewhere and our race tests don't try even to attack fdinfo.
+          - enosys: statx
+            tests: >-
+              {"name":"race","pattern":"test(#tests::test_race*)"}
+
+    env:
+      NEXTEST_PATTERN_SPEC: ${{ fromJSON(matrix.tests).pattern }}
+    name: >-
+      cargo test
+      ${{
+          format('({0}, {1}{2})',
+            fromJSON(matrix.tests).name,
+            matrix.run-as,
+            matrix.enosys && format(', {0}=enosys', matrix.enosys) || '',
+          )
+      }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -169,19 +272,86 @@ jobs:
           components: llvm-tools
       - uses: taiki-e/install-action@cargo-llvm-cov
       - uses: taiki-e/install-action@nextest
-      - uses: taiki-e/install-action@cargo-hack
       - name: install llvm-tools wrappers
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-binutils
 
-      # Rust tests.
-      - name: rust doc tests
-        run: make CARGO_NIGHTLY=cargo test-rust-doctest
-      - name: rust unit tests
-        run: make CARGO_NIGHTLY=cargo test-rust-unpriv
-      - name: rust unit tests (root)
-        run: make CARGO_NIGHTLY=cargo test-rust-root
+      - name: pull nextest archive
+        uses: actions/download-artifact@v5
+        with:
+          name: nextest-archive-${{ matrix.run-as }}
+          path: .
+
+      - name: rust unit tests (${{ matrix.run-as }})
+        run: >-
+          ./hack/rust-tests.sh \
+            --cargo=cargo \
+            ${{ matrix.run-as == 'root' && '--sudo' || '' }} \
+            --enosys="${{ matrix.enosys }}" \
+            --archive-file="nextest-pathrs-${{ matrix.run-as }}.tar.zst" \
+            "${{ env.NEXTEST_PATTERN_SPEC }}"
+
+      - name: upload rust coverage
+        uses: actions/upload-artifact@v5
+        with:
+          name: profraw-${{ github.job }}-${{ strategy.job-index }}
+          path: "target/llvm-cov-target/*.profraw"
+          retention-days: 7 # no need to waste disk space
+
+  coverage:
+    needs:
+      - doctest
+      - test
+    name: compute coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Nightly rust is required for llvm-cov --doc.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: install llvm-tools wrappers
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-binutils
+
+      - name: pull rust coverage
+        id: rust-coverage
+        uses: actions/download-artifact@v5
+        with:
+          pattern: "profraw-*"
+          path: profraw
+      - name: merge coverage
+        run: |-
+          mkdir -p target/llvm-cov-target
+          profraw_list="$(mktemp --tmpdir libpathrs-profraw.XXXXXXXX)"
+          find "${{ steps.rust-coverage.outputs.download-path }}" -name '*.profraw' -type f >"$profraw_list"
+          rust-profdata merge --sparse -f "$profraw_list" -o ./target/llvm-cov-target/libpathrs-combined.profraw
+      - name: upload merged rust coverage
+        uses: actions/upload-artifact@v5
+        with:
+          name: libpathrs-combined-profraw
+          path: target/llvm-cov-target/libpathrs-combined.profraw
+          retention-days: 7 # no need to waste disk space
+
+      # FIXME: We just pull one version of the archive and use it for
+      # generating coverage profiles, but this really is not correct because
+      # the "root" and "unpriv" binaries are different and so the coverage data
+      # is a little off. See <https://github.com/cyphar/libpathrs/issues/282>.
+      - name: pull nextest archive
+        uses: actions/download-artifact@v5
+        with:
+          name: nextest-archive-root
+          path: .
+
+      # FIXME: llvm-cov appears to have some kind of bug with
+      # --nextest-archive-file as they do not strip the "target" prefix from
+      # the nextest archive. As a workaround, we just extract it ourselves.
+      - name: extract nextest archive
+        run: >-
+          tar xv -f nextest-pathrs-root.tar.zst -C target/llvm-cov-target/ --strip-components=1
 
       - name: calculate coverage
         run: cargo llvm-cov report
@@ -271,7 +441,9 @@ jobs:
       - check-lint-nohack
       - validate-cbindgen
       - rustdoc
+      - doctest
       - test
+      - coverage
       - examples
       - size
     runs-on: ubuntu-latest

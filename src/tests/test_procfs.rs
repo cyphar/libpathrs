@@ -61,7 +61,6 @@ macro_rules! procfs_tests {
 
             #[test]
             $(#[$meta])*
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             fn [<procfs_overmounts_ $func_prefix openat2_ $test_name>]() -> Result<(), Error> {
                 if !*syscalls::OPENAT2_IS_SUPPORTED {
                     // skip this test
@@ -82,8 +81,15 @@ macro_rules! procfs_tests {
 
             #[test]
             $(#[$meta])*
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             fn [<procfs_overmounts_ $func_prefix opath_ $test_name>]() -> Result<(), Error> {
+                // This test only makes sense if openat2 is supported (i.e., the
+                // default resolver is openat2 -- otherwise the default test
+                // already tested this case).
+                if !*syscalls::OPENAT2_IS_SUPPORTED {
+                    // skip this test
+                    return Ok(());
+                }
+
                 utils::[<check_proc_ $procfs_op>](
                     || {
                         let mut proc = $procfs_inst ?;

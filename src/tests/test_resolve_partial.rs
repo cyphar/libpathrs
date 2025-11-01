@@ -34,7 +34,7 @@ use crate::{
     error::ErrorKind,
     flags::ResolverFlags,
     resolvers::{PartialLookup, ResolverBackend},
-    Root,
+    syscalls, Root,
 };
 
 use anyhow::Error;
@@ -67,7 +67,6 @@ macro_rules! resolve_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             $(#[cfg_attr(not($ignore_meta), ignore)])*
             fn [<root_ $test_name _openat2>]() -> Result<(), Error> {
                 utils::$with_root_fn(|mut $root_var: Root| {
@@ -90,9 +89,16 @@ macro_rules! resolve_tests {
             }
 
             #[test]
-            #[cfg_attr(feature = "_test_enosys_openat2", ignore, allow(unused_attributes))]
             $(#[cfg_attr(not($ignore_meta), ignore)])*
             fn [<root_ $test_name _opath>]() -> Result<(), Error> {
+                // This test only makes sense if openat2 is supported (i.e., the
+                // default resolver is openat2 -- otherwise the default test
+                // already tested this case).
+                if !*syscalls::OPENAT2_IS_SUPPORTED {
+                    // skip this test
+                    return Ok(());
+                }
+
                 utils::$with_root_fn(|mut $root_var: Root| {
                     $root_var.set_resolver_backend(ResolverBackend::EmulatedOpath);
                     assert_eq!(

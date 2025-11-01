@@ -332,7 +332,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(feature = "_test_enosys_openat2", ignore)]
     fn openat2_beneath() {
         if !*syscalls::OPENAT2_IS_SUPPORTED {
             return; // skip

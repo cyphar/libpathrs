@@ -657,16 +657,6 @@ pub(crate) fn statx(
     let path = path.as_ref();
     let flags = AtFlags::NO_AUTOMOUNT | AtFlags::SYMLINK_NOFOLLOW | AtFlags::EMPTY_PATH;
 
-    if cfg!(feature = "_test_enosys_statx") {
-        Err(Error::Statx {
-            dirfd: dirfd.into(),
-            path: path.into(),
-            flags,
-            mask,
-            source: Errno::NOSYS,
-        })?;
-    }
-
     rustix_fs::statx(dirfd, path, flags, mask).map_err(|errno| Error::Statx {
         dirfd: dirfd.into(),
         path: path.into(),
@@ -758,16 +748,6 @@ mod openat2 {
             how.flags |= libc::O_NOCTTY as u64;
         }
 
-        if cfg!(feature = "_test_enosys_openat2") {
-            Err(Error::Openat2 {
-                dirfd: dirfd.into(),
-                path: path.into(),
-                how,
-                size: std::mem::size_of::<OpenHow>(),
-                source: Errno::NOSYS,
-            })?;
-        }
-
         // SAFETY: Obviously safe-to-use Linux syscall.
         let fd = unsafe {
             libc::syscall(
@@ -807,26 +787,6 @@ mod openat2 {
         how.flags |= libc::O_NOFOLLOW as u64;
 
         openat2_follow(dirfd, path, how)
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        use pretty_assertions::assert_eq;
-
-        #[test]
-        #[cfg_attr(not(feature = "_test_enosys_openat2"), ignore)]
-        fn openat2_disabled() {
-            assert_eq!(
-                openat2(AT_FDCWD, ".", Default::default())
-                    .map(|file| file
-                        .as_unsafe_path_unchecked()
-                        .expect("getting unsafe path should work"))
-                    .map_err(|err| err.errno()),
-                Err(Errno::NOSYS)
-            );
-        }
     }
 }
 
