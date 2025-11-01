@@ -438,17 +438,31 @@ impl<'fd> ProcfsHandleRef<'fd> {
         RawProcfsRoot::UnsafeFd(self.as_fd())
     }
 
-    fn open_base(&self, base: ProcfsBase) -> Result<OwnedFd, Error> {
-        let proc_rootfd = self.as_fd();
+    /// Do `openat(2)` inside the procfs, but safely.
+    fn openat_raw(
+        &self,
+        dirfd: BorrowedFd<'_>,
+        subpath: &Path,
+        oflags: OpenFlags,
+    ) -> Result<OwnedFd, Error> {
         let fd = self.resolver.resolve(
             self.as_raw_procfs(),
-            proc_rootfd,
-            base.into_path(self.as_raw_procfs()),
-            OpenFlags::O_PATH | OpenFlags::O_DIRECTORY,
+            dirfd,
+            subpath,
+            oflags,
             ResolverFlags::empty(),
         )?;
         self.verify_same_procfs_mnt(&fd)?;
         Ok(fd)
+    }
+
+    /// Open `ProcfsBase` inside the procfs.
+    fn open_base(&self, base: ProcfsBase) -> Result<OwnedFd, Error> {
+        self.openat_raw(
+            self.as_fd(),
+            &base.into_path(self.as_raw_procfs()),
+            OpenFlags::O_PATH | OpenFlags::O_DIRECTORY,
+        )
         // TODO: For ProcfsBase::ProcPid, should ENOENT here be converted to
         //       ESRCH to be more "semantically correct"?
     }
@@ -593,18 +607,7 @@ impl<'fd> ProcfsHandleRef<'fd> {
         let basedir = self.open_base(base)?;
         let subpath = subpath.as_ref();
         let fd = self
-            .resolver
-            .resolve(
-                self.as_raw_procfs(),
-                &basedir,
-                subpath,
-                oflags,
-                ResolverFlags::empty(),
-            )
-            .and_then(|fd| {
-                self.verify_same_procfs_mnt(&fd)?;
-                Ok(fd)
-            })
+            .openat_raw(basedir.as_fd(), subpath, oflags)
             .or_else(|err| {
                 if self.is_subset && err.kind() == ErrorKind::OsError(Some(libc::ENOENT)) {
                     // If the lookup failed due to ENOENT, and the current
