@@ -973,6 +973,27 @@ impl RootRef<'_> {
     ) -> Result<File, Error> {
         let mut flags = flags.into();
 
+        // O_TMPFILE needs special handling -- the pathname is not the name of a
+        // new file (thus requiring us to resolve the parent). Instead, it names
+        // a directory on a filesystem where an unnamed temporary file should be
+        // created.
+        if flags.contains(OpenFlags::O_TMPFILE) {
+            // TODO: Ideally we could just do this with open_subpath() or
+            // resolver.open() but they don't take Permissions...
+            let dir = self.resolve(path.as_ref())?;
+            return syscalls::openat(dir, ".", flags, perm.mode())
+                .map_err(|err| {
+                    {
+                        ErrorImpl::RawOsError {
+                            operation: "pathrs create tmpfile".into(),
+                            source: err,
+                        }
+                    }
+                    .into()
+                })
+                .map(Into::into);
+        }
+
         // The path doesn't exist yet, so we need to get a safe reference to the
         // parent and just operate on the final (slashless) component.
         let (dir, name, trailing_slash) = self

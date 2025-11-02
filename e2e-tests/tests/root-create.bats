@@ -111,23 +111,23 @@ function teardown() {
 }
 
 @test "root mkfile --oflags O_TMPFILE" {
-	# FIXME FIXME FIXME
-	skip "known bug <https://github.com/cyphar/libpathrs/issues/278>"
-
 	ROOT="$(setup_tmpdir)"
 	mkdir -p "$ROOT/var/tmp"
 
-	pathrs-cmd root --root "$ROOT" mkfile --oflags O_TMPFILE --mode 0700 .
+	pathrs-cmd root --root "$ROOT" mkfile --oflags O_TMPFILE,O_RDWR --mode 0700 .
 	[ "$status" -eq 0 ]
-	# TODO: FILE-PATH?
+	grep -Ex "FILE-PATH $ROOT/#[0-9]+ \(deleted\)" <<<"$output"
 
-	pathrs-cmd root --root "$ROOT" mkfile --oflags O_TMPFILE --mode 0700 /
+	pathrs-cmd root --root "$ROOT" mkfile --oflags O_TMPFILE,O_WRONLY --mode 0700 /
 	[ "$status" -eq 0 ]
-	# TODO: FILE-PATH?
+	grep -Ex "FILE-PATH $ROOT/#[0-9]+ \(deleted\)" <<<"$output"
 
-	pathrs-cmd root --root "$ROOT" mkfile --oflags O_TMPFILE --mode 0700 /var/tmp
+	pathrs-cmd root --root "$ROOT" mkfile --oflags O_TMPFILE,O_WRONLY --mode 0700 /var/tmp
 	[ "$status" -eq 0 ]
-	# TODO: FILE-PATH?
+	grep -Ex "FILE-PATH $ROOT/var/tmp/#[0-9]+ \(deleted\)" <<<"$output"
+
+	pathrs-cmd root --root "$ROOT" mkfile --oflags O_TMPFILE,O_RDONLY --mode 0700 .
+	check-errno EINVAL
 }
 
 @test "root mkfile [non-existent parent component]" {
