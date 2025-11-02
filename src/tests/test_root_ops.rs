@@ -494,6 +494,12 @@ root_op_tests! {
     trailing_slash: create_file("foobar/", O_RDONLY, 0o755) => Err(ErrorKind::InvalidArgument);
     trailing_dot: create_file("foobar/.", O_RDONLY, 0o755) => Err(ErrorKind::InvalidArgument);
     trailing_dotdot: create_file("foobar/..", O_RDONLY, 0o755) => Err(ErrorKind::InvalidArgument);
+    // TODO: Figure out how to match the success case...
+    //otmpfile: create_file("b/c", O_TMPFILE|O_RDWR, 0o755) => Ok(_); // has a random name
+    otmpfile_enoent: create_file("b/c/newfile", O_TMPFILE|O_RDWR, 0o755) => Err(ErrorKind::OsError(Some(libc::ENOENT)));
+    otmpfile_exist_file: create_file("b/c/file", O_TMPFILE|O_RDWR, 0o755) => Err(ErrorKind::OsError(Some(libc::ENOTDIR)));
+    //otmpfile_symlink: create_file("root-link", O_TMPFILE|O_RDWR, 0o755) => Ok(_); // has a random name
+    //otmpfile_symlink_parentdir: create_file("e/f", O_TMPFILE|O_RDWR, 0o755) => Ok(_); // has a random name
 
     ocreat: open_subpath("abc", O_CREAT|O_RDONLY) => Err(ErrorKind::InvalidArgument);
     oexcl: open_subpath("abc", O_EXCL|O_RDONLY) => Err(ErrorKind::InvalidArgument);
