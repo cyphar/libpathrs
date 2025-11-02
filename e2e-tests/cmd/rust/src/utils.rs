@@ -78,7 +78,7 @@ impl TypedValueParser for OFlagParser {
             .to_uppercase();
 
         let mut parsed = OpenFlags::empty();
-        for flagname in value.split(|ch| ch == ',' || ch == '|') {
+        for flagname in value.split([',', '|']) {
             let flagname = if flagname.starts_with("O_") {
                 flagname.to_owned()
             } else {
