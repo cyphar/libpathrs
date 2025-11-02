@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   denial-of-service attacks (such as a deadline -- for reference, our testing
   showed that even with >50k trials containing >200k operations a deadline of
   1ms was never exceeded even in the most pessimistic attack scenario).
+- The `O_PATH` resolver for `ProcfsHandle` will now return `ELOOP` for
+  magic-links that look like `foo:[bar]` in order to better match `openat2(2)`
+  (examples include `anon_inode`, `nsfs`, `pipe`, and other such special
+  inodes). Previously we would just return `ENOENT`.
 
 ## [0.2.0] - 2025-10-17 ##
 
