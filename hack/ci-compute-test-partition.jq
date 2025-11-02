@@ -25,8 +25,12 @@ def compute_misc($arr):
 # Use a sane default if nothing is specified.
 compute_misc(. // [
 	{
-		"name": "root",
-		"pattern": "test(#tests::test_root*) or test(#root::*)"
+		"name": "Root",
+		"pattern": "test(#tests::test_root_ops::root_*) or test(#root::*)"
+	},
+	{
+		"name": "RootRef",
+		"pattern": "test(#tests::test_root_ops::rootref_*) or test(#tests::test_root_ops::capi_*)"
 	},
 	{
 		"name": "procfs",

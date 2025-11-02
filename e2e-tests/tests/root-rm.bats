@@ -209,9 +209,6 @@ function teardown() {
 }
 
 @test "root rmdir-all ." {
-	# FIXME FIXME FIXME
-	skip "known bug <https://github.com/cyphar/libpathrs/issues/277>"
-
 	ROOT="$(setup_tmpdir)"
 
 	# Make a fairly deep tree.
@@ -226,16 +223,15 @@ function teardown() {
 	done
 
 	pathrs-cmd root --root "$ROOT" rmdir-all .
-	[ "$status" -eq 0 ]
-	! [ -e "$ROOT/tree" ]
+	# TODO: Implement this.
+	check-errno EINVAL
+	#[ "$status" -eq 0 ]
+	#! [ -e "$ROOT/tree" ]
 	# The top-level root should not be removed.
 	[ -d "$ROOT" ]
 }
 
 @test "root rmdir-all /" {
-	# FIXME FIXME FIXME
-	skip "known bug <https://github.com/cyphar/libpathrs/issues/277>"
-
 	ROOT="$(setup_tmpdir)"
 
 	# Make a fairly deep tree.
@@ -250,8 +246,10 @@ function teardown() {
 	done
 
 	pathrs-cmd root --root "$ROOT" rmdir-all /
-	[ "$status" -eq 0 ]
-	! [ -e "$ROOT/tree" ]
+	# TODO: Implement this.
+	check-errno EINVAL
+	#[ "$status" -eq 0 ]
+	#! [ -e "$ROOT/tree" ]
 	# The top-level root should not be removed.
 	[ -d "$ROOT" ]
 }
