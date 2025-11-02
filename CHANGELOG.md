@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+## [0.2.1] - 2025-11-03 ##
+
+> やられたらやり返す。倍返しだ！
+
 ### Security ###
 - When using `ProcfsHandle::open_follow` on **non**-magic-links, libpathrs
   could fall victim to an overmount attack because we had incorrectly assumed
@@ -571,8 +575,9 @@ Initial release.
   - C FFI.
   - Python bindings.
 
-[Unreleased]: https://github.com/cyphar/libpathrs/compare/v0.2.0...HEAD
-[0.1.3]: https://github.com/cyphar/libpathrs/compare/v0.1.3...v0.2.0
+[Unreleased]: https://github.com/cyphar/libpathrs/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/cyphar/libpathrs/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/cyphar/libpathrs/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/cyphar/libpathrs/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/cyphar/libpathrs/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/cyphar/libpathrs/compare/v0.1.0...v0.1.1
