@@ -148,6 +148,79 @@ fn openat2_resolve(
     })
 }
 
+/// Returns whether the provided string plausibly looks like a magic-link
+/// `readlink(2)` target.
+fn check_possible_magic_link(link_target: &Path) -> Result<(), Error> {
+    // This resolver only deals with procfs paths, which means that we can
+    // restrict how we handle symlinks. procfs does not (and cannot) contain
+    // regular absolute symlinks to paths within procfs, and so we can assume
+    // any absolute paths are magic-links to regular files or would otherwise
+    // trigger EXDEV with openat2. (Note that all procfs magic-links use
+    // `d_path` as the readlink(2) pseudo-target.)
+    if link_target.is_absolute() {
+        Err(ErrorImpl::OsError {
+            operation: "emulated RESOLVE_NO_MAGICLINKS".into(),
+            source: IOError::from_raw_os_error(libc::ELOOP),
+        })
+        .wrap(format!("step into absolute symlink {link_target:?}"))?
+    }
+
+    // However, some magic-links appear as relative paths because they reference
+    // custom anon-inodes or other objects with custom `d_path` callbacks (and
+    // thus custom names). Without openat2(2) there isn't an obvious way to
+    // detect this with 100% accuracy, but we can safely assume that no regular
+    // symlink will have names that look like these special symlinks (they
+    // typically look like "foo:[bar]").
+    //
+    // For reference, at time of writing (Linux 6.17), all of the regular
+    // symlinks in stock procfs (and their corresponding readlink targets)
+    // are listed below.
+    //
+    //  * /proc/self -> "<pid>" (auto-generated)
+    //  * /proc/thread-self -> "<pid>/task/<tid>" (auto-generated)
+    //  * /proc/net -> "self/net"
+    //  * /proc/mounts -> "self/mounts"
+    //
+    // Followed by the following procfs symlinks defined by other modules
+    // (using proc_symlink()):
+    //
+    //  * /proc/ppc64 -> "powerpc" (on ppc64)
+    //  * /proc/rtas -> "powerpc/rtas" (on ppc)
+    //  * /proc/device-tree -> "/sys/firmware/devicetree/base"
+    //  * /proc/fs/afs -> "../self/net/afs" (afs)
+    //  * /proc/fs/fscache -> "netfs" (netfs)
+    //  * /proc/fs/nfsfs/servers -> "../../net/nfsfs/servers" (nfs)
+    //  * /proc/fs/nfsfs/volumes -> "../../net/nfsfs/volumes" (nfs)
+    //  * /proc/fs/xfs/stat -> "/sys/fs/xfs/stat/stats" (xfs)
+    //  * /proc/asound/<id> -> "<card-name>" (sound)
+    //
+    // As you can see, none of them match the format of anon-inodes and so
+    // blocking symlinks that look like that is reasonable. It is possible for
+    // /proc/asound/* symlinks to have arbitrary data, but it seems very
+    // unlikely for a card to have a name that looks like "foo:[bar]".
+
+    // The regex crate is too heavy for us to use it for such a simple string
+    // match. Instead, let's just do a quick-and-dirty search to see if the
+    // characters ":[]" are present in the string and are in the right order.
+    // MSRV(1.65): Switch to regex-lite?
+    if link_target
+        .as_os_str()
+        .to_string_lossy()
+        .chars()
+        .filter(|&c| c == ':' || c == '[' || c == ']')
+        .collect::<String>()
+        == ":[]"
+    {
+        Err(ErrorImpl::OsError {
+            operation: "emulated RESOLVE_NO_MAGICLINKS".into(),
+            source: IOError::from_raw_os_error(libc::ELOOP),
+        })
+        .wrap(format!("step into likely magiclink {link_target:?}"))?
+    }
+
+    Ok(())
+}
+
 /// `O_PATH`-based implementation of [`ProcfsResolver`].
 fn opath_resolve(
     proc_rootfd: RawProcfsRoot<'_>,
@@ -288,6 +361,13 @@ fn opath_resolve(
             && oflags.intersection(OpenFlags::O_PATH | OpenFlags::O_NOFOLLOW | OpenFlags::O_DIRECTORY) != OpenFlags::O_PATH
         {
             match syscalls::openat(&current, &part, oflags | OpenFlags::O_NOFOLLOW, 0) {
+                // NOTE: This will silently add O_NOFOLLOW to the set of flags
+                // you see in fcntl(F_GETFL). In practice this isn't an issue,
+                // but it is a detectable difference between the O_PATH resolver
+                // and openat2. Unfortunately F_SETFL silently ignores
+                // O_NOFOLLOW so we cannot clear this flag (the only option
+                // would be a procfs re-open -- but this *is* the procfs re-open
+                // code!).
                 Ok(final_reopen) => {
                     // Re-verify the next component is on the same mount.
                     procfs::verify_same_mnt(proc_rootfd, root_mnt_id, &final_reopen, "")
@@ -360,19 +440,11 @@ fn opath_resolve(
             source: err,
         })?;
 
-        // The hardened resolver is called using a root that is a subdir of
-        // /proc (such as /proc/self or /proc/thread-self), so it makes no sense
-        // to try to scope absolute symlinks. Also, we shouldn't expect to walk
-        // into an absolute symlink (which is almost certainly a magic-link --
-        // though we can't detect that directly without openat2).
-        if link_target.is_absolute() {
-            Err(ErrorImpl::OsError {
-                operation: "emulated RESOLVE_NO_MAGICLINKS".into(),
-                source: IOError::from_raw_os_error(libc::ELOOP),
-            })
-            .wrap(format!("step into absolute symlink {link_target:?}"))
-            .wrap("cannot walk into absolute symlinks with restricted procfs resolver")?
-        }
+        // If this symlink is a magic-link, we will likely end up trying to walk
+        // into a non-existent path (or possibly an attacker-controlled procfs
+        // subpath) so we reject any link target that looks like a magic-link.
+        check_possible_magic_link(&link_target)
+            .wrap("cannot walk into potential magiclinks with restricted procfs resolver")?;
 
         link_target
             .raw_components()
@@ -393,9 +465,13 @@ mod tests {
         utils::{FdExt, RawProcfsRoot},
     };
 
-    use std::{fs::File, path::PathBuf};
+    use std::{
+        fs::File,
+        path::{Path, PathBuf},
+    };
 
     use anyhow::Error;
+    use pretty_assertions::{assert_eq, assert_matches};
 
     type ExpectedResult = Result<PathBuf, ErrorKind>;
 
@@ -468,6 +544,26 @@ mod tests {
         resolve_no_symlinks2("/proc", "self/status", O_RDONLY, ResolverFlags::NO_SYMLINKS) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
         resolve_no_symlinks3("/proc", "self/../cgroups", O_RDONLY, ResolverFlags::NO_SYMLINKS) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
 
+        // Check RESOLVE_NO_MAGICLINKS handling.
+        symlink("/proc", "self", O_DIRECTORY, ResolverFlags::empty()) == Ok(format!("/proc/{}", syscalls::getpid()).into());
+        symlink_onofollow("/proc", "mounts", O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        symlink_opath_onofollow("/proc", "mounts", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Ok("mounts".into());
+        symlink_parent("/proc", "net/unix", O_RDONLY, ResolverFlags::empty()) == Ok(format!("/proc/{}/net/unix", syscalls::getpid()).into());
+        symlink_parent_onofollow("/proc", "net/unix", O_NOFOLLOW, ResolverFlags::empty()) == Ok(format!("/proc/{}/net/unix", syscalls::getpid()).into());
+        symlink_parent_opath_onofollow("/proc", "net/unix", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Ok(format!("/proc/{}/net/unix", syscalls::getpid()).into());
+        magiclink_absolute("/proc", "self/fd/0", O_RDWR, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        magiclink_absolute_onofollow("/proc", "self/fd/0", O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        magiclink_absolute_opath_onofollow("/proc", "self/fd/0", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Ok(format!("/proc/{}/fd/0", syscalls::getpid()).into());
+        magiclink_absolute_parent("/proc", "self/root/etc/passwd", O_RDONLY, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        magiclink_absolute_parent_onofollow("/proc", "self/cwd/foo", O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        magiclink_absolute_parent_opath_onofollow("/proc", "self/cwd/abc", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        magiclink_anoninode("/proc", "self/ns/pid", O_PATH, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        magiclink_anoninode_onofollow("/proc", "self/ns/user", O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        magiclink_anoninode_opath_nofollow("/proc", "self/ns/user", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Ok(format!("/proc/{}/ns/user", syscalls::getpid()).into());
+        magiclink_anoninode_parent("/proc", "self/ns/mnt/foo", O_RDONLY, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        magiclink_anoninode_parent_onofollow("/proc", "self/ns/mnt/foo", O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        magiclink_anoninode_parent_opath_onofollow("/proc", "self/ns/uts/foo", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+
         // Check symlink loops.
         symloop(tests_common::create_basic_tree()?.keep(), "loop/basic-loop1", O_PATH, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
         symloop_opath_onofollow(tests_common::create_basic_tree()?.keep(), "loop/basic-loop1", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Ok("loop/basic-loop1".into());
@@ -503,5 +599,41 @@ mod tests {
         sym_opath_odir_onofollow("/proc", "self", O_PATH|O_DIRECTORY|O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ENOTDIR)));
         dir_opath_odir_onofollow("/proc", "tty", O_PATH|O_DIRECTORY|O_NOFOLLOW, ResolverFlags::empty()) == Ok("/proc/tty".into());
         file_opath_odir_onofollow("/proc", "filesystems", O_PATH|O_DIRECTORY|O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ENOTDIR)));
+    }
+
+    #[test]
+    fn check_possible_magic_link() {
+        // Regular symlinks.
+        assert_matches!(super::check_possible_magic_link(Path::new("foo")), Ok(_));
+        assert_matches!(super::check_possible_magic_link(Path::new("12345")), Ok(_));
+        assert_matches!(
+            super::check_possible_magic_link(Path::new("12345/foo/bar/baz")),
+            Ok(_)
+        );
+        assert_matches!(
+            super::check_possible_magic_link(Path::new("../../../../net/foo/bar")),
+            Ok(_)
+        );
+
+        // Absolute symlinks.
+        assert_matches!(super::check_possible_magic_link(Path::new("/")), Err(_));
+        assert_matches!(
+            super::check_possible_magic_link(Path::new("/foo/bar")),
+            Err(_)
+        );
+
+        // anon-inode-like symlinks.
+        assert_matches!(
+            super::check_possible_magic_link(Path::new("user:[123456123123]")),
+            Err(_)
+        );
+        assert_matches!(
+            super::check_possible_magic_link(Path::new("pipe:[12345]")),
+            Err(_)
+        );
+        assert_matches!(
+            super::check_possible_magic_link(Path::new("anon_inode:[pidfd]")),
+            Err(_)
+        );
     }
 }

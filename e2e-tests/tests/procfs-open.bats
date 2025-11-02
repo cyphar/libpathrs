@@ -77,9 +77,6 @@ function teardown() {
 }
 
 @test "procfs open --follow [symlinks]" {
-	# FIXME FIXME FIXME
-	[ "$(id -u)" -ne 0 ] || skip "known bug <https://github.com/cyphar/libpathrs/issues/275>"
-
 	pathrs-cmd procfs open mounts
 	[ "$status" -eq 0 ]
 	grep -E '^FILE-PATH (/proc)?/[0-9]+/mounts$' <<<"$output"
@@ -197,9 +194,6 @@ function teardown() {
 	pathrs-cmd procfs --base root open self/fdinfo/0
 	[ "$status" -eq 0 ]
 	grep -E '^FILE-PATH (/proc)?/[0-9]+/fdinfo/0$' <<<"$output"
-
-	# FIXME FIXME FIXME
-	skip "known bug <https://github.com/cyphar/libpathrs/issues/274>"
 
 	exepath="$(readlink -f "$PATHRS_CMD")"
 

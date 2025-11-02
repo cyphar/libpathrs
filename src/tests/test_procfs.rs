@@ -285,6 +285,18 @@ procfs_tests! {
     global_cpuinfo_rd: open(ProcfsBase::ProcRoot, "cpuinfo", O_RDONLY) => (error: ErrOvermount("/proc/cpuinfo", ErrorKind::OsError(Some(libc::EXDEV))));
     global_meminfo_rd: open(ProcfsBase::ProcRoot, "meminfo", O_RDONLY) => (error: ErrOvermount("/proc/meminfo", ErrorKind::OsError(Some(libc::EXDEV))));
     global_fs_dir: open(ProcfsBase::ProcRoot, "fs", O_RDONLY|O_DIRECTORY) => (error: ErrOvermount("/proc/fs", ErrorKind::OsError(Some(libc::EXDEV))));
+    // Regular symlinks.
+    symlink: open(ProcfsBase::ProcRoot, "mounts", O_PATH) => (error: Ok);
+    symlink: open_follow(ProcfsBase::ProcRoot, "mounts", O_RDONLY) => (error: Ok);
+    symlink: readlink(ProcfsBase::ProcRoot, "mounts") => (error: Ok);
+    symlink_parentdir: open(ProcfsBase::ProcRoot, "self/mounts", O_PATH) => (error: Ok);
+    symlink_parentdir: open_follow(ProcfsBase::ProcRoot, "self/mounts", O_RDONLY) => (error: Ok);
+    symlink_parentdir: readlink(ProcfsBase::ProcRoot, "self/cwd") => (error: Ok);
+    symlink_overmount: open(ProcfsBase::ProcRoot, "net", O_RDONLY) => (error: Err(ErrorKind::OsError(Some(libc::ELOOP))));
+    symlink_overmount: open_follow(ProcfsBase::ProcRoot, "net", O_PATH|O_DIRECTORY) => (error: ErrOvermount("/proc/self/net", ErrorKind::OsError(Some(libc::EXDEV))));
+    symlink_overmount: readlink(ProcfsBase::ProcRoot, "net") => (error: Ok);
+    symlink_parentdir_overmount: open(ProcfsBase::ProcRoot, "net/unix", O_RDONLY) => (error: ErrOvermount("/proc/self/net", ErrorKind::OsError(Some(libc::EXDEV))));
+    symlink_parentdir_overmount: open_follow(ProcfsBase::ProcRoot, "net/unix", O_RDONLY) => (error: ErrOvermount("/proc/self/net", ErrorKind::OsError(Some(libc::EXDEV))));
     // Magic-links with no overmount.
     magiclink_nomount: open(self, "cwd", O_PATH) => (error: Ok);
     magiclink_nomount: open_follow(self, "cwd", O_RDONLY) => (error: Ok);
@@ -598,13 +610,7 @@ mod utils {
 
                 // Check that the flags are what a user would expect.
                 let mut want_oflags = oflags;
-                let (noslash_path, trailing_slash) = utils::path_strip_trailing_slash(path);
-                // If the target is not a symlink, open_follow will act like
-                // open and will insert O_NOFOLLOW automatically as a protection
-                // mechanism.
-                if proc.readlink(base, noslash_path).is_err() {
-                    want_oflags.insert(OpenFlags::O_NOFOLLOW);
-                }
+                let (_, trailing_slash) = utils::path_strip_trailing_slash(path);
                 // If the path has a trailing slash then open(_follow) will
                 // insert O_DIRECTORY automatically.
                 if trailing_slash {

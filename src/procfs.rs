@@ -438,17 +438,31 @@ impl<'fd> ProcfsHandleRef<'fd> {
         RawProcfsRoot::UnsafeFd(self.as_fd())
     }
 
-    fn open_base(&self, base: ProcfsBase) -> Result<OwnedFd, Error> {
-        let proc_rootfd = self.as_fd();
+    /// Do `openat(2)` inside the procfs, but safely.
+    fn openat_raw(
+        &self,
+        dirfd: BorrowedFd<'_>,
+        subpath: &Path,
+        oflags: OpenFlags,
+    ) -> Result<OwnedFd, Error> {
         let fd = self.resolver.resolve(
             self.as_raw_procfs(),
-            proc_rootfd,
-            base.into_path(self.as_raw_procfs()),
-            OpenFlags::O_PATH | OpenFlags::O_DIRECTORY,
+            dirfd,
+            subpath,
+            oflags,
             ResolverFlags::empty(),
         )?;
         self.verify_same_procfs_mnt(&fd)?;
         Ok(fd)
+    }
+
+    /// Open `ProcfsBase` inside the procfs.
+    fn open_base(&self, base: ProcfsBase) -> Result<OwnedFd, Error> {
+        self.openat_raw(
+            self.as_fd(),
+            &base.into_path(self.as_raw_procfs()),
+            OpenFlags::O_PATH | OpenFlags::O_DIRECTORY,
+        )
         // TODO: For ProcfsBase::ProcPid, should ENOENT here be converted to
         //       ESRCH to be more "semantically correct"?
     }
@@ -490,20 +504,41 @@ impl<'fd> ProcfsHandleRef<'fd> {
             oflags.insert(OpenFlags::O_DIRECTORY);
         }
 
-        // If the target is not a symlink, use an O_NOFOLLOW open. This defends
-        // against C users forgetting to set O_NOFOLLOW for files that aren't
-        // magic-links and thus shouldn't be followed.
+        // If the target is not actually a magic-link, we are able to just use
+        // the regular resolver to open the target (this even includes actual
+        // symlinks) which is much safer. This also defends against C user
+        // forgetting to set O_NOFOLLOW.
         //
-        // We could do this after splitting the path and getting the directory
-        // components (to reduce the amount of work on non-openat2 systems), but
-        // that would be more work for openat2 systems so let's give preference
-        // to openat2.
-        //
-        // NOTE: There is technically a race here, but it relies the target path
-        //       being a magic-link and then another thing being mounted on top.
-        //       This is the same race as below.
-        if self.readlink(base, subpath).is_err() {
-            return self.open(base, subpath, oflags);
+        // This also gives us a chance to check if the target path is not
+        // present because of subset=pid and retry (for magic-links we need to
+        // operate on the target path more than once, which makes the retry
+        // logic easier to do upfront here).
+        let basedir = self.open_base(base)?;
+        match self.openat_raw(basedir.as_fd(), subpath, oflags) {
+            Ok(file) => return Ok(file.into()),
+            Err(err) => {
+                if self.is_subset && err.kind() == ErrorKind::OsError(Some(libc::ENOENT)) {
+                    // If the trial lookup failed due to ENOENT and the current
+                    // procfs handle is "masked" in some way, try to create a
+                    // temporary unmasked handle and retry the operation.
+                    return ProcfsHandleBuilder::new()
+                        .unmasked()
+                        .build()
+                        // Use the old error if creating a new handle failed.
+                        .or(Err(err))?
+                        .open_follow(base, subpath, oflags);
+                }
+                // If the error is ELOOP then the resolver probably hit a
+                // magic-link, and so we have a reason to allow the
+                // no-validation open we do later.
+                // NOTE: Of course, this is not safe against races -- an
+                // attacker could bind-mount a magic-link over a regular symlink
+                // to trigger ELOOP and then unmount it after this point. As
+                // always, fsopen(2) is needed for true safety here.
+                if err.kind() != ErrorKind::OsError(Some(libc::ELOOP)) {
+                    return Err(err)?;
+                }
+            }
         }
 
         // Get a no-follow handle to the parent of the magic-link.
@@ -513,7 +548,11 @@ impl<'fd> ProcfsHandleRef<'fd> {
             description: "proc_open_follow path has trailing slash".into(),
         })?;
 
-        let parent = self.open(base, parent, OpenFlags::O_PATH | OpenFlags::O_DIRECTORY)?;
+        let parentdir = self.openat_raw(
+            self.open_base(base)?.as_fd(),
+            parent,
+            OpenFlags::O_PATH | OpenFlags::O_DIRECTORY,
+        )?;
 
         // Rather than using self.mnt_id for the following check, we use the
         // mount ID from parent. This is necessary because ProcfsHandle::open
@@ -521,7 +560,7 @@ impl<'fd> ProcfsHandleRef<'fd> {
         // However, ProcfsHandle::open already checks that the mount ID and
         // fstype are safe, so we can just reuse the mount ID we get without
         // issue.
-        let parent_mnt_id = utils::fetch_mnt_id(self.as_raw_procfs(), &parent, "")?;
+        let parent_mnt_id = utils::fetch_mnt_id(self.as_raw_procfs(), &parentdir, "")?;
 
         // Detect if the magic-link we are about to open is actually a
         // bind-mount. There is no "statfsat" so we can't check that the f_type
@@ -532,9 +571,9 @@ impl<'fd> ProcfsHandleRef<'fd> {
         //
         // NOTE: This check is only safe if there are no racing mounts, so only
         // for the ProcfsHandle::{new_fsopen,new_open_tree} cases.
-        verify_same_mnt(self.as_raw_procfs(), parent_mnt_id, &parent, trailing)?;
+        verify_same_mnt(self.as_raw_procfs(), parent_mnt_id, &parentdir, trailing)?;
 
-        syscalls::openat_follow(parent, trailing, oflags, 0)
+        syscalls::openat_follow(parentdir, trailing, oflags, 0)
             .map(File::from)
             .map_err(|err| {
                 ErrorImpl::RawOsError {
@@ -593,18 +632,7 @@ impl<'fd> ProcfsHandleRef<'fd> {
         let basedir = self.open_base(base)?;
         let subpath = subpath.as_ref();
         let fd = self
-            .resolver
-            .resolve(
-                self.as_raw_procfs(),
-                &basedir,
-                subpath,
-                oflags,
-                ResolverFlags::empty(),
-            )
-            .and_then(|fd| {
-                self.verify_same_procfs_mnt(&fd)?;
-                Ok(fd)
-            })
+            .openat_raw(basedir.as_fd(), subpath, oflags)
             .or_else(|err| {
                 if self.is_subset && err.kind() == ErrorKind::OsError(Some(libc::ENOENT)) {
                     // If the lookup failed due to ENOENT, and the current

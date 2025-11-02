@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Security ###
+- When using `ProcfsHandle::open_follow` on **non**-magic-links, libpathrs
+  could fall victim to an overmount attack because we had incorrectly assumed
+  that opening a symlink as a final component would be "atomic" (this is only
+  true for magic-links, which was the primary usecase we had in mind for this
+  API).
+
+  We now try to use the safe procfs resolver even on symlinks to handle the
+  "regular symlink case". Note that (due to a separate bug in
+  `ProcfsHandle::open_follow` that has also been fixed), privileged users would
+  likely still get an error in this case.
+
 ### Added ###
 - `Error` and `ErrorKind` now have a `can_retry` helper that can be used to
   make retry loops easier for callers.
@@ -19,6 +31,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   auto-include `S_IFREG` for non-`Mknod` operations (previously this would
   cause `MkdirAll` to error out).
 - `Root::create_file` now supports `O_TMPFILE`.
+- Previously, trying to use `ProcfsHandle::open_follow` with a path whose
+  penultimate component was a symlink (i.e.,
+  `ProcfsHandle::open_follow(ProcfsBase::ProcRoot, "self/status")`) would
+  result in an error due to a mistake in how we handled looking up parent
+  directories. This has been fixed, and this will now work the way you expect
+  (though you should still use `ProcfsBase::ProcSelf` instead in the above
+  example).
+- `ProcfsHandle::open_follow` was missing the logic to temporarily allocate a
+  non-`subset=pid` if the target does not exit. This ended up accidentally
+  mitigating the `ProcfsHandle::open_follow` security issue mentioned above
+  (for `fsopen(2)` users trying to open symlinks in `ProcfsBase::ProcRoot` --
+  note that only `ProcfsBase::ProcRoot` contains such symlinks in the first
+  place).
 
 ### Changed ###
 - The `openat2` resolver will now return `-EAGAIN` if the number of `openat2`
@@ -36,6 +61,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   denial-of-service attacks (such as a deadline -- for reference, our testing
   showed that even with >50k trials containing >200k operations a deadline of
   1ms was never exceeded even in the most pessimistic attack scenario).
+- The `O_PATH` resolver for `ProcfsHandle` will now return `ELOOP` for
+  magic-links that look like `foo:[bar]` in order to better match `openat2(2)`
+  (examples include `anon_inode`, `nsfs`, `pipe`, and other such special
+  inodes). Previously we would just return `ENOENT`.
 
 ## [0.2.0] - 2025-10-17 ##
 
