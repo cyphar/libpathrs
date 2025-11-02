@@ -75,7 +75,7 @@ fn main() -> Result<(), Error> {
         .get_many::<String>("syscalls")
         .map(|iter| {
             iter.flat_map(|s| s.split(","))
-                .filter(|&s| s != "")
+                .filter(|&s| !s.is_empty())
                 .map(|syscall| -> Result<_, Error> {
                     syscall.parse::<Sysno>().or_else(|_| {
                         syscall

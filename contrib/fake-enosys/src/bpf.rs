@@ -79,11 +79,11 @@ mod test {
 
     #[test]
     fn test_single_filter_allow() -> Result<(), Error> {
-        let filter = compile_filter(&[Sysno::openat])?;
+        let filter = compile_filter([Sysno::openat])?;
 
         let data = syscall_data(Sysno::link);
         let ret: SeccompReturn = BpfVM::new(&filter)?
-            .run(&vm::any_to_data(&data))?
+            .run(vm::any_to_data(&data))?
             .try_into()?;
         assert_eq!(ret, SeccompReturn::Allow, "seccomp should allow link");
 
@@ -92,11 +92,11 @@ mod test {
 
     #[test]
     fn test_multi_filter_allow() -> Result<(), Error> {
-        let filter = compile_filter(&[Sysno::openat2, Sysno::statx])?;
+        let filter = compile_filter([Sysno::openat2, Sysno::statx])?;
 
         let data = syscall_data(Sysno::openat);
         let ret: SeccompReturn = BpfVM::new(&filter)?
-            .run(&vm::any_to_data(&data))?
+            .run(vm::any_to_data(&data))?
             .try_into()?;
         assert_eq!(ret, SeccompReturn::Allow, "seccomp should allow openat");
 
@@ -105,11 +105,11 @@ mod test {
 
     #[test]
     fn test_single_filter_enosys() -> Result<(), Error> {
-        let filter = compile_filter(&[Sysno::openat2])?;
+        let filter = compile_filter([Sysno::openat2])?;
 
         let data = syscall_data(Sysno::openat2);
         let ret: SeccompReturn = BpfVM::new(&filter)?
-            .run(&vm::any_to_data(&data))?
+            .run(vm::any_to_data(&data))?
             .try_into()?;
         assert_eq!(
             ret,
@@ -119,7 +119,7 @@ mod test {
 
         let data = syscall_data(Sysno::openat);
         let ret: SeccompReturn = BpfVM::new(&filter)?
-            .run(&vm::any_to_data(&data))?
+            .run(vm::any_to_data(&data))?
             .try_into()?;
         assert_eq!(ret, SeccompReturn::Allow, "seccomp should allow openat");
 
@@ -128,11 +128,11 @@ mod test {
 
     #[test]
     fn test_multi_filter_enosys() -> Result<(), Error> {
-        let filter = compile_filter(&[Sysno::openat2, Sysno::statx])?;
+        let filter = compile_filter([Sysno::openat2, Sysno::statx])?;
 
         let data = syscall_data(Sysno::statx);
         let ret: SeccompReturn = BpfVM::new(&filter)?
-            .run(&vm::any_to_data(&data))?
+            .run(vm::any_to_data(&data))?
             .try_into()?;
         assert_eq!(
             ret,
@@ -142,7 +142,7 @@ mod test {
 
         let data = syscall_data(Sysno::openat2);
         let ret: SeccompReturn = BpfVM::new(&filter)?
-            .run(&vm::any_to_data(&data))?
+            .run(vm::any_to_data(&data))?
             .try_into()?;
         assert_eq!(
             ret,
