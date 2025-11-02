@@ -44,6 +44,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   (for `fsopen(2)` users trying to open symlinks in `ProcfsBase::ProcRoot` --
   note that only `ProcfsBase::ProcRoot` contains such symlinks in the first
   place).
+- Quite a few `Root` operations that required resolving the parent directory of
+  the user-provided path could crash if passed `/` or return an unhelpful error
+  when passed `.`. We now return a proper error in these cases.
 
 ### Changed ###
 - The `openat2` resolver will now return `-EAGAIN` if the number of `openat2`

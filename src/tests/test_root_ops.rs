@@ -388,6 +388,12 @@ root_op_tests! {
     trailing_slash: mkfile("foobar/", 0o755) => Err(ErrorKind::InvalidArgument);
     trailing_dot: mkfile("foobar/.", 0o755) => Err(ErrorKind::InvalidArgument);
     trailing_dotdot: mkfile("foobar/..", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_slash: mkfile("/", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_slash2: mkfile("//", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dot: mkfile(".", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash: mkfile("./", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dotdot: mkfile("..", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash: mkfile("../", 0o755) => Err(ErrorKind::InvalidArgument);
 
     plain: mkdir("abc", 0o311) => Ok(("abc", libc::S_IFDIR | 0o311));
     exist_file: mkdir("b/c/file", 0o444) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
@@ -401,6 +407,12 @@ root_op_tests! {
     trailing_slash2: mkdir("b/c/abc///", 0o755) => Ok(("b/c/abc", libc::S_IFDIR | 0o755));
     trailing_dot: mkdir("b/c/abc/.", 0o755) => Err(ErrorKind::InvalidArgument);
     trailing_dotdot: mkdir("b/c/abc/..", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_slash: mkdir("/", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_slash2: mkdir("//", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dot: mkdir(".", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash: mkdir("./", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dotdot: mkdir("..", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash: mkdir("../", 0o755) => Err(ErrorKind::InvalidArgument);
 
     plain: symlink("abc", "/NEWLINK") => Ok(("abc", libc::S_IFLNK | 0o777));
     exist_file: symlink("b/c/file", "/NEWLINK") => Err(ErrorKind::OsError(Some(libc::EEXIST)));
@@ -414,6 +426,12 @@ root_op_tests! {
     trailing_slash2: symlink("foobar///", "/SOMELINK") => Err(ErrorKind::InvalidArgument);
     trailing_dot: symlink("foobar/.", "/SOMELINK") => Err(ErrorKind::InvalidArgument);
     trailing_dotdot: symlink("foobar/..", "/foobar") => Err(ErrorKind::InvalidArgument);
+    root_slash: symlink("/", "/") => Err(ErrorKind::InvalidArgument);
+    root_slash2: symlink("/", "//") => Err(ErrorKind::InvalidArgument);
+    root_dot: symlink("/", ".") => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash: symlink("/", "./") => Err(ErrorKind::InvalidArgument);
+    root_dotdot: symlink("/", "..") => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash: symlink("/", "../") => Err(ErrorKind::InvalidArgument);
 
     plain: hardlink("abc", "b/c/file") => Ok(("abc", libc::S_IFREG | 0o644));
     exist_file: hardlink("b/c/file", "/b/c/file") => Err(ErrorKind::OsError(Some(libc::EEXIST)));
@@ -437,6 +455,18 @@ root_op_tests! {
     trailing_dot_src: hardlink("link", "foobar/.") => Err(ErrorKind::InvalidArgument);
     trailing_dotdot_dst: hardlink("foobar/..", "b/c/file") => Err(ErrorKind::InvalidArgument);
     trailing_dotdot_src: hardlink("link", "foobar/..") => Err(ErrorKind::InvalidArgument);
+    root_slash_src: hardlink("/", "b-file") => Err(ErrorKind::InvalidArgument);
+    root_slash_dst: hardlink("b-file", "/") => Err(ErrorKind::InvalidArgument);
+    root_slash2_src: hardlink("//", "b-file") => Err(ErrorKind::InvalidArgument);
+    root_slash2_dst: hardlink("b-file", "//") => Err(ErrorKind::InvalidArgument);
+    root_dot_src: hardlink(".", "b-file") => Err(ErrorKind::InvalidArgument);
+    root_dot_dst: hardlink("b-file", ".") => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash_srt: hardlink("./", "b-file") => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash_dst: hardlink("b-file", "./") => Err(ErrorKind::InvalidArgument);
+    root_dotdot_src: hardlink("..", "b-file") => Err(ErrorKind::InvalidArgument);
+    root_dotdot_dst: hardlink("b-file", "..") => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash_src: hardlink("../", "b-file") => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash_dst: hardlink("b-file", "../") => Err(ErrorKind::InvalidArgument);
 
     plain: mkfifo("abc", 0o222) => Ok(("abc", libc::S_IFIFO | 0o222));
     exist_file: mkfifo("b/c/file", 0o444) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
@@ -450,6 +480,12 @@ root_op_tests! {
     trailing_slash2: mkfifo("foobar///", 0o755) => Err(ErrorKind::InvalidArgument);
     trailing_dot: mkfifo("foobar/.", 0o755) => Err(ErrorKind::InvalidArgument);
     trailing_dotdot: mkfifo("foobar/..", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_slash: mkfifo("/", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_slash2: mkfifo("//", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dot: mkfifo(".", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash: mkfifo("./", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dotdot: mkfifo("..", 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash: mkfifo("../", 0o755) => Err(ErrorKind::InvalidArgument);
 
     plain: mkblk("abc", 0o001, 123, 456) => Ok(("abc", libc::S_IFBLK | 0o001));
     exist_file: mkblk("b/c/file", 0o444, 123, 456) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
@@ -463,6 +499,12 @@ root_op_tests! {
     trailing_slash2: mkblk("foobar///", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
     trailing_dot: mkblk("foobar/.", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
     trailing_dotdot: mkblk("foobar/..", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_slash: mkblk("/", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_slash2: mkblk("//", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_dot: mkblk(".", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash: mkblk("./", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_dotdot: mkblk("..", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash: mkblk("../", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
 
     plain: mkchar("abc", 0o010, 111, 222) => Ok(("abc", libc::S_IFCHR | 0o010));
     exist_file: mkchar("b/c/file", 0o444, 123, 456) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
@@ -476,6 +518,12 @@ root_op_tests! {
     trailing_slash2: mkchar("foobar///", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
     trailing_dot: mkchar("foobar/.", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
     trailing_dotdot: mkchar("foobar/..", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_slash: mkchar("/", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_slash2: mkchar("//", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_dot: mkchar(".", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash: mkchar("./", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_dotdot: mkchar("..", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash: mkchar("../", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
 
     plain: create_file("abc", O_RDONLY, 0o100) => Ok("abc");
     trailing_slash1: create_file("b/c/abc/", O_RDONLY, 0o222) => Err(ErrorKind::InvalidArgument);
@@ -500,6 +548,14 @@ root_op_tests! {
     otmpfile_exist_file: create_file("b/c/file", O_TMPFILE|O_RDWR, 0o755) => Err(ErrorKind::OsError(Some(libc::ENOTDIR)));
     //otmpfile_symlink: create_file("root-link", O_TMPFILE|O_RDWR, 0o755) => Ok(_); // has a random name
     //otmpfile_symlink_parentdir: create_file("e/f", O_TMPFILE|O_RDWR, 0o755) => Ok(_); // has a random name
+    //otmpfile_root_slash: create_file("/", O_TMPFILE|O_RDWR, 0o755) => Ok(_); // has a random name
+    //otmpfile_root_dot: create_file(".", O_TMPFILE|O_RDWR, 0o755) => Ok(_); // has a random name
+    root_slash: create_file("/", O_RDONLY, 0o755) => Err(ErrorKind::InvalidArgument);
+    root_slash2: create_file("//", O_RDONLY, 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dot: create_file(".", O_RDONLY, 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash: create_file("./", O_RDONLY, 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dotdot: create_file("..", O_RDONLY, 0o755) => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash: create_file("../", O_RDONLY, 0o755) => Err(ErrorKind::InvalidArgument);
 
     ocreat: open_subpath("abc", O_CREAT|O_RDONLY) => Err(ErrorKind::InvalidArgument);
     oexcl: open_subpath("abc", O_EXCL|O_RDONLY) => Err(ErrorKind::InvalidArgument);
@@ -519,8 +575,11 @@ root_op_tests! {
     opath_nofollow_symlink: open_subpath("b-file", O_PATH|O_NOFOLLOW) => Ok("b-file");
     nofollow_odir_symlink:  open_subpath("b-file", O_DIRECTORY|O_NOFOLLOW) => Err(ErrorKind::OsError(Some(libc::ENOTDIR)));
     opath_nofollow_odir_symlink:  open_subpath("b-file", O_DIRECTORY|O_PATH|O_NOFOLLOW) => Err(ErrorKind::OsError(Some(libc::ENOTDIR)));
-    dangling_symlink: open_subpath("a-fake1",O_RDONLY) => Err(ErrorKind::OsError(Some(libc::ENOENT)));
+    dangling_symlink: open_subpath("a-fake1", O_RDONLY) => Err(ErrorKind::OsError(Some(libc::ENOENT)));
     ocreat_dangling_symlink: open_subpath("a-fake1", O_CREAT|O_RDONLY) => Err(ErrorKind::InvalidArgument);
+    root_slash: open_subpath("/", O_RDONLY) => Ok(".");
+    root_dot: open_subpath(".", O_RDONLY) => Ok(".");
+    root_dotdot: open_subpath("..", O_RDONLY) => Ok(".");
 
     empty_dir: remove_dir("a") => Ok(());
     empty_dir: remove_file("a") => Err(ErrorKind::OsError(Some(libc::EISDIR)));
@@ -585,6 +644,24 @@ root_op_tests! {
     file_trailing_dotdot: remove_dir("b/c/file/..") => Err(ErrorKind::InvalidArgument);
     file_trailing_dotdot: remove_file("b/c/file/..") => Err(ErrorKind::InvalidArgument);
     file_trailing_dotdot: remove_all("b/c/file/..") => Err(ErrorKind::InvalidArgument);
+    root_slash: remove_dir("/") => Err(ErrorKind::InvalidArgument);
+    root_slash: remove_file("/") => Err(ErrorKind::InvalidArgument);
+    root_slash: remove_all("/") => Err(ErrorKind::InvalidArgument);
+    root_slash2: remove_dir("//") => Err(ErrorKind::InvalidArgument);
+    root_slash2: remove_file("//") => Err(ErrorKind::InvalidArgument);
+    root_slash2: remove_all("//") => Err(ErrorKind::InvalidArgument);
+    root_dot: remove_dir(".") => Err(ErrorKind::InvalidArgument);
+    root_dot: remove_file(".") => Err(ErrorKind::InvalidArgument);
+    root_dot: remove_all(".") => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash: remove_dir("./") => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash: remove_file("./") => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash: remove_all("./") => Err(ErrorKind::InvalidArgument);
+    root_dotdot: remove_dir("..") => Err(ErrorKind::InvalidArgument);
+    root_dotdot: remove_file("..") => Err(ErrorKind::InvalidArgument);
+    root_dotdot: remove_all("..") => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash: remove_dir("../") => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash: remove_file("../") => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash: remove_all("../") => Err(ErrorKind::InvalidArgument);
 
     empty_dir: rename("a", "aa", RenameFlags::empty()) => Ok(());
     nonempty_dir: rename("b", "bb", RenameFlags::empty()) => Ok(());
@@ -633,6 +710,18 @@ root_op_tests! {
     exchange_difftype_trailing_slash_to: rename("a", "e/", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::OsError(Some(libc::ENOTDIR)));
     exchange_difftype_trailing_slash_fromto: rename("a/", "e/", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::OsError(Some(libc::ENOTDIR)));
     exchange_noexist: rename("a", "aa", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::OsError(Some(libc::ENOENT)));
+    root_slash_src: rename("/", "b-file", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
+    root_slash_dst: rename("b-file", "/", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
+    root_slash2_src: rename("//", "b-file", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
+    root_slash2_dst: rename("b-file", "//", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
+    root_dot_src: rename(".", "b-file", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
+    root_dot_dst: rename("b-file", ".", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash_srt: rename("./", "b-file", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
+    root_dot_trailing_slash_dst: rename("b-file", "./", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
+    root_dotdot_src: rename("..", "b-file", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
+    root_dotdot_dst: rename("b-file", "..", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash_src: rename("../", "b-file", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
+    root_dotdot_trailing_slash_dst: rename("b-file", "../", RenameFlags::RENAME_EXCHANGE) => Err(ErrorKind::InvalidArgument);
 
     invalid_mode_type: mkdir_all("foo", libc::S_IFDIR | 0o777) => Err(ErrorKind::InvalidArgument);
     invalid_mode_garbage: mkdir_all("foo", 0o12340777) => Err(ErrorKind::InvalidArgument);
@@ -697,6 +786,12 @@ root_op_tests! {
     trailing_slash: mkdir_all("foobar/", 0o755) => Ok(());
     trailing_dot: mkdir_all("foobar/.", 0o755) => Ok(());
     trailing_dotdot: mkdir_all("foobar/..", 0o755) => Err(ErrorKind::OsError(Some(libc::ENOENT)));
+    root_slash: mkdir_all("/", 0o755) => Ok(());
+    root_slash2: mkdir_all("//", 0o755) => Ok(());
+    root_dot: mkdir_all(".", 0o755) => Ok(());
+    root_dot_trailing_slash: mkdir_all("./", 0o755) => Ok(());
+    root_dotdot: mkdir_all("..", 0o755) => Ok(());
+    root_dotdot_trailing_slash: mkdir_all("../", 0o755) => Ok(());
 
     // Check that multiple mkdir_alls racing against each other will not result
     // in a spurious error. <https://github.com/opencontainers/runc/issues/4543>
