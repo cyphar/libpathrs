@@ -11,11 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 > やられたらやり返す。倍返しだ！
 
 ### Security ###
-- When using `ProcfsHandle::open_follow` on **non**-magic-links, libpathrs
-  could fall victim to an overmount attack because we had incorrectly assumed
-  that opening a symlink as a final component would be "atomic" (this is only
-  true for magic-links, which was the primary usecase we had in mind for this
-  API).
+- When using `ProcfsHandle::open_follow` on **non**-magic-link symlinks,
+  libpathrs could fall victim to an overmount attack because we had incorrectly
+  assumed that opening a symlink as a final component would be "atomic" (this
+  is only true for magic-links, which was the primary usecase we had in mind
+  for this API).
 
   We now try to use the safe procfs resolver even on symlinks to handle the
   "regular symlink case". Note that (due to a separate bug in
