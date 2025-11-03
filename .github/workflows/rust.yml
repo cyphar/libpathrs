@@ -205,12 +205,16 @@ jobs:
           components: llvm-tools
       - uses: taiki-e/install-action@cargo-llvm-cov
       - run: make test-rust-doctest
-      - name: upload rust coverage
+      - name: upload rust coverage (artifact)
         uses: actions/upload-artifact@v5
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
           retention-days: 7 # no need to waste disk space
+
+      # TODO: Upload to CodeCov. Unfortunately, "cargo test --doc" does not
+      # generate a binary that llvm-cov can use to generate coverage reports
+      # from.
 
   compute-test-partitions:
     name: compute test partitions
@@ -292,12 +296,32 @@ jobs:
             --archive-file="nextest-pathrs-${{ matrix.run-as }}.tar.zst" \
             "${{ env.NEXTEST_PATTERN_SPEC }}"
 
-      - name: upload rust coverage
+      - name: upload rust coverage (artifact)
         uses: actions/upload-artifact@v5
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
           retention-days: 7 # no need to waste disk space
+
+      # FIXME: llvm-cov appears to have some kind of bug with
+      # --nextest-archive-file as they do not strip the "target" prefix from
+      # the nextest archive. As a workaround, we just extract it ourselves.
+      - name: extract nextest archive
+        run: >-
+          tar xv -f nextest-pathrs-${{ matrix.run-as }}.tar.zst -C target/llvm-cov-target/ --strip-components=1
+      # Upload to CodeCov.
+      - name: generate codecov-friendly coverage
+        id: codecov-coverage
+        run: |-
+          CODECOV_FILE="$(mktemp coverage-codecov.lcov.txt.XXXXXX)"
+          cargo llvm-cov report --lcov --output-path="$CODECOV_FILE"
+          echo "file=$CODECOV_FILE" >>"$GITHUB_OUTPUT"
+      - name: upload rust coverage (codecov)
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: cyphar/libpathrs
+          files: ${{ steps.codecov-coverage.outputs.file }}
 
   coverage:
     needs:

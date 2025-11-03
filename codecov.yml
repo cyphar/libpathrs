@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# libpathrs: safe path resolution on Linux
+# Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
+# Copyright (C) 2019-2025 SUSE LLC
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+comment:
+  layout: "reach, diff, components, files"
+  require_changes: true
+  behavior: once
+  branches:
+    - master
+
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+      - type: patch
+        target: auto
+  individual_components:
+    - component_id: pathrs
+      name: pathrs
+      paths:
+        - "src/**"
+        - "!src/capi/**"
+      statuses:
+        - type: project
+          target: 80%
+          threshold: 0%
+        - type: patch
+          target: auto
+          threshold: 0%
+    - component_id: pathrs-capi
+      name: libpathrs.so
+      paths:
+        - "src/capi/**"
+      statuses:
+        - type: project
+          target: 80%
+          threshold: 0%
+        - type: patch
+          target: auto
+          threshold: 0%
+
+coverage:
+  range: 60..95
+
+github_checks:
+  annotations: true
