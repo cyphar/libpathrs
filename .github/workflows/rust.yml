@@ -282,7 +282,7 @@ jobs:
           tool: cargo-binutils
 
       - name: pull nextest archive
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: nextest-archive-${{ matrix.run-as }}
           path: .
@@ -343,7 +343,7 @@ jobs:
 
       - name: pull rust coverage
         id: rust-coverage
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           pattern: "profraw-*"
           path: profraw
@@ -365,7 +365,7 @@ jobs:
       # the "root" and "unpriv" binaries are different and so the coverage data
       # is a little off. See <https://github.com/cyphar/libpathrs/issues/282>.
       - name: pull nextest archive
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: nextest-archive-root
           path: .
