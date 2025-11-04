@@ -1,13 +1,17 @@
 ## `libpathrs` ##
 
+[![rust docs](https://img.shields.io/docsrs/pathrs?logo=rust&logoColor=white&color=orange)](https://docs.rs/pathrs/)
+[![go docs](https://pkg.go.dev/badge/cyphar.com/go-pathrs.svg)](https://pkg.go.dev/cyphar.com/go-pathrs)
+[![PyPI package](https://img.shields.io/pypi/v/pathrs?logo=python&logoColor=white)](https://pypi.org/project/pathrs/)
+
+[![msrv](https://img.shields.io/crates/msrv/pathrs?logo=rust&logoColor=white)](Cargo.toml)
+[![dependency status](https://deps.rs/repo/github/cyphar/libpathrs/status.svg)](https://deps.rs/repo/github/cyphar/libpathrs)
+
+[![codecov](https://codecov.io/github/cyphar/libpathrs/graph/badge.svg?token=ITPWXADXPC)](https://codecov.io/github/cyphar/libpathrs)
 [![rust-ci build status](https://github.com/cyphar/libpathrs/actions/workflows/rust.yml/badge.svg)](https://github.com/cyphar/libpathrs/actions/workflows/rust.yml)
 [![bindings-c build status](https://github.com/cyphar/libpathrs/actions/workflows/bindings-c.yml/badge.svg)](https://github.com/cyphar/libpathrs/actions/workflows/bindings-c.yml)
 [![bindings-go build status](https://github.com/cyphar/libpathrs/actions/workflows/bindings-go.yml/badge.svg)](https://github.com/cyphar/libpathrs/actions/workflows/bindings-go.yml)
 [![bindings-python build status](https://github.com/cyphar/libpathrs/actions/workflows/bindings-python.yml/badge.svg)](https://github.com/cyphar/libpathrs/actions/workflows/bindings-python.yml)
-[![docs](https://docs.rs/pathrs/badge.svg)](https://docs.rs/pathrs/)
-
-[![dependency status](https://deps.rs/repo/github/cyphar/libpathrs/status.svg)](https://deps.rs/repo/github/cyphar/libpathrs)
-[![msrv](https://shields.io/crates/msrv/pathrs)](Cargo.toml)
 
 This library implements a set of C-friendly APIs (written in Rust) to make path
 resolution within a potentially-untrusted directory safe on GNU/Linux. There
