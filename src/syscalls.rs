@@ -874,3 +874,86 @@ pub(crate) fn open_tree(
         source: errno,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::{
+        fs::File,
+        os::unix::io::{AsRawFd, BorrowedFd},
+    };
+
+    use pretty_assertions::{assert_eq, assert_matches};
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn frozen_fd_display() {
+        // AT_FDCWD
+        let cwd = getcwd().expect("getcwd");
+        assert_eq!(
+            format!("{}", FrozenFd::from(AT_FDCWD)),
+            format!("[AT_FDCWD]{cwd:?}"),
+            "FrozenFd::from(AT_FDCWD)"
+        );
+
+        // Bad fd.
+        assert_eq!(
+            format!("{}", FrozenFd::from(BADFD)),
+            "[-9]<unknown>",
+            "FrozenFd::from(-EBADF)"
+        );
+
+        // Regular file (still open when displaying FrozenFd).
+        let file = NamedTempFile::new().expect("mktemp file");
+        assert_eq!(
+            format!("{}", FrozenFd::from(file.as_file())),
+            format!("[{}]{:?}", file.as_file().as_raw_fd(), file.path()),
+            "FrozenFd::from(<tempfile>)"
+        );
+
+        // Regular file (*closed* when displaying FrozenFd).
+        let (frozen_fd, fd, path) = {
+            let file = NamedTempFile::new().expect("mktemp file");
+            (
+                FrozenFd::from(file.as_file()),
+                file.as_file().as_raw_fd(),
+                file.path().to_path_buf(),
+            )
+        };
+        assert_eq!(
+            format!("{}", frozen_fd),
+            format!("[{}]{:?}", fd, path),
+            "FrozenFd::from(<tempfile>) after closing"
+        );
+    }
+
+    #[test]
+    fn check_rustix_fd() {
+        assert_matches!(
+            AT_FDCWD.check_rustix_fd(),
+            Ok(_),
+            "AT_FDCWD.check_rustix_fd() should be allowed"
+        );
+
+        assert_matches!(
+            BADFD.check_rustix_fd(),
+            Ok(_),
+            "BADFD.check_rustix_fd() should be allowed"
+        );
+
+        assert_matches!(
+            File::open(".").expect("open .").check_rustix_fd(),
+            Ok(_),
+            "<fd>.check_rustix_fd() should be allowed"
+        );
+
+        // SAFETY: For this one case, constructing a fake BorrowedFd from a bad
+        // file descriptor is okay.
+        assert_matches!(
+            unsafe { BorrowedFd::borrow_raw(-1234) }.check_rustix_fd(),
+            Err(Error::InvalidFd { .. }),
+            "<-1234>.check_rustix_fd() should fail"
+        );
+    }
+}
