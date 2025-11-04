@@ -879,9 +879,12 @@ pub(crate) fn open_tree(
 mod tests {
     use super::*;
 
-    use std::os::unix::io::AsRawFd;
+    use std::{
+        fs::File,
+        os::unix::io::{AsRawFd, BorrowedFd},
+    };
 
-    use pretty_assertions::assert_eq;
+    use pretty_assertions::{assert_eq, assert_matches};
     use tempfile::NamedTempFile;
 
     #[test]
@@ -922,6 +925,35 @@ mod tests {
             format!("{}", frozen_fd),
             format!("[{}]{:?}", fd, path),
             "FrozenFd::from(<tempfile>) after closing"
+        );
+    }
+
+    #[test]
+    fn check_rustix_fd() {
+        assert_matches!(
+            AT_FDCWD.check_rustix_fd(),
+            Ok(_),
+            "AT_FDCWD.check_rustix_fd() should be allowed"
+        );
+
+        assert_matches!(
+            BADFD.check_rustix_fd(),
+            Ok(_),
+            "BADFD.check_rustix_fd() should be allowed"
+        );
+
+        assert_matches!(
+            File::open(".").expect("open .").check_rustix_fd(),
+            Ok(_),
+            "<fd>.check_rustix_fd() should be allowed"
+        );
+
+        // SAFETY: For this one case, constructing a fake BorrowedFd from a bad
+        // file descriptor is okay.
+        assert_matches!(
+            unsafe { BorrowedFd::borrow_raw(-1234) }.check_rustix_fd(),
+            Err(Error::InvalidFd { .. }),
+            "<-1234>.check_rustix_fd() should fail"
         );
     }
 }
