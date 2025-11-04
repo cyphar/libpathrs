@@ -874,3 +874,54 @@ pub(crate) fn open_tree(
         source: errno,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::os::unix::io::AsRawFd;
+
+    use pretty_assertions::assert_eq;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn frozen_fd_display() {
+        // AT_FDCWD
+        let cwd = getcwd().expect("getcwd");
+        assert_eq!(
+            format!("{}", FrozenFd::from(AT_FDCWD)),
+            format!("[AT_FDCWD]{cwd:?}"),
+            "FrozenFd::from(AT_FDCWD)"
+        );
+
+        // Bad fd.
+        assert_eq!(
+            format!("{}", FrozenFd::from(BADFD)),
+            "[-9]<unknown>",
+            "FrozenFd::from(-EBADF)"
+        );
+
+        // Regular file (still open when displaying FrozenFd).
+        let file = NamedTempFile::new().expect("mktemp file");
+        assert_eq!(
+            format!("{}", FrozenFd::from(file.as_file())),
+            format!("[{}]{:?}", file.as_file().as_raw_fd(), file.path()),
+            "FrozenFd::from(<tempfile>)"
+        );
+
+        // Regular file (*closed* when displaying FrozenFd).
+        let (frozen_fd, fd, path) = {
+            let file = NamedTempFile::new().expect("mktemp file");
+            (
+                FrozenFd::from(file.as_file()),
+                file.as_file().as_raw_fd(),
+                file.path().to_path_buf(),
+            )
+        };
+        assert_eq!(
+            format!("{}", frozen_fd),
+            format!("[{}]{:?}", fd, path),
+            "FrozenFd::from(<tempfile>) after closing"
+        );
+    }
+}
