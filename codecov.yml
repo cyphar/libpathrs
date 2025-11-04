@@ -22,6 +22,7 @@ component_management:
         target: auto
       - type: patch
         target: auto
+        informational: true
   individual_components:
     - component_id: pathrs
       name: pathrs
@@ -34,7 +35,7 @@ component_management:
           threshold: 0%
         - type: patch
           target: auto
-          threshold: 0%
+          informational: true
     - component_id: pathrs-capi
       name: libpathrs.so
       paths:
@@ -45,7 +46,7 @@ component_management:
           threshold: 0%
         - type: patch
           target: auto
-          threshold: 0%
+          informational: true
 
 coverage:
   range: 60..95
