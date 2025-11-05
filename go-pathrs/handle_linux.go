@@ -30,7 +30,7 @@ import (
 // you can try to use [Root.Open] or [Root.OpenFile].
 //
 // It is critical that perform all relevant operations through this [Handle]
-// (rather than fetching the file descriptor yourself with [Handle.IntoRaw]),
+// (rather than fetching the underlying [os.File] yourself with [Handle.IntoFile]),
 // because the security properties of libpathrs depend on users doing all
 // relevant filesystem operations through libpathrs.
 type Handle struct {
@@ -41,7 +41,7 @@ type Handle struct {
 // handle will be copied by this method, so the original handle should still be
 // freed by the caller.
 //
-// This is effectively the inverse operation of [Handle.IntoRaw], and is used
+// This is effectively the inverse operation of [Handle.IntoFile], and is used
 // for "deserialising" pathrs root handles.
 func HandleFromFile(file *os.File) (*Handle, error) {
 	newFile, err := fdutils.DupFile(file)
