@@ -33,8 +33,6 @@ import (
 // (rather than fetching the file descriptor yourself with [Handle.IntoRaw]),
 // because the security properties of libpathrs depend on users doing all
 // relevant filesystem operations through libpathrs.
-//
-// [os.File]: https://pkg.go.dev/os#File
 type Handle struct {
 	inner *os.File
 }
@@ -92,8 +90,6 @@ func (h *Handle) OpenFile(flags int) (*os.File, error) {
 // calling [Handle.Close] will also close any copies of the returned [os.File].
 // If you want to get an independent copy, use [Handle.Clone] followed by
 // [Handle.IntoFile] on the cloned [Handle].
-//
-// [os.File]: https://pkg.go.dev/os#File
 func (h *Handle) IntoFile() *os.File {
 	// TODO: Figure out if we really don't want to make a copy.
 	// TODO: We almost certainly want to clear r.inner here, but we can't do
