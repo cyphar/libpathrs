@@ -293,6 +293,7 @@ macro_rules! root_op_tests {
         paste::paste! {
             root_op_tests! {
                 $(#[cfg_attr(not($ignore_meta), ignore)])*
+                #[cfg_attr(not(feature = "_test_race"), ignore)]
                 fn [<$test_name _ $num_threads threads>](root) {
                     utils::check_root_mkdir_all_racing($num_threads, &root, $path, Permissions::from_mode($mode), $expected_result)
                 }
@@ -304,6 +305,7 @@ macro_rules! root_op_tests {
         paste::paste! {
             root_op_tests! {
                 $(#[cfg_attr(not($ignore_meta), ignore)])*
+                #[cfg_attr(not(feature = "_test_race"), ignore)]
                 fn [<$test_name _ $num_threads threads>](root) {
                     utils::check_root_remove_all_racing($num_threads, &root, $path, $expected_result)
                 }

@@ -166,7 +166,7 @@ function merge_llvmcov_profdata() {
 }
 
 function nextest_run() {
-	local features=("capi")
+	local features=("capi" "_test_race")
 
 	# Some of our tests have special handling when being run under nextest
 	# (which runs the tests in a per-process mode rather than per-thread). This
