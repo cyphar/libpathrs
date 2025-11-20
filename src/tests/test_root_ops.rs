@@ -1313,8 +1313,18 @@ mod utils {
         perm: Permissions,
         expected_result: Result<(), ErrorKind>,
     ) -> Result<(), Error> {
+        use rustix_process::Resource;
+
         let root = &root;
         let unsafe_path = unsafe_path.as_ref();
+
+        // Bump the open file limit to the maximum, as this test tends to eat up
+        // a lot of open file handles.
+        rustix_process::setrlimit(Resource::Nofile, {
+            let mut limit = rustix_process::getrlimit(Resource::Nofile);
+            limit.current = limit.maximum;
+            limit
+        })?;
 
         // Do lots of runs to try to catch any possible races.
         let num_retries = 100 + 1_000 / (1 + (num_threads >> 5));
