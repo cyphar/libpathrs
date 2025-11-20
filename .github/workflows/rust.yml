@@ -174,7 +174,6 @@ jobs:
         ${{ matrix.run-as == 'root' && '_test_as_root' || '' }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/checkout@v5
       # Nightly rust is required for llvm-cov --doc.
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -236,7 +235,7 @@ jobs:
           jq -CS <<<"$partitions" # for debugging
           echo "data=$(jq -ScM 'map("\(.)")' <<<"$partitions")" >>"$GITHUB_OUTPUT"
 
-  test:
+  nextest:
     needs:
       - compute-test-partitions
       - nextest-archive
@@ -262,7 +261,7 @@ jobs:
     env:
       NEXTEST_PATTERN_SPEC: ${{ fromJSON(matrix.tests).pattern }}
     name: >-
-      cargo test
+      cargo nextest
       ${{
           format('({0}, {1}{2})',
             fromJSON(matrix.tests).name,
@@ -326,10 +325,22 @@ jobs:
           slug: cyphar/libpathrs
           files: ${{ steps.codecov-coverage.outputs.file }}
 
+  # Smoke-test for our %check section in the libpathrs RPM.
+  # <https://github.com/cyphar/libpathrs/issues/299>
+  # TODO: I guess we should run this as root too...
+  cargo-test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo test
+        run: cargo test --features capi
+
   coverage:
     needs:
       - doctest
-      - test
+      - nextest
     name: compute coverage
     runs-on: ubuntu-latest
     steps:
@@ -469,7 +480,8 @@ jobs:
       - validate-cbindgen
       - rustdoc
       - doctest
-      - test
+      - nextest
+      - cargo-test
       - coverage
       - examples
       - size
