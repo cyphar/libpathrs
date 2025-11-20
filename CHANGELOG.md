@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Changed ###
+- Add `_test_race` feature to allow you to opt-out of the race tests when
+  testing with `cargo test` (which resolves the spurious `EAGAIN` failures you
+  get with naive `cargo test` and `cargo nextest` runs, along with making the
+  whole test run ~50x faster).
+
 ## [0.2.1] - 2025-11-03 ##
 
 > やられたらやり返す。倍返しだ！

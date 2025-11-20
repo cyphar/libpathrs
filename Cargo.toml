@@ -58,6 +58,7 @@ capi = ["dep:bytemuck", "bitflags/bytemuck", "dep:rand", "dep:open-enum"]
 # not be used by actual users of libpathrs! The leading "_" should mean that
 # they are hidden from documentation (such as the features list on crates.io).
 _test_as_root = []
+_test_race = []
 
 [profile.release]
 # Enable link-time optimisations.

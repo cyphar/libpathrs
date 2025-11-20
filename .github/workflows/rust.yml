@@ -168,7 +168,10 @@ jobs:
     name: cargo nextest archive (${{ matrix.run-as }})
     runs-on: ubuntu-latest
     env:
-      FEATURES: capi ${{ matrix.run-as == 'root' && '_test_as_root' || '' }}
+      FEATURES: >-
+        capi
+        _test_race
+        ${{ matrix.run-as == 'root' && '_test_as_root' || '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/checkout@v5

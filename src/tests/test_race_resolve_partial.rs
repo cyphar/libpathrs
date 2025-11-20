@@ -51,6 +51,7 @@ macro_rules! resolve_race_tests {
     ([$root_dir:expr] fn $test_name:ident (mut $root_var:ident : Root) $body:block) => {
         paste::paste! {
             #[test]
+            #[cfg_attr(not(feature = "_test_race"), ignore)]
             fn [<root_ $test_name _default>]() -> Result<(), Error> {
                 let (tmpdir, root_dir) = $root_dir;
                 let mut $root_var = Root::open(&root_dir)?;
@@ -70,6 +71,7 @@ macro_rules! resolve_race_tests {
             }
 
             #[test]
+            #[cfg_attr(not(feature = "_test_race"), ignore)]
             fn [<root_ $test_name _openat2>]() -> Result<(), Error> {
                 let (tmpdir, root_dir) = $root_dir;
                 let mut $root_var = Root::open(&root_dir)?;
@@ -93,6 +95,7 @@ macro_rules! resolve_race_tests {
             }
 
             #[test]
+            #[cfg_attr(not(feature = "_test_race"), ignore)]
             fn [<root_ $test_name _opath>]() -> Result<(), Error> {
                 // This test only makes sense if openat2 is supported (i.e., the
                 // default resolver is openat2 -- otherwise the default test
