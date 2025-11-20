@@ -98,7 +98,9 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 	# We have special handling for coverage runs (which set cfg(coverage)).
 	'cfg(coverage)',
 	# We set these cfgs when building with --features=capi.
-	'cfg(cdylib)', 'cfg(staticlib)'
+	'cfg(cdylib)', 'cfg(staticlib)',
+	# DIY version of <https://github.com/nextest-rs/nextest/discussions/2789>.
+	'cfg(nextest)',
 ] }
 
 [workspace]

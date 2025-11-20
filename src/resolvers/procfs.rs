@@ -476,10 +476,11 @@ mod tests {
     type ExpectedResult = Result<PathBuf, ErrorKind>;
 
     macro_rules! procfs_resolver_tests {
-        ($($test_name:ident ($root:expr, $path:expr, $($oflag:ident)|+, $rflags:expr) == $expected_result:expr);* $(;)?) => {
+        ($($(#[$meta:meta])* $test_name:ident ($root:expr, $path:expr, $($oflag:ident)|+, $rflags:expr) == $expected_result:expr);* $(;)?) => {
             $(
                 paste::paste! {
                     #[test]
+                    $(#[$meta])*
                     fn [<procfs_openat2_resolver_ $test_name>]() -> Result<(), Error> {
                         if !*syscalls::OPENAT2_IS_SUPPORTED {
                             // skip test
@@ -506,6 +507,7 @@ mod tests {
                     }
 
                     #[test]
+                    $(#[$meta])*
                     fn [<procfs_opath_resolver_ $test_name>]() -> Result<(), Error> {
                         let root_dir: PathBuf = $root.into();
                         let root = File::open(&root_dir)?;
@@ -548,9 +550,23 @@ mod tests {
         symlink("/proc", "self", O_DIRECTORY, ResolverFlags::empty()) == Ok(format!("/proc/{}", syscalls::getpid()).into());
         symlink_onofollow("/proc", "mounts", O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
         symlink_opath_onofollow("/proc", "mounts", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Ok("mounts".into());
+        // These tests don't really work with "cargo test" because in a
+        // multi-threaded program the thread-group leader can change after the
+        // previous one dies during the test execution, causing the file to be
+        // shown as "deleted" (but not consistently because it's a race
+        // condition). We could be more lenient here but it would make the
+        // checking code more complicated.
+        //
+        // NOTE: cfg(nextest) is something specific to libpathrs, upstream
+        // nextest does not provide a cfg like this. See the discussion in
+        // <https://github.com/nextest-rs/nextest/discussions/2789>.
+        #[cfg_attr(not(nextest), ignore)]
         symlink_parent("/proc", "net/unix", O_RDONLY, ResolverFlags::empty()) == Ok(format!("/proc/{}/net/unix", syscalls::getpid()).into());
+        #[cfg_attr(not(nextest), ignore)]
         symlink_parent_onofollow("/proc", "net/unix", O_NOFOLLOW, ResolverFlags::empty()) == Ok(format!("/proc/{}/net/unix", syscalls::getpid()).into());
+        #[cfg_attr(not(nextest), ignore)]
         symlink_parent_opath_onofollow("/proc", "net/unix", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Ok(format!("/proc/{}/net/unix", syscalls::getpid()).into());
+
         magiclink_absolute("/proc", "self/fd/0", O_RDWR, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
         magiclink_absolute_onofollow("/proc", "self/fd/0", O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
         magiclink_absolute_opath_onofollow("/proc", "self/fd/0", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Ok(format!("/proc/{}/fd/0", syscalls::getpid()).into());
