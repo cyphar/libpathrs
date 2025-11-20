@@ -166,7 +166,13 @@ function merge_llvmcov_profdata() {
 }
 
 function nextest_run() {
-	local features=("capi")
+	local features=("capi" "_test_race")
+
+	# Some of our tests have special handling when being run under nextest
+	# (which runs the tests in a per-process mode rather than per-thread). This
+	# is effectively a DIY version of
+	# <https://github.com/nextest-rs/nextest/discussions/2789>.
+	export RUSTFLAGS="--cfg nextest"
 
 	# Add any extra features passed in the environment.
 	local extra extra_features
