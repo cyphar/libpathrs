@@ -363,7 +363,7 @@ checksum = "17359afc20d7ab31fdb42bb844c8b3bb1dabd7dcf7e68428492da7f16966fcef"
 
 [[package]]
 name = "pathrs"
-version = "0.2.2"
+version = "0.2.2+dev"
 dependencies = [
  "anyhow",
  "bitflags 2.10.0",
