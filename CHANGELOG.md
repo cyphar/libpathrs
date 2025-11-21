@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+## [0.2.2] - 2025-11-25 ##
+
+> 貴様ら全員刀の錆にしてやるぜ。
+
 ### Changed ###
 - Add `_test_race` feature to allow you to opt-out of the race tests when
   testing with `cargo test` (which resolves the spurious `EAGAIN` failures you
@@ -598,7 +602,8 @@ Initial release.
   - C FFI.
   - Python bindings.
 
-[Unreleased]: https://github.com/cyphar/libpathrs/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/cyphar/libpathrs/compare/v0.2.2...HEAD
+[0.2.1]: https://github.com/cyphar/libpathrs/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/cyphar/libpathrs/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/cyphar/libpathrs/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/cyphar/libpathrs/compare/v0.1.2...v0.1.3
