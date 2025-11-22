@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   execution environment that `cargo nextest` provides. We have resolved those
   differences and now have smoke tests in our CI to make sure that a naive
   `cargo test` run will succeed.
+- libpathrs will now apply the same `openat2` retry logic for any usage of
+  `openat2` (for scoped lookups), to further improve resiliency on busy
+  systems.
 
 ## [0.2.1] - 2025-11-03 ##
 

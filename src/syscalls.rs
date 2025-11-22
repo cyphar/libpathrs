@@ -729,6 +729,15 @@ mod openat2 {
         }
     }
 
+    impl OpenHow {
+        const fn is_scoped_lookup(&self) -> bool {
+            // BitOr is not const fn, so we need to do this with .union()...
+            const SCOPED_LOOKUP_FLAGS: ResolveFlags =
+                ResolveFlags::RESOLVE_BENEATH.union(ResolveFlags::RESOLVE_IN_ROOT);
+            ResolveFlags::from_bits_retain(self.resolve).intersects(SCOPED_LOOKUP_FLAGS)
+        }
+    }
+
     /// Wrapper for `openat2(2)` which auto-sets `O_CLOEXEC | O_NOCTTY`.
     // NOTE: rustix's openat2 wrapper is not extensible-friendly so we use our own
     // for now. See <https://github.com/bytecodealliance/rustix/issues/1186>.
@@ -748,17 +757,53 @@ mod openat2 {
             how.flags |= libc::O_NOCTTY as u64;
         }
 
-        // SAFETY: Obviously safe-to-use Linux syscall.
-        let fd = unsafe {
-            libc::syscall(
-                libc::SYS_openat2,
-                dirfd.as_raw_fd(),
-                path.to_c_string().as_ptr(),
-                &how as *const OpenHow,
-                std::mem::size_of::<OpenHow>(),
-            )
-        } as RawFd;
-        let err = IOError::last_os_error();
+        // openat2(2) can fail with -EAGAIN if there was a racing rename or
+        // mount *anywhere on the system*. This can happen pretty frequently, so
+        // what we do is attempt the openat2(2) a couple of times.
+        //
+        // Based on some fairly extensive tests, with 128 retries you only have
+        // a ~0.1% chance of hitting the error path (even with an attacker
+        // pounding on rename on all cores). Users that need stricter retry
+        // requirements can do their own higher-level retry loop based on the
+        // errno.
+        const MAX_RETRIES: u8 = 128;
+        let mut tries = 0u8;
+        let (fd, err) = loop {
+            // SAFETY: Obviously safe-to-use Linux syscall.
+            let fd = unsafe {
+                libc::syscall(
+                    libc::SYS_openat2,
+                    dirfd.as_raw_fd(),
+                    path.to_c_string().as_ptr(),
+                    &how as *const OpenHow,
+                    std::mem::size_of::<OpenHow>(),
+                )
+            } as RawFd;
+
+            let err = if fd < 0 {
+                Some(
+                    IOError::last_os_error()
+                        .raw_os_error()
+                        .map(Errno::from_raw_os_error)
+                        .expect("last_os_error must return a raw OS std::io::Error"),
+                )
+            } else {
+                None
+            };
+
+            // Success.
+            if fd >= 0
+                // Not a scoped lookup (no need to retry).
+                || !how.is_scoped_lookup()
+                // Not a retry-able error.
+                || err != Some(Errno::AGAIN)
+                 // Too many retries.
+                || tries >= MAX_RETRIES
+            {
+                break (fd, err);
+            }
+            tries += 1;
+        };
 
         if fd >= 0 {
             // SAFETY: We know it's a real file descriptor.
@@ -769,10 +814,7 @@ mod openat2 {
                 path: path.into(),
                 how,
                 size: std::mem::size_of::<OpenHow>(),
-                source: err
-                    .raw_os_error()
-                    .map(Errno::from_raw_os_error)
-                    .expect("syscall failure must result in a real OS error"),
+                source: err.expect("syscall failure must result in an error"),
             })
         }
     }
