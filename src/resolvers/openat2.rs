@@ -54,12 +54,6 @@ pub(crate) fn open(
     rflags: ResolverFlags,
     oflags: OpenFlags,
 ) -> Result<File, Error> {
-    if !*syscalls::OPENAT2_IS_SUPPORTED {
-        Err(ErrorImpl::NotSupported {
-            feature: "openat2".into(),
-        })?
-    }
-
     let rflags = libc::RESOLVE_IN_ROOT | libc::RESOLVE_NO_MAGICLINKS | rflags.bits();
     let how = OpenHow {
         flags: oflags.bits() as u64,
@@ -85,12 +79,6 @@ pub(crate) fn resolve(
     rflags: ResolverFlags,
     no_follow_trailing: bool,
 ) -> Result<Handle, Error> {
-    if !*syscalls::OPENAT2_IS_SUPPORTED {
-        Err(ErrorImpl::NotSupported {
-            feature: "openat2".into(),
-        })?
-    }
-
     // Copy the O_NOFOLLOW and RESOLVE_NO_SYMLINKS bits from flags.
     let mut oflags = OpenFlags::O_PATH;
     if no_follow_trailing {
@@ -155,5 +143,5 @@ pub(crate) fn resolve_partial(
         }
     }
 
-    unreachable!("partial_ancestors should include root path which must be resolvable");
+    Err(last_error)
 }

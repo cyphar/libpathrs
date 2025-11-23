@@ -94,7 +94,8 @@ macro_rules! resolve_tests {
                 // This test only makes sense if openat2 is supported (i.e., the
                 // default resolver is openat2 -- otherwise the default test
                 // already tested this case).
-                if !*syscalls::OPENAT2_IS_SUPPORTED {
+                // TODO: Drop this?
+                if syscalls::openat2::openat2_is_not_supported() {
                     // skip this test
                     return Ok(());
                 }

@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - libpathrs will now apply the same `openat2` retry logic for any usage of
   `openat2` (for scoped lookups), to further improve resiliency on busy
   systems.
+- Our logic for deciding whether to use `openat2(2)` or fallback to an `O_PATH`
+  resolver would cache the result to avoid doing needless test runs of
+  `openat2(2)`. However, this causes issues when libpathrs is being used by a
+  program that applies new seccomp-bpf filters onto itself -- if the filter
+  denies `openat2(2)` then we would return that error rather than falling back
+  to the `O_PATH` resolver. To resolve this issue, we have introduced more
+  flexible fallback mechanisms and no longer cache the result if `openat2(2)`
+  was successful (only if there was an error).
 
 ## [0.2.1] - 2025-11-03 ##
 

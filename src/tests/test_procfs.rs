@@ -62,10 +62,6 @@ macro_rules! procfs_tests {
             #[test]
             $(#[$meta])*
             fn [<procfs_overmounts_ $func_prefix openat2_ $test_name>]() -> Result<(), Error> {
-                if !*syscalls::OPENAT2_IS_SUPPORTED {
-                    // skip this test
-                    return Ok(());
-                }
                 utils::[<check_proc_ $procfs_op>](
                     || {
                         let mut proc = $procfs_inst ?;
@@ -85,7 +81,8 @@ macro_rules! procfs_tests {
                 // This test only makes sense if openat2 is supported (i.e., the
                 // default resolver is openat2 -- otherwise the default test
                 // already tested this case).
-                if !*syscalls::OPENAT2_IS_SUPPORTED {
+                // TODO: Drop this?
+                if syscalls::openat2::openat2_is_not_supported() {
                     // skip this test
                     return Ok(());
                 }

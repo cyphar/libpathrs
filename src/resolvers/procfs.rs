@@ -71,10 +71,14 @@ pub(crate) enum ProcfsResolver {
 
 impl Default for ProcfsResolver {
     fn default() -> Self {
-        if *syscalls::OPENAT2_IS_SUPPORTED {
-            Self::Openat2
-        } else {
+        // Only check if there is a cached failure from a previous attempt to
+        // use openat2 -- we don't want to do a dummy openat2(2) call here in
+        // Default, since it gets called a lot by C FFI. If openat2(2) is
+        // unsupported, we will detect it later.
+        if syscalls::openat2::saw_openat2_failure() {
             Self::RestrictedOpath
+        } else {
+            Self::Openat2
         }
     }
 }
@@ -103,8 +107,25 @@ impl ProcfsResolver {
             })?
         }
 
+        let root = root.as_fd();
+        let path = path.as_ref();
+
         match *self {
-            Self::Openat2 => openat2_resolve(root, path, oflags, rflags),
+            Self::Openat2 => openat2_resolve(root, path, oflags, rflags).or_else(|err| {
+                // If an error occurred, it could be due to openat2(2) being
+                // disabled via seccomp or just being unsupported. We check this
+                // via a dummy openat2(2) chall -- if that fails then we
+                // fallback to O_PATH, otherwise we assume openat2(2) failed for
+                // a good reason and return that error outright.
+                //
+                // TODO: Find a way to make this fallback logic a bit less
+                //       repetitive of the other match arm.
+                if syscalls::openat2::openat2_is_not_supported() {
+                    opath_resolve(proc_rootfd, root, path, oflags, rflags)
+                } else {
+                    Err(err)
+                }
+            }),
             Self::RestrictedOpath => opath_resolve(proc_rootfd, root, path, oflags, rflags),
         }
     }
@@ -119,12 +140,6 @@ fn openat2_resolve(
     oflags: OpenFlags,
     rflags: ResolverFlags,
 ) -> Result<OwnedFd, Error> {
-    if !*syscalls::OPENAT2_IS_SUPPORTED {
-        Err(ErrorImpl::NotSupported {
-            feature: "openat2".into(),
-        })?
-    }
-
     // Copy the O_NOFOLLOW and RESOLVE_NO_SYMLINKS bits from rflags.
     let oflags = oflags.bits() as u64;
     let rflags =
@@ -482,8 +497,8 @@ mod tests {
                     #[test]
                     $(#[$meta])*
                     fn [<procfs_openat2_resolver_ $test_name>]() -> Result<(), Error> {
-                        if !*syscalls::OPENAT2_IS_SUPPORTED {
-                            // skip test
+                        // TODO: Drop this?
+                        if syscalls::openat2::openat2_is_not_supported() {
                             return Ok(());
                         }
                         let root_dir: PathBuf = $root.into();

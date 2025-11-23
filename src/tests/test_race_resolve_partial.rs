@@ -100,7 +100,8 @@ macro_rules! resolve_race_tests {
                 // This test only makes sense if openat2 is supported (i.e., the
                 // default resolver is openat2 -- otherwise the default test
                 // already tested this case).
-                if !*syscalls::OPENAT2_IS_SUPPORTED {
+                // TODO: Drop this?
+                if syscalls::openat2::openat2_is_not_supported() {
                     // skip this test
                     return Ok(());
                 }
@@ -157,10 +158,10 @@ macro_rules! resolve_race_tests {
                         // TODO: Maybe we should do more runs locally than in
                         // CI, since GHA boxes are quite slow compared to my
                         // laptop?
-                        let test_retries = if *syscalls::OPENAT2_IS_SUPPORTED {
-                            20000
-                        } else {
+                        let test_retries = if syscalls::openat2::openat2_is_not_supported() {
                             1000
+                        } else {
+                            20000
                         };
 
                         let expected = vec![ $($expected)* ];

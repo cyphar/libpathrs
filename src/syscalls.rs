@@ -666,12 +666,52 @@ pub(crate) fn statx(
     })
 }
 
-mod openat2 {
+pub(crate) mod openat2 {
     use super::*;
 
-    // MSRV(1.80): Use LazyLock.
-    pub(crate) static OPENAT2_IS_SUPPORTED: Lazy<bool> =
-        Lazy::new(|| openat2(AT_FDCWD, ".", Default::default()).is_ok());
+    use once_cell::sync::OnceCell;
+
+    /// Caches whether we've ever seen `openat2(2)` fail with trivial arguments.
+    ///
+    /// This is a one-way toggle.
+    ///
+    /// If `openat2(2)` fails with trivial arguments then we can reasonably
+    /// believe that `openat2(2)` is either unsupported by the running kernel or
+    /// is blocked by a seccomp-bpf filter -- neither of which is a reversible
+    /// condition.
+    ///
+    /// Note that we *do not* care if `openat2(2)` has succeeded in the past. A
+    /// process can always add seccomp-bpf filters to itself that would cause
+    /// `openat2(2)` to start failing.
+    // MSRV(1.70): Use OnceLock.
+    static SAW_OPENAT2_FAILURE: OnceCell<()> = OnceCell::new();
+
+    /// Returns whether we have seen a trivial failure from `openat2(2)` in the
+    /// past. If this returns `false`, that does not meant that `openat2(2)` is
+    /// supported (or has ever succeeded).
+    pub(crate) fn saw_openat2_failure() -> bool {
+        SAW_OPENAT2_FAILURE.get().is_some()
+    }
+
+    /// Returns whether trivial `openat2(2)` calls fail and thus `openat2(2)` is
+    /// not supported.
+    ///
+    /// If this function returns `true`, you can safely assume that it will
+    /// always return `true`. However, if it returns `false` it is possible for
+    /// it to return `true` at some point in the future.
+    pub(crate) fn openat2_is_not_supported() -> bool {
+        SAW_OPENAT2_FAILURE.get().map_or_else(
+            || match openat2(AT_FDCWD, ".", Default::default()) {
+                Ok(_) => false,
+                Err(_) => {
+                    // Stash that we saw a failure, ignore if we lost the race.
+                    let _ = SAW_OPENAT2_FAILURE.set(());
+                    true
+                }
+            },
+            |_| true, // saw cached failure
+        )
+    }
 
     bitflags! {
         /// Wrapper for the underlying `libc`'s `RESOLVE_*` flags.
@@ -832,7 +872,7 @@ mod openat2 {
     }
 }
 
-pub(crate) use openat2::*;
+pub(crate) use openat2::{openat2, openat2_follow, OpenHow, ResolveFlags};
 
 #[cfg(test)]
 pub(crate) fn getpid() -> rustix_process::RawPid {
