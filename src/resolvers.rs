@@ -50,8 +50,6 @@ use std::{
     rc::Rc,
 };
 
-use once_cell::sync::Lazy;
-
 /// `O_PATH`-based userspace resolver.
 pub(crate) mod opath {
     mod imp;
@@ -90,18 +88,17 @@ pub(crate) enum ResolverBackend {
     //       hyper-concerned users.
 }
 
-// MSRV(1.80): Use LazyLock.
-static DEFAULT_RESOLVER_TYPE: Lazy<ResolverBackend> = Lazy::new(|| {
-    if *syscalls::OPENAT2_IS_SUPPORTED {
-        ResolverBackend::KernelOpenat2
-    } else {
-        ResolverBackend::EmulatedOpath
-    }
-});
-
 impl Default for ResolverBackend {
     fn default() -> Self {
-        *DEFAULT_RESOLVER_TYPE
+        // Only check if there is a cached failure from a previous attempt to
+        // use openat2 -- we don't want to do a dummy openat2(2) call here in
+        // Default, since it gets called a lot by C FFI. If openat2(2) is
+        // unsupported, we will detect it later.
+        if syscalls::openat2::saw_openat2_failure() {
+            ResolverBackend::EmulatedOpath
+        } else {
+            ResolverBackend::KernelOpenat2
+        }
     }
 }
 
@@ -110,7 +107,7 @@ impl ResolverBackend {
     #[cfg(test)]
     pub(crate) fn supported(self) -> bool {
         match self {
-            ResolverBackend::KernelOpenat2 => *syscalls::OPENAT2_IS_SUPPORTED,
+            ResolverBackend::KernelOpenat2 => !syscalls::openat2::openat2_is_not_supported(),
             ResolverBackend::EmulatedOpath => true,
         }
     }
@@ -219,6 +216,54 @@ impl From<PartialLookup<Rc<OwnedFd>>> for PartialLookup<Handle> {
 }
 
 impl Resolver {
+    fn generic_open(
+        &self,
+        root: impl AsFd,
+        path: impl AsRef<Path>,
+        flags: impl Into<OpenFlags>,
+    ) -> Result<File, Error> {
+        let flags = flags.into();
+
+        // For backends without an accelerated one-shot open()
+        // implementation, we can just do the lookup+reopen thing in one go.
+        // For cffi users, this makes plain "open" operations faster.
+        let handle = self.resolve(root, path, flags.contains(OpenFlags::O_NOFOLLOW))?;
+
+        // O_NOFOLLOW makes things a little tricky. Unlike
+        // FdExt::reopen, we have to support O_NOFOLLOW|O_PATH of
+        // symlinks, but that is easily emulated by returning the handle
+        // directly without a reopen.
+        if handle.metadata()?.is_symlink() {
+            // If the user also asked for O_DIRECTORY, make sure we
+            // return the right error.
+            if flags.contains(OpenFlags::O_DIRECTORY) {
+                Err(ErrorImpl::OsError {
+                    operation: "emulated openat2".into(),
+                    source: IOError::from_raw_os_error(libc::ENOTDIR),
+                })?;
+            }
+
+            // If the user requested O_PATH|O_NOFOLLOW, then the only
+            // option we have is to return the handle we got. Without
+            // O_EMPTYPATH there is no easy way to apply any extra flags
+            // a user might've requested.
+            // TODO: Should we error out if the user asks for extra
+            // flags that don't match the flags for our handles?
+            if flags.contains(OpenFlags::O_PATH) {
+                return Ok(OwnedFd::from(handle).into());
+            }
+
+            // Otherwise, the user asked for O_NOFOLLOW and we saw a
+            // symlink, so return ELOOP like openat2 would.
+            Err(ErrorImpl::OsError {
+                operation: "emulated openat2".into(),
+                source: IOError::from_raw_os_error(libc::ELOOP),
+            })?;
+        }
+
+        handle.reopen(flags)
+    }
+
     pub(crate) fn open(
         &self,
         root: impl AsFd,
@@ -239,48 +284,29 @@ impl Resolver {
 
         match self.backend {
             // openat2 can do the lookup and open in one syscall.
-            ResolverBackend::KernelOpenat2 => openat2::open(root, path.as_ref(), self.flags, flags),
+            ResolverBackend::KernelOpenat2 => {
+                let root = root.as_fd();
+                let path = path.as_ref();
 
-            // For backends without an accelerated one-shot open()
-            // implementation, we can just do the lookup+reopen thing in one go.
-            // For cffi users, this makes plain "open" operations faster.
-            _ => {
-                let handle = self.resolve(root, path, flags.contains(OpenFlags::O_NOFOLLOW))?;
-
-                // O_NOFOLLOW makes things a little tricky. Unlike
-                // FdExt::reopen, we have to support O_NOFOLLOW|O_PATH of
-                // symlinks, but that is easily emulated by returning the handle
-                // directly without a reopen.
-                if handle.metadata()?.is_symlink() {
-                    // If the user also asked for O_DIRECTORY, make sure we
-                    // return the right error.
-                    if flags.contains(OpenFlags::O_DIRECTORY) {
-                        Err(ErrorImpl::OsError {
-                            operation: "emulated openat2".into(),
-                            source: IOError::from_raw_os_error(libc::ENOTDIR),
-                        })?;
+                openat2::open(root, path, self.flags, flags).or_else(|err| {
+                    // If an error occurred, it could be due to openat2(2) being
+                    // disabled via seccomp or just being unsupported. We check
+                    // this via a dummy openat2(2) chall -- if that fails then
+                    // we fallback to the generic open, otherwise we assume
+                    // openat2(2) failed for a good reason and return that error
+                    // outright.
+                    //
+                    // TODO: Find a way to make this fallback logic a bit less
+                    //       repetitive of the other match arm.
+                    if syscalls::openat2::openat2_is_not_supported() {
+                        self.generic_open(root, path, flags)
+                    } else {
+                        Err(err)
                     }
-
-                    // If the user requested O_PATH|O_NOFOLLOW, then the only
-                    // option we have is to return the handle we got. Without
-                    // O_EMPTYPATH there is no easy way to apply any extra flags
-                    // a user might've requested.
-                    // TODO: Should we error out if the user asks for extra
-                    // flags that don't match the flags for our handles?
-                    if flags.contains(OpenFlags::O_PATH) {
-                        return Ok(OwnedFd::from(handle).into());
-                    }
-
-                    // Otherwise, the user asked for O_NOFOLLOW and we saw a
-                    // symlink, so return ELOOP like openat2 would.
-                    Err(ErrorImpl::OsError {
-                        operation: "emulated openat2".into(),
-                        source: IOError::from_raw_os_error(libc::ELOOP),
-                    })?;
-                }
-
-                handle.reopen(flags)
+                })
             }
+            // For all other backends, just use the generic fallback.
+            _ => self.generic_open(root, path, flags),
         }
     }
 
@@ -293,7 +319,23 @@ impl Resolver {
     ) -> Result<Handle, Error> {
         match self.backend {
             ResolverBackend::KernelOpenat2 => {
-                openat2::resolve(root, path, self.flags, no_follow_trailing)
+                let root = root.as_fd();
+                let path = path.as_ref();
+                openat2::resolve(root, path, self.flags, no_follow_trailing).or_else(|err| {
+                    // If an error occurred, it could be due to openat2(2) being
+                    // disabled via seccomp or just being unsupported. We check
+                    // this via a dummy openat2(2) chall -- if that fails then
+                    // we fallback to O_PATH, otherwise we assume openat2(2)
+                    // failed for a good reason and return that error outright.
+                    //
+                    // TODO: Find a way to make this fallback logic a bit less
+                    //       repetitive of the other match arm.
+                    if syscalls::openat2::openat2_is_not_supported() {
+                        opath::resolve(root, path, self.flags, no_follow_trailing)
+                    } else {
+                        Err(err)
+                    }
+                })
             }
             ResolverBackend::EmulatedOpath => {
                 opath::resolve(root, path, self.flags, no_follow_trailing)
@@ -310,7 +352,27 @@ impl Resolver {
     ) -> Result<PartialLookup<Handle>, Error> {
         match self.backend {
             ResolverBackend::KernelOpenat2 => {
-                openat2::resolve_partial(root, path.as_ref(), self.flags, no_follow_trailing)
+                let root = root.as_fd();
+                let path = path.as_ref();
+                openat2::resolve_partial(root, path, self.flags, no_follow_trailing).or_else(
+                    // If an error occurred, it could be due to openat2(2) being
+                    // disabled via seccomp or just being unsupported. We check
+                    // this via a dummy openat2(2) chall -- if that fails then
+                    // we fallback to O_PATH, otherwise we assume openat2(2)
+                    // failed for a good reason and return that error outright.
+                    //
+                    // TODO: Find a way to make this fallback logic a bit less
+                    //       repetitive of the other match arm.
+                    |err| {
+                        if syscalls::openat2::openat2_is_not_supported() {
+                            opath::resolve_partial(root, path, self.flags, no_follow_trailing)
+                                // Rc<File> -> Handle
+                                .map(Into::into)
+                        } else {
+                            Err(err)
+                        }
+                    },
+                )
             }
             ResolverBackend::EmulatedOpath => {
                 opath::resolve_partial(root, path.as_ref(), self.flags, no_follow_trailing)

@@ -259,12 +259,22 @@ impl<'fd> RawProcfsRoot<'fd> {
         path: impl AsRef<Path>,
         mut oflags: OpenFlags,
     ) -> Result<OwnedFd, Error> {
+        let path = path.as_ref();
         oflags.insert(OpenFlags::O_NOFOLLOW);
-        let fd = if *syscalls::OPENAT2_IS_SUPPORTED {
-            self.openat2_beneath(path, oflags)
-        } else {
-            self.opath_beneath_unchecked(path, oflags)
-        }?;
+
+        let fd = self.openat2_beneath(path, oflags).or_else(|err| {
+            // If an error occurred, it could be due to openat2(2) being
+            // disabled via seccomp or just being unsupported. We check this via
+            // a dummy openat2(2) chall -- if that fails then we fallback to
+            // O_PATH, otherwise we assume openat2(2) failed for a good reason
+            // and return that error outright.
+            if syscalls::openat2::openat2_is_not_supported() {
+                self.opath_beneath_unchecked(path, oflags)
+            } else {
+                Err(err)
+            }
+        })?;
+
         // As this is called from within fetch_mnt_id as a fallback, the only
         // thing we can do here is verify that it is actually procfs. However,
         // in practice it will be quite difficult for an attacker to over-mount
@@ -333,7 +343,7 @@ mod tests {
 
     #[test]
     fn openat2_beneath() {
-        if !*syscalls::OPENAT2_IS_SUPPORTED {
+        if syscalls::openat2::openat2_is_not_supported() {
             return; // skip
         }
         assert_matches!(

@@ -54,12 +54,6 @@ pub(crate) fn open(
     rflags: ResolverFlags,
     oflags: OpenFlags,
 ) -> Result<File, Error> {
-    if !*syscalls::OPENAT2_IS_SUPPORTED {
-        Err(ErrorImpl::NotSupported {
-            feature: "openat2".into(),
-        })?
-    }
-
     let rflags = libc::RESOLVE_IN_ROOT | libc::RESOLVE_NO_MAGICLINKS | rflags.bits();
     let how = OpenHow {
         flags: oflags.bits() as u64,
@@ -85,12 +79,6 @@ pub(crate) fn resolve(
     rflags: ResolverFlags,
     no_follow_trailing: bool,
 ) -> Result<Handle, Error> {
-    if !*syscalls::OPENAT2_IS_SUPPORTED {
-        Err(ErrorImpl::NotSupported {
-            feature: "openat2".into(),
-        })?
-    }
-
     // Copy the O_NOFOLLOW and RESOLVE_NO_SYMLINKS bits from flags.
     let mut oflags = OpenFlags::O_PATH;
     if no_follow_trailing {
@@ -104,38 +92,15 @@ pub(crate) fn resolve(
         ..Default::default()
     };
 
-    // openat2(2) can fail with -EAGAIN if there was a racing rename or mount
-    // *anywhere on the system*. This can happen pretty frequently, so what we
-    // do is attempt the openat2(2) a couple of times.
-    //
-    // Based on some fairly extensive tests, with 128 retries you only have a
-    // ~0.1% chance of hitting the error path (even with an attacker pounding on
-    // rename on all cores). Users that need stricter retry requirements can do
-    // their own higher-level retry loop based on the errno.
-    const MAX_RETRIES: u8 = 128;
-    let mut tries = 0u8;
-    loop {
-        tries += 1;
-        match syscalls::openat2_follow(&root, path.as_ref(), how) {
-            Ok(file) => return Ok(Handle::from_fd(file)),
-            Err(err) => match (tries, err.root_cause().raw_os_error()) {
-                // MSRV(1.66): Use ..=MAX_RETRIES (half_open_range_patterns).
-                (0..=MAX_RETRIES, Some(libc::EAGAIN)) => continue,
-                (_, Some(libc::ENOSYS)) => {
-                    // shouldn't happen
-                    Err(ErrorImpl::NotSupported {
-                        feature: "openat2".into(),
-                    })?
-                }
-                // TODO: Add wrapper for known-bad openat2 return codes.
-                //Some(libc::EXDEV) | Some(libc::ELOOP) => { ... }
-                _ => Err(ErrorImpl::RawOsError {
-                    operation: "openat2 subpath".into(),
-                    source: err,
-                })?,
-            },
-        }
-    }
+    syscalls::openat2_follow(&root, path.as_ref(), how)
+        .map(Handle::from_fd)
+        .map_err(|err| {
+            ErrorImpl::RawOsError {
+                operation: "openat2 subpath".into(),
+                source: err,
+            }
+            .into()
+        })
 }
 
 /// Resolve as many components as possible in `path` within `root` using
@@ -178,5 +143,5 @@ pub(crate) fn resolve_partial(
         }
     }
 
-    unreachable!("partial_ancestors should include root path which must be resolvable");
+    Err(last_error)
 }

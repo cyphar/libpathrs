@@ -666,12 +666,52 @@ pub(crate) fn statx(
     })
 }
 
-mod openat2 {
+pub(crate) mod openat2 {
     use super::*;
 
-    // MSRV(1.80): Use LazyLock.
-    pub(crate) static OPENAT2_IS_SUPPORTED: Lazy<bool> =
-        Lazy::new(|| openat2(AT_FDCWD, ".", Default::default()).is_ok());
+    use once_cell::sync::OnceCell;
+
+    /// Caches whether we've ever seen `openat2(2)` fail with trivial arguments.
+    ///
+    /// This is a one-way toggle.
+    ///
+    /// If `openat2(2)` fails with trivial arguments then we can reasonably
+    /// believe that `openat2(2)` is either unsupported by the running kernel or
+    /// is blocked by a seccomp-bpf filter -- neither of which is a reversible
+    /// condition.
+    ///
+    /// Note that we *do not* care if `openat2(2)` has succeeded in the past. A
+    /// process can always add seccomp-bpf filters to itself that would cause
+    /// `openat2(2)` to start failing.
+    // MSRV(1.70): Use OnceLock.
+    static SAW_OPENAT2_FAILURE: OnceCell<()> = OnceCell::new();
+
+    /// Returns whether we have seen a trivial failure from `openat2(2)` in the
+    /// past. If this returns `false`, that does not meant that `openat2(2)` is
+    /// supported (or has ever succeeded).
+    pub(crate) fn saw_openat2_failure() -> bool {
+        SAW_OPENAT2_FAILURE.get().is_some()
+    }
+
+    /// Returns whether trivial `openat2(2)` calls fail and thus `openat2(2)` is
+    /// not supported.
+    ///
+    /// If this function returns `true`, you can safely assume that it will
+    /// always return `true`. However, if it returns `false` it is possible for
+    /// it to return `true` at some point in the future.
+    pub(crate) fn openat2_is_not_supported() -> bool {
+        SAW_OPENAT2_FAILURE.get().map_or_else(
+            || match openat2(AT_FDCWD, ".", Default::default()) {
+                Ok(_) => false,
+                Err(_) => {
+                    // Stash that we saw a failure, ignore if we lost the race.
+                    let _ = SAW_OPENAT2_FAILURE.set(());
+                    true
+                }
+            },
+            |_| true, // saw cached failure
+        )
+    }
 
     bitflags! {
         /// Wrapper for the underlying `libc`'s `RESOLVE_*` flags.
@@ -729,6 +769,15 @@ mod openat2 {
         }
     }
 
+    impl OpenHow {
+        const fn is_scoped_lookup(&self) -> bool {
+            // BitOr is not const fn, so we need to do this with .union()...
+            const SCOPED_LOOKUP_FLAGS: ResolveFlags =
+                ResolveFlags::RESOLVE_BENEATH.union(ResolveFlags::RESOLVE_IN_ROOT);
+            ResolveFlags::from_bits_retain(self.resolve).intersects(SCOPED_LOOKUP_FLAGS)
+        }
+    }
+
     /// Wrapper for `openat2(2)` which auto-sets `O_CLOEXEC | O_NOCTTY`.
     // NOTE: rustix's openat2 wrapper is not extensible-friendly so we use our own
     // for now. See <https://github.com/bytecodealliance/rustix/issues/1186>.
@@ -748,17 +797,53 @@ mod openat2 {
             how.flags |= libc::O_NOCTTY as u64;
         }
 
-        // SAFETY: Obviously safe-to-use Linux syscall.
-        let fd = unsafe {
-            libc::syscall(
-                libc::SYS_openat2,
-                dirfd.as_raw_fd(),
-                path.to_c_string().as_ptr(),
-                &how as *const OpenHow,
-                std::mem::size_of::<OpenHow>(),
-            )
-        } as RawFd;
-        let err = IOError::last_os_error();
+        // openat2(2) can fail with -EAGAIN if there was a racing rename or
+        // mount *anywhere on the system*. This can happen pretty frequently, so
+        // what we do is attempt the openat2(2) a couple of times.
+        //
+        // Based on some fairly extensive tests, with 128 retries you only have
+        // a ~0.1% chance of hitting the error path (even with an attacker
+        // pounding on rename on all cores). Users that need stricter retry
+        // requirements can do their own higher-level retry loop based on the
+        // errno.
+        const MAX_RETRIES: u8 = 128;
+        let mut tries = 0u8;
+        let (fd, err) = loop {
+            // SAFETY: Obviously safe-to-use Linux syscall.
+            let fd = unsafe {
+                libc::syscall(
+                    libc::SYS_openat2,
+                    dirfd.as_raw_fd(),
+                    path.to_c_string().as_ptr(),
+                    &how as *const OpenHow,
+                    std::mem::size_of::<OpenHow>(),
+                )
+            } as RawFd;
+
+            let err = if fd < 0 {
+                Some(
+                    IOError::last_os_error()
+                        .raw_os_error()
+                        .map(Errno::from_raw_os_error)
+                        .expect("last_os_error must return a raw OS std::io::Error"),
+                )
+            } else {
+                None
+            };
+
+            // Success.
+            if fd >= 0
+                // Not a scoped lookup (no need to retry).
+                || !how.is_scoped_lookup()
+                // Not a retry-able error.
+                || err != Some(Errno::AGAIN)
+                 // Too many retries.
+                || tries >= MAX_RETRIES
+            {
+                break (fd, err);
+            }
+            tries += 1;
+        };
 
         if fd >= 0 {
             // SAFETY: We know it's a real file descriptor.
@@ -769,10 +854,7 @@ mod openat2 {
                 path: path.into(),
                 how,
                 size: std::mem::size_of::<OpenHow>(),
-                source: err
-                    .raw_os_error()
-                    .map(Errno::from_raw_os_error)
-                    .expect("syscall failure must result in a real OS error"),
+                source: err.expect("syscall failure must result in an error"),
             })
         }
     }
@@ -790,7 +872,7 @@ mod openat2 {
     }
 }
 
-pub(crate) use openat2::*;
+pub(crate) use openat2::{openat2, openat2_follow, OpenHow, ResolveFlags};
 
 #[cfg(test)]
 pub(crate) fn getpid() -> rustix_process::RawPid {
