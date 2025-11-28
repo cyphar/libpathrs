@@ -69,6 +69,5 @@ fn main() {
         )
         .expect("write version script");
         println!("cargo:rustc-cdylib-link-arg=-Wl,--version-script={version_script_path}");
-        println!("cargo:rustc-cdylib-link-arg=-Wl,--wrap=pathrs_inroot_open_bad");
     }
 }
