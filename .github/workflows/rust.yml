@@ -96,6 +96,8 @@ jobs:
         run: >-
           cargo hack --each-feature --keep-going \
             build --target=${{ matrix.target }} --release
+      - name: make libpathrs.so
+        run: make CARGO_FLAGS="--target=${{ matrix.target }}" release
 
   fmt:
     name: rustfmt
