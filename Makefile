@@ -48,7 +48,7 @@ CARGO_CHECK := $(call cargo_hack,$(CARGO),check)
 CARGO_CLIPPY := $(call cargo_hack,$(CARGO),clippy)
 CARGO_LLVM_COV := $(call cargo_hack,$(CARGO_NIGHTLY),llvm-cov)
 
-RUSTC_FLAGS := --features=capi -- -C panic=abort
+RUSTC_FLAGS := --features=capi -- -C panic=abort -C linker=clang -C link-arg=-fuse-ld=lld
 CARGO_FLAGS ?=
 
 SRC_FILES = $(wildcard Cargo.*) $(shell find . -name '*.rs')
