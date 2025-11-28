@@ -623,6 +623,19 @@ mod tests {
         Ok(())
     }
 
+    // O_LARGEFILE has different values on different architectures.
+    #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
+    const DEFAULT_FDINFO_FLAGS: &str = "02400000";
+    #[cfg(any(target_arch = "powerpc", target_arch = "powerpc64"))]
+    const DEFAULT_FDINFO_FLAGS: &str = "02200000";
+    #[cfg(not(any(
+        target_arch = "arm",
+        target_arch = "aarch64",
+        target_arch = "powerpc",
+        target_arch = "powerpc64"
+    )))]
+    const DEFAULT_FDINFO_FLAGS: &str = "02100000";
+
     #[test]
     fn get_fdinfo_field() -> Result<(), Error> {
         let file = File::open("/").context("open dummy file")?;
@@ -635,7 +648,7 @@ mod tests {
 
         assert_eq!(
             file.get_fdinfo_field::<String>(RawProcfsRoot::UnsafeGlobal, "flags")?,
-            Some("02100000".to_string()),
+            Some(DEFAULT_FDINFO_FLAGS.to_string()),
             "flags should be parsed for new file"
         );
 
@@ -668,7 +681,7 @@ mod tests {
 
         assert_eq!(
             file.get_fdinfo_field::<String>(procfs.as_raw_procfs(), "flags")?,
-            Some("02100000".to_string()),
+            Some(DEFAULT_FDINFO_FLAGS.to_string()),
             "flags should be parsed for new file"
         );
 
