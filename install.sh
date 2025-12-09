@@ -33,7 +33,7 @@
 set -Eeuo pipefail
 
 src_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"
-pushd "$src_dir" |:
+pushd "$src_dir" >/dev/null
 
 get_crate_info() {
 	# TODO: Should we use toml-cli if it's available?
