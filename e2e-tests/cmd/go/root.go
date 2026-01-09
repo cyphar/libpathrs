@@ -314,8 +314,7 @@ var rootHardlinkCmd = &cli.Command{
 		target := cmd.StringArg("target")
 		linkname := cmd.StringArg("linkname")
 
-		// TODO: These arguments need to get swapped.
-		return root.Hardlink(linkname, target)
+		return root.Hardlink(target, linkname)
 	},
 }
 
@@ -336,8 +335,7 @@ var rootSymlinkCmd = &cli.Command{
 		target := cmd.StringArg("target")
 		linkname := cmd.StringArg("linkname")
 
-		// TODO: These arguments need to get swapped.
-		return root.Symlink(linkname, target)
+		return root.Symlink(target, linkname)
 	},
 }
 

@@ -57,6 +57,8 @@ pub(in crate::tests) mod capi {
 
     mod procfs;
     pub(in crate::tests) use procfs::*;
+
+    mod test_compat;
 }
 
 pub(in crate::tests) mod traits {

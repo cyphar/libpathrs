@@ -44,7 +44,10 @@ use crate::{
 
 use std::{
     fs::Permissions,
-    os::unix::{fs::PermissionsExt, io::RawFd},
+    os::unix::{
+        fs::PermissionsExt,
+        io::{AsRawFd, RawFd},
+    },
 };
 
 use libc::{c_char, c_int, c_uint, dev_t, size_t};
@@ -622,29 +625,56 @@ utils::symver! {
 /// pathrs_errorinfo().
 #[no_mangle]
 pub unsafe extern "C" fn pathrs_inroot_symlink(
-    root_fd: CBorrowedFd<'_>,
-    path: *const c_char,
     target: *const c_char,
+    root_fd: CBorrowedFd<'_>,
+    linkpath: *const c_char,
 ) -> c_int {
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path)? }; // SAFETY: C caller guarantees path is safe.
         let target = unsafe { utils::parse_path(target)? }; // SAFETY: C caller guarantees path is safe.
-        root.create(path, &InodeType::Symlink(target.into()))
+        let linkpath = unsafe { utils::parse_path(linkpath)? }; // SAFETY: C caller guarantees path is safe.
+        root.create(linkpath, &InodeType::Symlink(target.into()))
     }()
     .into_c_return()
 }
 utils::symver! {
-    fn pathrs_inroot_symlink <- (pathrs_inroot_symlink, version = "LIBPATHRS_0.2", default);
+    fn pathrs_inroot_symlink <- (pathrs_inroot_symlink, version = "LIBPATHRS_0.2.5", default);
+}
+
+/// A compatibility shim for `pathrs_inroot_symlink`, which previously took its
+/// arguments in the wrong order.
+///
+/// cbindgen:ignore
+#[no_mangle]
+pub unsafe extern "C" fn __pathrs_inroot_symlink_v1(
+    root_fd: CBorrowedFd<'_>,
+    path: *const c_char,
+    target: *const c_char,
+) -> c_int {
+    pathrs_inroot_symlink(target, root_fd, path)
+}
+utils::symver! {
+    // The old version of pathrs_inroot_symlink had "target" and "linkpath"
+    // flipped and the dirfd was in the wrong position.
+    fn __pathrs_inroot_symlink_v1 <- (pathrs_inroot_symlink, version = "LIBPATHRS_0.2");
     // This symbol was renamed in libpathrs 0.2. For backward compatibility with
     // pre-symbol-versioned builds of libpathrs, it needs to be a default so
     // that loaders will pick it when searching for the unversioned name.
-    fn pathrs_inroot_symlink <- (pathrs_symlink, version = "LIBPATHRS_0.1", default);
+    fn __pathrs_inroot_symlink_v1 <- (pathrs_symlink, version = "LIBPATHRS_0.1", default);
 }
 
 /// Create a hardlink within the rootfs referenced by root_fd. Both the hardlink
 /// path and target are resolved within the rootfs.
+///
+/// # Future-proofing
+///
+/// This function takes two `root_fd` arguments in order for future extensions
+/// to be able to use them, but callers must specify the same *value* for both
+/// arguments. (NOTE: This is not referring to the same underlying file, the
+/// actual file descriptor number must be identical.)
+///
+/// The `flags` argument is included for future extensions and must be 0.
 ///
 /// # Return Value
 ///
@@ -656,23 +686,56 @@ utils::symver! {
 /// pathrs_errorinfo().
 #[no_mangle]
 pub unsafe extern "C" fn pathrs_inroot_hardlink(
-    root_fd: CBorrowedFd<'_>,
-    path: *const c_char,
-    target: *const c_char,
+    old_root_fd: CBorrowedFd<'_>,
+    old_path: *const c_char,
+    new_root_fd: CBorrowedFd<'_>,
+    new_path: *const c_char,
+    flags: u64,
 ) -> c_int {
     || -> Result<_, Error> {
-        let root_fd = root_fd.try_as_borrowed_fd()?;
-        let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path)? }; // SAFETY: C caller guarantees path is safe.
-        let target = unsafe { utils::parse_path(target)? }; // SAFETY: C caller guarantees path is safe.
-        root.create(path, &InodeType::Hardlink(target.into()))
+        if flags != 0 {
+            Err(ErrorImpl::InvalidArgument {
+                name: "flags".into(),
+                description: "flags are unsupported".into(),
+            })?;
+        }
+        let old_root_fd = old_root_fd.try_as_borrowed_fd()?;
+        let new_root_fd = new_root_fd.try_as_borrowed_fd()?;
+        if old_root_fd.as_raw_fd() != new_root_fd.as_raw_fd() {
+            Err(ErrorImpl::InvalidArgument {
+                name: "new_root_fd".into(),
+                description: "new_root_fd and old_root_fd must have the same fd value".into(),
+            })?;
+        }
+        let root = RootRef::from_fd(new_root_fd);
+        let old_path = unsafe { utils::parse_path(old_path) }?; // SAFETY: C caller guarantees path is safe.
+        let new_path = unsafe { utils::parse_path(new_path) }?; // SAFETY: C caller guarantees path is safe.
+        root.create(new_path, &InodeType::Hardlink(old_path.into()))
     }()
     .into_c_return()
 }
 utils::symver! {
-    fn pathrs_inroot_hardlink <- (pathrs_inroot_hardlink, version = "LIBPATHRS_0.2", default);
+    fn pathrs_inroot_hardlink <- (pathrs_inroot_hardlink, version = "LIBPATHRS_0.2.5", default);
+}
+
+/// A compatibility shim for `pathrs_inroot_hardlink`, which previously took its
+/// arguments in the wrong order.
+///
+/// cbindgen:ignore
+#[no_mangle]
+pub unsafe extern "C" fn __pathrs_inroot_hardlink_v1(
+    root_fd: CBorrowedFd<'_>,
+    path: *const c_char,
+    target: *const c_char,
+) -> c_int {
+    pathrs_inroot_hardlink(root_fd, target, root_fd, path, 0)
+}
+utils::symver! {
+    // The old version of pathrs_inroot_hardlink had "target" and "linkpath"
+    // flipped, and only one dirfd argument was taken.
+    fn __pathrs_inroot_hardlink_v1 <- (pathrs_inroot_hardlink, version = "LIBPATHRS_0.2");
     // This symbol was renamed in libpathrs 0.2. For backward compatibility with
     // pre-symbol-versioned builds of libpathrs, it needs to be a default so
     // that loaders will pick it when searching for the unversioned name.
-    fn pathrs_inroot_hardlink <- (pathrs_hardlink, version = "LIBPATHRS_0.1", default);
+    fn __pathrs_inroot_hardlink_v1 <- (pathrs_hardlink, version = "LIBPATHRS_0.1", default);
 }
