@@ -99,8 +99,7 @@ def root_hardlink(args: argparse.Namespace):
     target: str = args.target
     linkname: str = args.linkname
 
-    # TODO: These arguments need to get swapped.
-    root.hardlink(linkname, target)
+    root.hardlink(target, linkname)
 
 
 def root_symlink(args: argparse.Namespace):
@@ -108,8 +107,7 @@ def root_symlink(args: argparse.Namespace):
     target: str = args.target
     linkname: str = args.linkname
 
-    # TODO: These arguments need to get swapped.
-    root.symlink(linkname, target)
+    root.symlink(target, linkname)
 
 
 def root_readlink(args: argparse.Namespace):

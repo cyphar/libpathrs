@@ -193,26 +193,26 @@ func InRootMknod(rootFd uintptr, path string, mode uint32, dev uint64) error {
 }
 
 // InRootSymlink wraps pathrs_inroot_symlink.
-func InRootSymlink(rootFd uintptr, path, target string) error {
-	cPath := C.CString(path)
-	defer C.free(unsafe.Pointer(cPath))
+func InRootSymlink(rootFd uintptr, target, linkpath string) error {
+	cLinkpath := C.CString(linkpath)
+	defer C.free(unsafe.Pointer(cLinkpath))
 
 	cTarget := C.CString(target)
 	defer C.free(unsafe.Pointer(cTarget))
 
-	err := C.pathrs_inroot_symlink(C.int(rootFd), cPath, cTarget)
+	err := C.pathrs_inroot_symlink(C.int(rootFd), cTarget, cLinkpath)
 	return fetchError(err)
 }
 
 // InRootHardlink wraps pathrs_inroot_hardlink.
-func InRootHardlink(rootFd uintptr, path, target string) error {
-	cPath := C.CString(path)
-	defer C.free(unsafe.Pointer(cPath))
+func InRootHardlink(rootFd uintptr, target, linkpath string) error {
+	cLinkpath := C.CString(linkpath)
+	defer C.free(unsafe.Pointer(cLinkpath))
 
 	cTarget := C.CString(target)
 	defer C.free(unsafe.Pointer(cTarget))
 
-	err := C.pathrs_inroot_hardlink(C.int(rootFd), cPath, cTarget)
+	err := C.pathrs_inroot_hardlink(C.int(rootFd), cTarget, cLinkpath)
 	return fetchError(err)
 }
 
