@@ -64,7 +64,8 @@ fn main() {
             // work nicely, see <https://internals.rust-lang.org/t/23626>.
             r#"
             LIBPATHRS_0.1 {{ }};
-            LIBPATHRS_0.2 {{ local: *; }} LIBPATHRS_0.1;
+            LIBPATHRS_0.2 {{ }} LIBPATHRS_0.1;
+            LIBPATHRS_0.3 {{ local: *; }} LIBPATHRS_0.2;
             "#
         )
         .expect("write version script");
