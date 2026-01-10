@@ -139,8 +139,8 @@ impl CapiRoot {
                 unsafe {
                     capi::core::pathrs_inroot_symlink(
                         root_fd.into(),
-                        path.as_ptr(),
                         target.as_ptr(),
+                        path.as_ptr(),
                     )
                 }
             }
@@ -149,8 +149,8 @@ impl CapiRoot {
                 unsafe {
                     capi::core::pathrs_inroot_hardlink(
                         root_fd.into(),
-                        path.as_ptr(),
                         target.as_ptr(),
+                        path.as_ptr(),
                     )
                 }
             }
