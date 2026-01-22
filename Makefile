@@ -119,6 +119,10 @@ validate-cbindgen:
 			exit 1 ;														\
 		 fi
 
+.PHONY: validate-elf-symbols
+validate-elf-symbols: release
+	./hack/check-elf-symbols.sh ./target/release/libpathrs.so
+
 .PHONY: test-rust-doctest
 test-rust-doctest:
 	$(CARGO_LLVM_COV) --no-report --branch --doc

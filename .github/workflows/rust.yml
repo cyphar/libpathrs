@@ -145,13 +145,34 @@ jobs:
         run: cargo install --force cbindgen
       - run: make validate-cbindgen
 
+  validate-elf-symbols:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust-version:
+          # FIXME: Rust < 1.90 is currently broken due to linker issues.
+          #- *RUST_MSRV
+          #- "1.72" # loongarch64 global_asm! stabilised
+          #- "1.84" # arm64ex / s390x global_asm! stabilised
+          - "1.91" # loongarch32 global_asm! stabilised
+          - stable
+          - nightly
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust-version }}
+      - run: make validate-elf-symbols
+
   build:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         rust-version:
-          #- *RUST_MSRV # FIXME: This is currently broken due to linker issues.
+          # FIXME: Rust < 1.90 is currently broken due to linker issues.
+          #- *RUST_MSRV
           - stable
           - nightly
     steps:
@@ -495,6 +516,7 @@ jobs:
       - clippy
       - check-lint-nohack
       - validate-cbindgen
+      - validate-elf-symbols
       - build
       - rustdoc
       - doctest

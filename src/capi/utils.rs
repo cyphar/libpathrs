@@ -50,7 +50,8 @@ use libc::{c_char, c_int, size_t};
 
 /// Generate `.symver` entries for a given function.
 ///
-/// On platforms without stabilised
+/// On platforms without stabilised `global_asm!` implementations, this macro is
+/// a no-op but will eventually work once they are supported.
 ///
 /// ```ignore
 /// # use pathrs::capi::utils::symver;
@@ -71,7 +72,7 @@ use libc::{c_char, c_int, size_t};
 /// ```
 macro_rules! symver {
     () => {};
-    ($(#[$meta:meta])* fn $implsym:ident <- ($symname:ident, version = $version:literal); $($tail:tt)*) => {
+    (@with-meta $(#[$meta:meta])* $($block:tt)+) => {
         // Some architectures still have unstable ASM, which stops us from
         // injecting the ".symver" section. You can see the list in
         // LoweringContext::lower_inline_asm (compiler/rustc_asm_lowering).
@@ -82,57 +83,52 @@ macro_rules! symver {
             target_arch = "x86_64",
             target_arch = "riscv32",
             target_arch = "riscv64",
-            //target_arch = "loongarch32", // MSRV(1.91?)
+            // These are only supported after our MSRV and have corresponding
+            // #[rustversion::since(1.XY)] tags below.
+            target_arch = "loongarch64",
+            target_arch = "arm64ec",
+            target_arch = "s390x",
+            target_arch = "loongarch32",
             // TODO: Once stabilised, add these arches:
             //target_arch = "powerpc",
             //target_arch = "powerpc64",
             //target_arch = "sparc64",
         ))]
-        #[::rustversion::attr(since(1.72), cfg(target_arch = "loongarch64"))]
-        #[::rustversion::attr(since(1.84), cfg(target_arch = "arm64ec"))]
-        #[::rustversion::attr(since(1.84), cfg(target_arch = "s390x"))]
-        // .symver $implsym, $symname@$version
+        #[cfg_attr(target_arch = "loongarch64", ::rustversion::since(1.72))]
+        #[cfg_attr(target_arch = "arm64ec", ::rustversion::since(1.84))]
+        #[cfg_attr(target_arch = "s390x", ::rustversion::since(1.84))]
+        #[cfg_attr(target_arch = "loongarch32", ::rustversion::since(1.91))]
         $(#[$meta])*
-        ::std::arch::global_asm! {concat!(
-            ".symver ",
-            stringify!($implsym),
-            ", ",
-            stringify!($symname),
-            "@",
-            $version,
-        )}
+        $($block)*
+    };
+    ($(#[$meta:meta])* fn $implsym:ident <- ($symname:ident, version = $version:literal); $($tail:tt)*) => {
+        $crate::capi::utils::symver! {
+            @with-meta $(#[$meta])*
+            // .symver $implsym, $symname@$version
+            ::std::arch::global_asm! {concat!(
+                ".symver ",
+                stringify!($implsym),
+                ", ",
+                stringify!($symname),
+                "@",
+                $version,
+            )}
+        }
         $crate::capi::utils::symver! { $($tail)* }
     };
     ($(#[$meta:meta])* fn $implsym:ident <- ($symname:ident, version = $version:literal, default); $($tail:tt)*) => {
-        // Some architectures still have unstable ASM, which stops us from
-        // injecting the ".symver" section. You can see the list in
-        // LoweringContext::lower_inline_asm (compiler/rustc_asm_lowering).
-        #[cfg(any(
-            target_arch = "arm",
-            target_arch = "aarch64",
-            target_arch = "x86",
-            target_arch = "x86_64",
-            target_arch = "riscv32",
-            target_arch = "riscv64",
-            // TODO: Once stabilised, add these arches:
-            //target_arch = "loongarch32", // MSRV(1.91?)
-            //target_arch = "powerpc",
-            //target_arch = "powerpc64",
-            //target_arch = "sparc64",
-        ))]
-        #[::rustversion::attr(since(1.72), cfg(target_arch = "loongarch64"))]
-        #[::rustversion::attr(since(1.84), cfg(target_arch = "arm64ec"))]
-        #[::rustversion::attr(since(1.84), cfg(target_arch = "s390x"))]
-        // .symver $implsym, $symname@@$version
-        $(#[$meta])*
-        ::std::arch::global_asm! {concat!(
-            ".symver ",
-            stringify!($implsym),
-            ", ",
-            stringify!($symname),
-            "@@",
-            $version,
-        )}
+        $crate::capi::utils::symver! {
+            @with-meta $(#[$meta])*
+            // .symver $implsym, $symname@@$version
+            ::std::arch::global_asm! {concat!(
+                ".symver ",
+                stringify!($implsym),
+                ", ",
+                stringify!($symname),
+                "@@",
+                $version,
+            )}
+        }
         $crate::capi::utils::symver! { $($tail)* }
     };
 }
