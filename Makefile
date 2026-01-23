@@ -29,6 +29,8 @@
 #  You should have received a copy of the GNU Lesser General Public License
 #  along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+SHELL := /bin/bash
+
 CARGO ?= cargo
 CARGO_NIGHTLY ?= cargo +nightly
 
@@ -48,8 +50,8 @@ CARGO_CHECK := $(call cargo_hack,$(CARGO),check)
 CARGO_CLIPPY := $(call cargo_hack,$(CARGO),clippy)
 CARGO_LLVM_COV := $(call cargo_hack,$(CARGO_NIGHTLY),llvm-cov)
 
-RUSTC_FLAGS := --features=capi -- -C panic=abort
-CARGO_FLAGS ?=
+RUSTC_FLAGS := -C panic=abort
+CARGO_FLAGS ?= --features=capi
 
 SRC_FILES = $(wildcard Cargo.*) $(shell find . -name '*.rs')
 
@@ -58,21 +60,30 @@ SRC_FILES = $(wildcard Cargo.*) $(shell find . -name '*.rs')
 debug: target/debug
 
 target/debug: $(SRC_FILES)
+	# MSRV(1.64): Use cargo rustc --crate-type={cdy,static}lib.
+	sed -i.orig '/^crate-type/ s/=.*/= ["rlib", "cdylib", "staticlib"]/' Cargo.toml
+	RUSTFLAGS="$(RUSTC_FLAGS)" $(CARGO) build $(CARGO_FLAGS)
+	mv Cargo.toml{.orig,}
 	# For some reason, --crate-types needs separate invocations. We can't use
 	# #![crate_type] unfortunately, as using it with #![cfg_attr] has been
 	# deprecated. <https://github.com/rust-lang/rust/issues/91632>
-	$(CARGO) rustc $(CARGO_FLAGS) --crate-type=cdylib    $(RUSTC_FLAGS)
-	$(CARGO) rustc $(CARGO_FLAGS) --crate-type=staticlib $(RUSTC_FLAGS)
+	#$(CARGO) rustc $(CARGO_FLAGS) --crate-type=cdylib    $(RUSTC_FLAGS)
+	#$(CARGO) rustc $(CARGO_FLAGS) --crate-type=staticlib $(RUSTC_FLAGS)
 
 .PHONY: release
 release: target/release
 
+target/release: CARGO_FLAGS += --release
 target/release: $(SRC_FILES)
+	# MSRV(1.64): Use cargo rustc --crate-type={cdy,static}lib.
+	sed -i.orig '/^crate-type/ s/=.*/= ["rlib", "cdylib", "staticlib"]/' Cargo.toml
+	RUSTFLAGS="$(RUSTC_FLAGS)" $(CARGO) build $(CARGO_FLAGS)
+	mv Cargo.toml{.orig,}
 	# For some reason, --crate-types needs separate invocations. We can't use
 	# #![crate_type] unfortunately, as using it with #![cfg_attr] has been
 	# deprecated. <https://github.com/rust-lang/rust/issues/91632>
-	$(CARGO) rustc $(CARGO_FLAGS) --release --crate-type=cdylib    $(RUSTC_FLAGS)
-	$(CARGO) rustc $(CARGO_FLAGS) --release --crate-type=staticlib $(RUSTC_FLAGS)
+	#$(CARGO) rustc $(CARGO_FLAGS) --crate-type=cdylib    $(RUSTC_FLAGS)
+	#$(CARGO) rustc $(CARGO_FLAGS) --crate-type=staticlib $(RUSTC_FLAGS)
 
 .PHONY: smoke-test
 smoke-test:

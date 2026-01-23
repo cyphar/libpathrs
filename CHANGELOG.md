@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Fixed ###
+- While our MSRV is Rust 1.63 (to allow libpathrs to be packaged for Debian
+  12), we inadvertently depended on a Rust 1.64 feature in our build scripts
+  (`cargo rustc --crate-type`). We have added a temporary workaround for Rust
+  1.63, which will be removed after we update our MSRV.
+
 ## [0.2.2] - 2025-11-25 ##
 
 > 貴様ら全員刀の錆にしてやるぜ。
