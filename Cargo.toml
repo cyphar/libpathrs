@@ -48,7 +48,7 @@ rust-version = "1.63"
 maintenance = { status = "experimental" }
 
 [lib]
-# When building the CAPI, our Makefile adds --crate-type={cdylib,staticlib}.
+# MSRV(1.64): Replace with --crate-type={cdy,static}lib in Makefile.
 crate-type = ["rlib"]
 
 [features]
