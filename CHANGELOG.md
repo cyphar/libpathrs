@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   This bug has been present since libpathrs 0.2, meaning that this has been
   broken for all versions with versioned symbols. This has been fixed, and now
   our symbols are properly versioned.
+  - In addition, building `libpathrs.so` with pre-1.90 Rust was broken because
+    of unfortunate interactions with GNU ld and our version scripts. This has
+    been resolved, but means that **libpathrs now requires `lld` to compile,
+    even on older Rust versions**. Rust 1.90 switched to `lld` by default for
+    x86 platforms.
 
 ## [0.2.2] - 2025-11-25 ##
 
