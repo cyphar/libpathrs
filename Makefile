@@ -29,8 +29,6 @@
 #  You should have received a copy of the GNU Lesser General Public License
 #  along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-SHELL := /bin/bash
-
 CARGO ?= cargo
 CARGO_NIGHTLY ?= cargo +nightly
 
@@ -61,10 +59,8 @@ debug: target/debug
 
 target/debug: $(SRC_FILES)
 	# MSRV(1.64): Use cargo rustc --crate-type={cdy,static}lib.
-	sed -i.orig '/^crate-type/ s/=.*/= ["rlib", "cdylib", "staticlib"]/' Cargo.toml
-	RUSTFLAGS="$(RUSTC_FLAGS)" $(CARGO) build $(CARGO_FLAGS)
-	mv Cargo.toml{.orig,}
-	# For some reason, --crate-types needs separate invocations. We can't use
+	RUSTFLAGS="$(RUSTC_FLAGS)" ./hack/with-crate-type.sh $(CARGO) build $(CARGO_FLAGS)
+	# For some reason, --crate-type needs separate invocations. We can't use
 	# #![crate_type] unfortunately, as using it with #![cfg_attr] has been
 	# deprecated. <https://github.com/rust-lang/rust/issues/91632>
 	#$(CARGO) rustc $(CARGO_FLAGS) --crate-type=cdylib    $(RUSTC_FLAGS)
@@ -76,10 +72,8 @@ release: target/release
 target/release: CARGO_FLAGS += --release
 target/release: $(SRC_FILES)
 	# MSRV(1.64): Use cargo rustc --crate-type={cdy,static}lib.
-	sed -i.orig '/^crate-type/ s/=.*/= ["rlib", "cdylib", "staticlib"]/' Cargo.toml
-	RUSTFLAGS="$(RUSTC_FLAGS)" $(CARGO) build $(CARGO_FLAGS)
-	mv Cargo.toml{.orig,}
-	# For some reason, --crate-types needs separate invocations. We can't use
+	RUSTFLAGS="$(RUSTC_FLAGS)" ./hack/with-crate-type.sh $(CARGO) build $(CARGO_FLAGS)
+	# For some reason, --crate-type needs separate invocations. We can't use
 	# #![crate_type] unfortunately, as using it with #![cfg_attr] has been
 	# deprecated. <https://github.com/rust-lang/rust/issues/91632>
 	#$(CARGO) rustc $(CARGO_FLAGS) --crate-type=cdylib    $(RUSTC_FLAGS)
