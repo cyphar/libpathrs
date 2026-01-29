@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+## [0.2.3] - 2026-01-29 ##
+
+> この閃きを俺は信じる！
+
 ### Fixed ###
 - While our MSRV is Rust 1.63 (to allow libpathrs to be packaged for Debian
   12), we inadvertently depended on a Rust 1.64 feature in our build scripts
@@ -618,8 +622,9 @@ Initial release.
   - C FFI.
   - Python bindings.
 
-[Unreleased]: https://github.com/cyphar/libpathrs/compare/v0.2.2...HEAD
-[0.2.1]: https://github.com/cyphar/libpathrs/compare/v0.2.1...v0.2.2
+[Unreleased]: https://github.com/cyphar/libpathrs/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/cyphar/libpathrs/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/cyphar/libpathrs/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/cyphar/libpathrs/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/cyphar/libpathrs/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/cyphar/libpathrs/compare/v0.1.2...v0.1.3
