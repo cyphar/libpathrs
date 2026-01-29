@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   12), we inadvertently depended on a Rust 1.64 feature in our build scripts
   (`cargo rustc --crate-type`). We have added a temporary workaround for Rust
   1.63, which will be removed after we update our MSRV.
+- A bug in our system for generating symbol versions actually resulted in no
+  versioned symbols for `libpathrs.so` when compiled with Rust 1.72 or newer.
+  This bug has been present since libpathrs 0.2, meaning that this has been
+  broken for all versions with versioned symbols. This has been fixed, and now
+  our symbols are properly versioned.
+  - In addition, building `libpathrs.so` with pre-1.90 Rust was broken because
+    of unfortunate interactions with GNU ld and our version scripts. This has
+    been resolved, but means that **libpathrs now requires `lld` to compile,
+    even on older Rust versions**. Rust 1.90 switched to `lld` by default for
+    x86 platforms.
 
 ## [0.2.2] - 2025-11-25 ##
 
