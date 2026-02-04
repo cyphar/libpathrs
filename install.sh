@@ -54,6 +54,7 @@ SOVERSION="$(get_so_version)"
 
 SONAME="lib$(get_crate_info name).so.$FULLVERSION"
 
+TARGET=
 # Try to emulate autoconf's basic flags.
 DEFAULT_PREFIX=/usr/local
 usage() {
@@ -83,6 +84,13 @@ usage() {
 	filesystem. This is usually used for distribution packaging. You can also
 	pass environment variables as command-line arguments.
 
+	In addition, in order to support cross-compilation and custom build modes,
+	you can specify which rust target architecture and build mode to copy the
+	files from (rather than the top-level native target/release directory).
+
+	  --rust-target=[${TARGET:=<native>}]
+	  --rust-buildmode=[release]
+
 	Example:
 
 	In an openSUSE rpm spec, this script could be used like this:
@@ -103,7 +111,7 @@ usage() {
 	[ "$#" -gt 0 ] && exit_code=1
 	exit "$exit_code"
 }
-GETOPT="$(getopt -o h --long help,prefix:,exec-prefix:,includedir:,libdir:,pkgconfigdir: -- "$@")"
+GETOPT="$(getopt -o h --long help,prefix:,exec-prefix:,includedir:,libdir:,pkgconfigdir:,rust-target:,rust-buildmode: -- "$@")"
 eval set -- "$GETOPT"
 
 DESTDIR="${DESTDIR:-}"
@@ -112,19 +120,23 @@ exec_prefix=
 includedir=
 libdir=
 pkgconfigdir=
+rust_target="$TARGET"
+rust_buildmode=release
 while true; do
 	case "$1" in
-		--prefix)       prefix="$2";       shift 2 ;;
-		--exec-prefix)  exec_prefix="$2";  shift 2 ;;
-		--includedir)   includedir="$2";   shift 2 ;;
-		--libdir)       libdir="$2";       shift 2 ;;
-		--pkgconfigdir) pkgconfigdir="$2"; shift 2 ;;
+		--prefix)			prefix="$2";			shift 2 ;;
+		--exec-prefix)		exec_prefix="$2";		shift 2 ;;
+		--includedir)		includedir="$2";		shift 2 ;;
+		--libdir)			libdir="$2";			shift 2 ;;
+		--pkgconfigdir)		pkgconfigdir="$2";		shift 2 ;;
+		--rust-target)		rust_target="$2";		shift 2 ;;
+		--rust-buildmode)	rust_buildmode="$2";	shift 2 ;;
 		--) shift; break ;;
 		-h | --help) usage ;;
 		*)           usage "unknown argument $1" ;;
 	esac
 done
-
+builddir="target/$rust_target/$rust_buildmode"
 
 for extra_arg in "$@"; do
 	if [[ "$extra_arg" = *=* ]]; then
@@ -210,8 +222,8 @@ set -x
 install -Dt "$DESTDIR/$pkgconfigdir/" -m 0644 pathrs.pc
 install -Dt "$DESTDIR/$includedir/"   -m 0644 include/pathrs.h
 # Static library.
-install -Dt "$DESTDIR/$libdir"        -m 0644 target/release/libpathrs.a
+install -Dt "$DESTDIR/$libdir"        -m 0644 "$builddir/libpathrs.a"
 # Shared library.
-install -DT -m 0755 target/release/libpathrs.so "$DESTDIR/$libdir/$SONAME"
+install -DT -m 0755 "$builddir/libpathrs.so" "$DESTDIR/$libdir/$SONAME"
 ln -sf "$SONAME" "$DESTDIR/$libdir/libpathrs.so.$SOVERSION"
 ln -sf "$SONAME" "$DESTDIR/$libdir/libpathrs.so"

@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - New `EXTRA_RUSTC_FLAGS` and `EXTRA_CARGO_FLAGS` variables have been added to
   our `Makefile`, making it easier for packaging tools to adjust builds while
   still using `make release`.
+- `install.sh` now accepts `--rust-target` and `--rust-buildmode` as parameters
+  to make cross-compilation workflows easier to write (in particular, this is
+  needed for runc's release scripts).
 
 ## [0.2.3] - 2026-01-29 ##
 
