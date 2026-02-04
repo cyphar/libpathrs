@@ -48,7 +48,6 @@ rust-version = "1.63"
 maintenance = { status = "experimental" }
 
 [lib]
-# MSRV(1.64): Replace with --crate-type={cdy,static}lib in Makefile.
 crate-type = ["rlib"]
 
 [features]

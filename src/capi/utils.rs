@@ -73,6 +73,8 @@ use libc::{c_char, c_int, size_t};
 macro_rules! symver {
     () => {};
     (@with-meta $(#[$meta:meta])* $($block:tt)+) => {
+        // Only generate .symver entries for cdylib.
+        #[cfg(cdylib)]
         // Some architectures still have unstable ASM, which stops us from
         // injecting the ".symver" section. You can see the list in
         // LoweringContext::lower_inline_asm (compiler/rustc_asm_lowering).

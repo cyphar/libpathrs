@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   to make cross-compilation workflows easier to write (in particular, this is
   needed for runc's release scripts).
 
+### Fixed ###
+- Previously, `staticlib` builds of libpathrs (i.e., `libpathrs.a`)
+  inadvertently included symbol versioned symbols (`@@LIBPATHRS_X.Y`), which
+  would cause linker errors when trying to compile programs statically against
+  libpathrs.
+
+  This has been resolved, but downstream users who build runc without using
+  `make release` will need to take care to ensure they correctly set the
+  `LIBPATHRS_CAPI_BUILDMODE` environment variable when building and build
+  `libpathrs.a` and `libpathrs.so` in **separate** `cargo build` (or `cargo
+  rustc`) invocations. This is mostly necessary due to [the lack of support for
+  `#[cfg(crate_type)]`][rust-issue20267].
+
+[rust-issue20267]: https://github.com/rust-lang/rust/issues/20267
+
 ## [0.2.3] - 2026-01-29 ##
 
 > この閃きを俺は信じる！
