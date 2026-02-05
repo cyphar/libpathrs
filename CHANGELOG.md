@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `libpathrs.a` and `libpathrs.so` in **separate** `cargo build` (or `cargo
   rustc`) invocations. This is mostly necessary due to [the lack of support for
   `#[cfg(crate_type)]`][rust-issue20267].
+- `go-pathrs` now correctly builds on 32-bit architectures.
 
 [rust-issue20267]: https://github.com/rust-lang/rust/issues/20267
 
