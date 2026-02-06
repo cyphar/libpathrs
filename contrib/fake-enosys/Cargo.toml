@@ -18,7 +18,7 @@ edition = "2021"
 anyhow = "1"
 bpfvm = "0.1"
 clap = { version = "4", features = ["string"] }
-libc = "0.2.178"
+libc = "0.2.180"
 rustix = { version = "1", features = ["process", "thread", "fs"] }
 syscalls = "0.8"
 
