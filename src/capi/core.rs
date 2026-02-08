@@ -623,24 +623,42 @@ utils::symver! {
 #[no_mangle]
 pub unsafe extern "C" fn pathrs_inroot_symlink(
     root_fd: CBorrowedFd<'_>,
-    path: *const c_char,
     target: *const c_char,
+    linkpath: *const c_char,
 ) -> c_int {
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path)? }; // SAFETY: C caller guarantees path is safe.
         let target = unsafe { utils::parse_path(target)? }; // SAFETY: C caller guarantees path is safe.
-        root.create(path, &InodeType::Symlink(target.into()))
+        let linkpath = unsafe { utils::parse_path(linkpath)? }; // SAFETY: C caller guarantees path is safe.
+        root.create(linkpath, &InodeType::Symlink(target.into()))
     }()
     .into_c_return()
 }
 utils::symver! {
-    fn pathrs_inroot_symlink <- (pathrs_inroot_symlink, version = "LIBPATHRS_0.2", default);
+    fn pathrs_inroot_symlink <- (pathrs_inroot_symlink, version = "LIBPATHRS_0.3", default);
+}
+
+/// A compatibility shim for `pathrs_inroot_symlink`, which previously took its
+/// arguments in the wrong order.
+///
+/// cbindgen:ignore
+#[no_mangle]
+pub unsafe extern "C" fn __pathrs_inroot_symlink_v1(
+    root_fd: CBorrowedFd<'_>,
+    path: *const c_char,
+    target: *const c_char,
+) -> c_int {
+    pathrs_inroot_symlink(root_fd, target, path)
+}
+utils::symver! {
+    // The old version of pathrs_inroot_symlink had "target" and "linkpath"
+    // flipped.
+    fn __pathrs_inroot_symlink_v1 <- (pathrs_inroot_symlink, version = "LIBPATHRS_0.2");
     // This symbol was renamed in libpathrs 0.2. For backward compatibility with
     // pre-symbol-versioned builds of libpathrs, it needs to be a default so
     // that loaders will pick it when searching for the unversioned name.
-    fn pathrs_inroot_symlink <- (pathrs_symlink, version = "LIBPATHRS_0.1", default);
+    fn __pathrs_inroot_symlink_v1 <- (pathrs_symlink, version = "LIBPATHRS_0.1", default);
 }
 
 /// Create a hardlink within the rootfs referenced by root_fd. Both the hardlink
@@ -657,22 +675,40 @@ utils::symver! {
 #[no_mangle]
 pub unsafe extern "C" fn pathrs_inroot_hardlink(
     root_fd: CBorrowedFd<'_>,
-    path: *const c_char,
     target: *const c_char,
+    linkpath: *const c_char,
 ) -> c_int {
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path)? }; // SAFETY: C caller guarantees path is safe.
         let target = unsafe { utils::parse_path(target)? }; // SAFETY: C caller guarantees path is safe.
-        root.create(path, &InodeType::Hardlink(target.into()))
+        let linkpath = unsafe { utils::parse_path(linkpath)? }; // SAFETY: C caller guarantees path is safe.
+        root.create(linkpath, &InodeType::Hardlink(target.into()))
     }()
     .into_c_return()
 }
 utils::symver! {
-    fn pathrs_inroot_hardlink <- (pathrs_inroot_hardlink, version = "LIBPATHRS_0.2", default);
+    fn pathrs_inroot_hardlink <- (pathrs_inroot_hardlink, version = "LIBPATHRS_0.3", default);
+}
+
+/// A compatibility shim for `pathrs_inroot_hardlink`, which previously took its
+/// arguments in the wrong order.
+///
+/// cbindgen:ignore
+#[no_mangle]
+pub unsafe extern "C" fn __pathrs_inroot_hardlink_v1(
+    root_fd: CBorrowedFd<'_>,
+    path: *const c_char,
+    target: *const c_char,
+) -> c_int {
+    pathrs_inroot_hardlink(root_fd, target, path)
+}
+utils::symver! {
+    // The old version of pathrs_inroot_hardlink had "target" and "linkpath"
+    // flipped.
+    fn __pathrs_inroot_hardlink_v1 <- (pathrs_inroot_hardlink, version = "LIBPATHRS_0.2");
     // This symbol was renamed in libpathrs 0.2. For backward compatibility with
     // pre-symbol-versioned builds of libpathrs, it needs to be a default so
     // that loaders will pick it when searching for the unversioned name.
-    fn pathrs_inroot_hardlink <- (pathrs_hardlink, version = "LIBPATHRS_0.1", default);
+    fn __pathrs_inroot_hardlink_v1 <- (pathrs_hardlink, version = "LIBPATHRS_0.1", default);
 }

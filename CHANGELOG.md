@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Breaking ###
+* `pathrs_inroot_hardlink` and `pathrs_inroot_symlink` have been switched to
+  using the standard argument order from their respective system calls
+  (previously the order was swapped, which lead to possible confusion).
+  - Previously compiled programs will continue to work (thanks to symbol
+    versioning) but rebuilt programs will need to adjust their argument order.
+  - Rust users are not affected by this change.
+  - For the Go and Python bindings, the wrappers have also had their argument
+    orders swapped to match the C API and so will also need to be updated when
+    rebuilding.
+
 ## [0.2.3] - 2026-01-29 ##
 
 > この閃きを俺は信じる！

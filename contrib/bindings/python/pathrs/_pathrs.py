@@ -359,7 +359,7 @@ class Root(WrappedFd):
         if _is_pathrs_err(err):
             raise PathrsError._fetch(err) or INTERNAL_ERROR
 
-    def hardlink(self, path: str, target: str, /) -> None:
+    def hardlink(self, target: str, linkname: str, /) -> None:
         """
         Create a hardlink between two paths inside the Root.
 
@@ -370,12 +370,12 @@ class Root(WrappedFd):
         exists.
         """
         err = libpathrs_so.pathrs_inroot_hardlink(
-            self.fileno(), _cstr(path), _cstr(target)
+            self.fileno(), _cstr(target), _cstr(linkname)
         )
         if _is_pathrs_err(err):
             raise PathrsError._fetch(err) or INTERNAL_ERROR
 
-    def symlink(self, path: str, target: str, /) -> None:
+    def symlink(self, target: str, linkname: str, /) -> None:
         """
         Create a symlink at the given path in the Root.
 
@@ -387,7 +387,7 @@ class Root(WrappedFd):
         exists.
         """
         err = libpathrs_so.pathrs_inroot_symlink(
-            self.fileno(), _cstr(path), _cstr(target)
+            self.fileno(), _cstr(target), _cstr(linkname)
         )
         if _is_pathrs_err(err):
             raise PathrsError._fetch(err) or INTERNAL_ERROR
