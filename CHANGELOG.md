@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   rustc`) invocations. This is mostly necessary due to [the lack of support for
   `#[cfg(crate_type)]`][rust-issue20267].
 - `go-pathrs` now correctly builds on 32-bit architectures.
+- When doing `procfs` operations, previously libpathrs would internally keep a
+  handle to `ProcfsBase` open during the entire operation (due to `Drop`
+  semantics in Rust) rather than closing the file descriptor as quickly as
+  possible. The file descriptor would be closed soon afterwards (and thus was
+  not a leak) but tools that search for file descriptor leaks (such as runc's
+  test suite) could incorrectly classify this as a leak. We now close this
+  `ProcfsBase` handle far more aggressively.
 
 [rust-issue20267]: https://github.com/rust-lang/rust/issues/20267
 
