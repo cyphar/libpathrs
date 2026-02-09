@@ -101,8 +101,9 @@ jobs:
 
       # Install bats.
       - name: install bats
-        uses: bats-core/bats-action@3.0.1
+        uses: bats-core/bats-action@4.0.0
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           bats-version: ${{ env.BATS_VERSION }}
           support-install: false
           assert-install: false
