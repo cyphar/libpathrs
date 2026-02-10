@@ -67,7 +67,7 @@ lto = true
 bitflags = "2.2"
 bytemuck = { version = "1", features = ["extern_crate_std", "derive"], optional = true }
 itertools = "0.14"
-libc = "0.2.178"
+libc = "0.2.181"
 memchr = "2"
 # MSRV(1.80): Use LazyLock.
 # MSRV(1.65): Update to once_cell >= 1.21.
