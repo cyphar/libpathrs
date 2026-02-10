@@ -35,55 +35,76 @@ use std::{env, io::Write};
 use tempfile::NamedTempFile;
 
 fn main() {
-    // Add DT_SONAME and other ELF metadata to our cdylibs. We can't check the
-    // crate-type here directly, but we can at least avoid needless warnings for
-    // "cargo build" by only emitting this when the capi feature is enabled.
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_CAPI");
+    println!("cargo:rerun-if-env-changed=LIBPATHRS_CAPI_BUILDMODE");
     if cfg!(feature = "capi") {
-        let name = "pathrs";
-        // TODO: Since we use symbol versioning, it seems quite unlikely that we
-        // would ever bump the major version in the SONAME, so we should
-        // probably hard-code this or define it elsewhere.
-        let major = env::var("CARGO_PKG_VERSION_MAJOR").unwrap();
-        println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,lib{name}.so.{major}");
+        // Add DT_SONAME and other ELF metadata to our cdylibs. We can't check
+        // the crate-type here directly, so we have our Makefile define a
+        // special environment variable instead (for whatever reason, even
+        // --cfg=... doesn't seem to propagate to build.rs. This means that each
+        // crate-type needs to be built separately (with --cargo-type).
+        //
+        // The alternative would be to make cdylib/symvers a feature, which
+        // seems even more prone to breakage -- at least your build will
+        // explicitly fail if you don't specifying LIBPATHRS_CAPI_BUILDMODE.
+        let is_cdylib = match env::var("LIBPATHRS_CAPI_BUILDMODE")
+            .unwrap_or_else(|_| "".to_string())
+            .as_str()
+        {
+            "cdylib" => {
+                println!("cargo:rustc-cfg=cdylib");
+                true
+            }
+            "staticlib" | "" => false,
+            v => panic!("unknown LIBPATHRS_CAPI_BUILDMODE={v} value"),
+        };
+        if is_cdylib {
+            let name = "pathrs";
+            // TODO: Since we use symbol versioning, it seems quite unlikely that we
+            // would ever bump the major version in the SONAME, so we should
+            // probably hard-code this or define it elsewhere.
+            let major = env::var("CARGO_PKG_VERSION_MAJOR").unwrap();
+            println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,lib{name}.so.{major}");
 
-        let (mut version_script_file, version_script_path) =
-            NamedTempFile::with_prefix("libpathrs-version-script.")
-                .expect("mktemp")
-                .keep()
-                .expect("persist mktemp");
-        let version_script_path = version_script_path
-            .to_str()
-            .expect("mktemp should be utf-8 safe string");
-        writeln!(
-            version_script_file,
-            // All of the symbol versions are done with in-line .symver entries.
-            // This version script is only needed to define the version nodes
-            // (and their dependencies).
-            // FIXME: "local" doesn't appear to actually hide symbols in the
-            // output .so. For more information about getting all of this to
-            // work nicely, see <https://internals.rust-lang.org/t/23626>.
-            r#"
+            let (mut version_script_file, version_script_path) =
+                NamedTempFile::with_prefix("libpathrs-version-script.")
+                    .expect("mktemp")
+                    .keep()
+                    .expect("persist mktemp");
+            let version_script_path = version_script_path
+                .to_str()
+                .expect("mktemp should be utf-8 safe string");
+            writeln!(
+                version_script_file,
+                // All of the symbol versions are done with in-line .symver entries.
+                // This version script is only needed to define the version nodes
+                // (and their dependencies).
+                // FIXME: "local" doesn't appear to actually hide symbols in the
+                // output .so. For more information about getting all of this to
+                // work nicely, see <https://internals.rust-lang.org/t/23626>.
+                r#"
             LIBPATHRS_0.1 {{ }};
             LIBPATHRS_0.2 {{ local: *; }} LIBPATHRS_0.1;
             "#
-        )
-        .expect("write version script");
-        println!("cargo:rustc-cdylib-link-arg=-Wl,--version-script={version_script_path}");
+            )
+            .expect("write version script");
+            println!("cargo:rustc-cdylib-link-arg=-Wl,--version-script={version_script_path}");
 
-        // The above version script (and our .symver setup) conflicts with the
-        // version script and options used by Rust when linking with GNU ld.
-        // Thankfully, lld Just Works(TM) out of the box so we can use it.
-        //
-        // Rust 1.90 switched to lld by default for x86, but for older versions
-        // and other architectures it is necessary to specify the linker as lld
-        // (there was also a rustflag for this but it was unstable until Rust
-        // 1.90).
-        //
-        // Unfortunately, while there are some clever tricks you could use for
-        // GNU ld (such as writing an ld wrapper and executing it with "cc -B"),
-        // doing so produces useless symbol versions so it's better to just
-        // require lld. Debian bullseye and later all have lld, so this is a
-        // non-issue for packagers.
-        println!("cargo:rustc-cdylib-link-arg=-fuse-ld=lld");
+            // The above version script (and our .symver setup) conflicts with the
+            // version script and options used by Rust when linking with GNU ld.
+            // Thankfully, lld Just Works(TM) out of the box so we can use it.
+            //
+            // Rust 1.90 switched to lld by default for x86, but for older versions
+            // and other architectures it is necessary to specify the linker as lld
+            // (there was also a rustflag for this but it was unstable until Rust
+            // 1.90).
+            //
+            // Unfortunately, while there are some clever tricks you could use for
+            // GNU ld (such as writing an ld wrapper and executing it with "cc -B"),
+            // doing so produces useless symbol versions so it's better to just
+            // require lld. Debian bullseye and later all have lld, so this is a
+            // non-issue for packagers.
+            println!("cargo:rustc-cdylib-link-arg=-fuse-ld=lld");
+        }
     }
 }

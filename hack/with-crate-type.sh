@@ -35,12 +35,32 @@
 
 set -Eeuo pipefail
 
+bail() {
+	echo "$*" >&2
+	exit 1
+}
+
 SRC_ROOT="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/..")"
-backup="$(mktemp "$SRC_ROOT/Cargo.toml.XXXXXX")"
+
+# Only parse the first argument if it is --crate-type=foo. The rest of the
+# arguments get passed as-is.
+crate_types=("rlib" "staticlib" "cdylib")
+case "${1:-}" in
+	--crate-type=*)
+		arg="${1#*=}"
+		IFS=', ' read -r -a crate_types <<<"$arg"
+		shift 1
+		;;
+esac
+
+[ "$#" -gt 0 ] || bail "usage: with-crate-type.sh [--crate-type=...] <command> [...]"
 
 set -x
 
-sed -i".${backup##*.}" '/^crate-type/ s/=.*/= ["rlib", "cdylib", "staticlib"]/' "$SRC_ROOT/Cargo.toml"
+backup="$(mktemp "$SRC_ROOT/Cargo.toml.XXXXXX")"
+sed -i".${backup##*.}" \
+	"/^crate-type/ s/=.*/= [$(printf '"%s",' "${crate_types[@]}")]/" \
+	"$SRC_ROOT/Cargo.toml"
 # shellcheck disable=SC2064 # We want to expand the variables immediately.
 trap "mv '$backup' '$SRC_ROOT/Cargo.toml'" EXIT
 

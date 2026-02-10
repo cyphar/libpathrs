@@ -6,6 +6,37 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Added ###
+- New `EXTRA_RUSTC_FLAGS` and `EXTRA_CARGO_FLAGS` variables have been added to
+  our `Makefile`, making it easier for packaging tools to adjust builds while
+  still using `make release`.
+- `install.sh` now accepts `--rust-target` and `--rust-buildmode` as parameters
+  to make cross-compilation workflows easier to write (in particular, this is
+  needed for runc's release scripts).
+
+### Fixed ###
+- Previously, `staticlib` builds of libpathrs (i.e., `libpathrs.a`)
+  inadvertently included symbol versioned symbols (`@@LIBPATHRS_X.Y`), which
+  would cause linker errors when trying to compile programs statically against
+  libpathrs.
+
+  This has been resolved, but downstream users who build runc without using
+  `make release` will need to take care to ensure they correctly set the
+  `LIBPATHRS_CAPI_BUILDMODE` environment variable when building and build
+  `libpathrs.a` and `libpathrs.so` in **separate** `cargo build` (or `cargo
+  rustc`) invocations. This is mostly necessary due to [the lack of support for
+  `#[cfg(crate_type)]`][rust-issue20267].
+- `go-pathrs` now correctly builds on 32-bit architectures.
+- When doing `procfs` operations, previously libpathrs would internally keep a
+  handle to `ProcfsBase` open during the entire operation (due to `Drop`
+  semantics in Rust) rather than closing the file descriptor as quickly as
+  possible. The file descriptor would be closed soon afterwards (and thus was
+  not a leak) but tools that search for file descriptor leaks (such as runc's
+  test suite) could incorrectly classify this as a leak. We now close this
+  `ProcfsBase` handle far more aggressively.
+
+[rust-issue20267]: https://github.com/rust-lang/rust/issues/20267
+
 ## [0.2.3] - 2026-01-29 ##
 
 > この閃きを俺は信じる！

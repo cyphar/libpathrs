@@ -48,36 +48,50 @@ CARGO_CHECK := $(call cargo_hack,$(CARGO),check)
 CARGO_CLIPPY := $(call cargo_hack,$(CARGO),clippy)
 CARGO_LLVM_COV := $(call cargo_hack,$(CARGO_NIGHTLY),llvm-cov)
 
-RUSTC_FLAGS := -C panic=abort
-CARGO_FLAGS ?= --features=capi
+EXTRA_RUSTC_FLAGS ?=
+RUSTC_FLAGS := -C panic=abort $(EXTRA_RUSTC_FLAGS)
+EXTRA_CARGO_FLAGS ?=
+CARGO_FLAGS := --features=capi $(EXTRA_CARGO_FLAGS)
 
 SRC_FILES = $(wildcard Cargo.*) $(shell find . -name '*.rs')
 
 .DEFAULT: debug
 .PHONY: debug
-debug: target/debug
+debug: target/debug/libpathrs.so target/debug/libpathrs.a
 
-target/debug: $(SRC_FILES)
-	# MSRV(1.64): Use cargo rustc --crate-type={cdy,static}lib.
-	RUSTFLAGS="$(RUSTC_FLAGS)" ./hack/with-crate-type.sh $(CARGO) build $(CARGO_FLAGS)
-	# For some reason, --crate-type needs separate invocations. We can't use
-	# #![crate_type] unfortunately, as using it with #![cfg_attr] has been
-	# deprecated. <https://github.com/rust-lang/rust/issues/91632>
-	#$(CARGO) rustc $(CARGO_FLAGS) --crate-type=cdylib    $(RUSTC_FLAGS)
-	#$(CARGO) rustc $(CARGO_FLAGS) --crate-type=staticlib $(RUSTC_FLAGS)
+target/debug/libpathrs.so: LIBPATHRS_CAPI_BUILDMODE := cdylib
+target/debug/libpathrs.so: $(SRC_FILES)
+	LIBPATHRS_CAPI_BUILDMODE=$(LIBPATHRS_CAPI_BUILDMODE) \
+		hack/with-crate-type.sh --crate-type=$(LIBPATHRS_CAPI_BUILDMODE) \
+		env RUSTFLAGS="$(RUSTC_FLAGS)" $(CARGO) build $(CARGO_FLAGS)
+	# MSRV(1.64): Switch to cargo rustc --crate-type=...
+	#LIBPATHRS_CAPI_BUILDMODE=$(LIBPATHRS_CAPI_BUILDMODE) $(CARGO) rustc $(CARGO_FLAGS) --crate-type=$(LIBPATHRS_CAPI_BUILDMODE) -- $(RUSTC_FLAGS)
+target/debug/libpathrs.a: LIBPATHRS_CAPI_BUILDMODE := staticlib
+target/debug/libpathrs.a: $(SRC_FILES)
+	LIBPATHRS_CAPI_BUILDMODE=$(LIBPATHRS_CAPI_BUILDMODE) \
+		hack/with-crate-type.sh --crate-type=$(LIBPATHRS_CAPI_BUILDMODE) \
+		env RUSTFLAGS="$(RUSTC_FLAGS)" $(CARGO) build $(CARGO_FLAGS)
+	# MSRV(1.64): Switch to cargo rustc --crate-type=...
+	#LIBPATHRS_CAPI_BUILDMODE=$(LIBPATHRS_CAPI_BUILDMODE) $(CARGO) rustc $(CARGO_FLAGS) --crate-type=$(LIBPATHRS_CAPI_BUILDMODE) -- $(RUSTC_FLAGS)
 
 .PHONY: release
-release: target/release
+release: CARGO_FLAGS += --release
+release: target/release/libpathrs.so target/release/libpathrs.a
 
-target/release: CARGO_FLAGS += --release
-target/release: $(SRC_FILES)
-	# MSRV(1.64): Use cargo rustc --crate-type={cdy,static}lib.
-	RUSTFLAGS="$(RUSTC_FLAGS)" ./hack/with-crate-type.sh $(CARGO) build $(CARGO_FLAGS)
-	# For some reason, --crate-type needs separate invocations. We can't use
-	# #![crate_type] unfortunately, as using it with #![cfg_attr] has been
-	# deprecated. <https://github.com/rust-lang/rust/issues/91632>
-	#$(CARGO) rustc $(CARGO_FLAGS) --crate-type=cdylib    $(RUSTC_FLAGS)
-	#$(CARGO) rustc $(CARGO_FLAGS) --crate-type=staticlib $(RUSTC_FLAGS)
+target/release/libpathrs.so: LIBPATHRS_CAPI_BUILDMODE := cdylib
+target/release/libpathrs.so: $(SRC_FILES)
+	LIBPATHRS_CAPI_BUILDMODE=$(LIBPATHRS_CAPI_BUILDMODE) \
+		hack/with-crate-type.sh --crate-type=$(LIBPATHRS_CAPI_BUILDMODE) \
+		env RUSTFLAGS="$(RUSTC_FLAGS)" $(CARGO) build $(CARGO_FLAGS)
+	# MSRV(1.64): Switch to cargo rustc --crate-type=...
+	#LIBPATHRS_CAPI_BUILDMODE=$(LIBPATHRS_CAPI_BUILDMODE) $(CARGO) rustc $(CARGO_FLAGS) --crate-type=$(LIBPATHRS_CAPI_BUILDMODE) -- $(RUSTC_FLAGS)
+target/release/libpathrs.a: LIBPATHRS_CAPI_BUILDMODE := staticlib
+target/release/libpathrs.a: $(SRC_FILES)
+	LIBPATHRS_CAPI_BUILDMODE=$(LIBPATHRS_CAPI_BUILDMODE) \
+		hack/with-crate-type.sh --crate-type=$(LIBPATHRS_CAPI_BUILDMODE) \
+		env RUSTFLAGS="$(RUSTC_FLAGS)" $(CARGO) build $(CARGO_FLAGS)
+	# MSRV(1.64): Switch to cargo rustc --crate-type=...
+	#LIBPATHRS_CAPI_BUILDMODE=$(LIBPATHRS_CAPI_BUILDMODE) $(CARGO) rustc $(CARGO_FLAGS) --crate-type=$(LIBPATHRS_CAPI_BUILDMODE) -- $(RUSTC_FLAGS)
 
 .PHONY: smoke-test
 smoke-test:

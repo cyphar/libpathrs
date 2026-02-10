@@ -513,8 +513,7 @@ impl<'fd> ProcfsHandleRef<'fd> {
         // present because of subset=pid and retry (for magic-links we need to
         // operate on the target path more than once, which makes the retry
         // logic easier to do upfront here).
-        let basedir = self.open_base(base)?;
-        match self.openat_raw(basedir.as_fd(), subpath, oflags) {
+        match self.openat_raw(self.open_base(base)?.as_fd(), subpath, oflags) {
             Ok(file) => return Ok(file.into()),
             Err(err) => {
                 if self.is_subset && err.kind() == ErrorKind::OsError(Some(libc::ENOENT)) {
@@ -629,10 +628,9 @@ impl<'fd> ProcfsHandleRef<'fd> {
         oflags.insert(OpenFlags::O_NOFOLLOW);
 
         // Do a basic lookup.
-        let basedir = self.open_base(base)?;
         let subpath = subpath.as_ref();
         let fd = self
-            .openat_raw(basedir.as_fd(), subpath, oflags)
+            .openat_raw(self.open_base(base)?.as_fd(), subpath, oflags)
             .or_else(|err| {
                 if self.is_subset && err.kind() == ErrorKind::OsError(Some(libc::ENOENT)) {
                     // If the lookup failed due to ENOENT, and the current
