@@ -232,9 +232,6 @@ pub struct ProcfsHandleBuilder {
     subset_pid: bool,
 }
 
-// MSRV(1.70): Use std::sync::OnceLock.
-static CACHED_PROCFS_HANDLE: OnceLock<OwnedFd> = OnceLock::new();
-
 impl Default for ProcfsHandleBuilder {
     fn default() -> Self {
         Self::new()
@@ -341,6 +338,9 @@ impl ProcfsHandleBuilder {
     /// panic as this is not a state that should be possible to reach in regular
     /// program execution.
     pub fn build(self) -> Result<ProcfsHandle, Error> {
+        // MSRV(1.70): Use std::sync::OnceLock.
+        static CACHED_PROCFS_HANDLE: OnceLock<OwnedFd> = OnceLock::new();
+
         // MSRV(1.85): Use let chain here (Rust 2024).
         if self.is_cache_friendly() {
             // If there is already a cached filesystem available, use that.
