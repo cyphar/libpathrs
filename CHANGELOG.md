@@ -40,8 +40,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   backports libpathrs will now explicitly refuse to use the fd-based mount API
   if the reported kernel version is pre-5.2 and will instead fallback to the
   less-secure `open("/proc")`.
+- libpathrs [0.2.0][] added some `fdinfo`-based hardening to the procfs
+  resolver when `openat2` is not available. Unfortunately, one aspect of this
+  hardening had a hard requirement on [a kernel feature only added in Linux
+  5.14][kcommit-3845f256a8b52] (namely the `ino` field in `fdinfo`) and thus
+  inadvertently increased our minimum kernel version requirement quite
+  significantly. This additional hardening is now only treated as mandatory if
+  the host kernel version is Linux 5.14 or newer.
 
 [rust-issue20267]: https://github.com/rust-lang/rust/issues/20267
+[kcommit-3845f256a8b52]: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=3845f256a8b527127bfbd4ced21e93d9e89aa6d7
 
 ## [0.2.3] - 2026-01-29 ##
 

@@ -32,7 +32,7 @@
 
 use crate::{
     error::{Error, ErrorExt, ErrorImpl, ErrorKind},
-    utils::FdExt,
+    utils::{kernel_version, FdExt},
 };
 
 use std::{
@@ -100,44 +100,60 @@ where
 {
     let fd = fd.as_fd();
 
-    // Verify that the "ino" field in fdinfo matches the real inode number
-    // of our file descriptor. This makes attacks harder (if not near
-    // impossible, outside of very constrained situations):
+    // Verify that the "ino" field in fdinfo matches the real inode number of
+    // our file descriptor. This makes attacks harder (if not near impossible,
+    // outside of very constrained situations):
     //
-    //  * An attacker would probably struggle to always accurately guess the inode
-    //    number of files that the process is trying to operate on. Yes, if they
-    //    know the victim process's access patterns of procfs they could probably
-    //    make an educated guess, but most files do not have stable inode numbers in
-    //    procfs.
+    // * An attacker would probably struggle to always accurately guess the inode
+    //   number of files that the process is trying to operate on. Yes, if they know
+    //   the victim process's access patterns of procfs they could probably make an
+    //   educated guess, but most files do not have stable inode numbers in procfs.
     //
-    //  * An attacker can no longer bind-mount their own fdinfo directory with just
-    //    a buch of handles to "/proc" open (assuming the attacker is trying to
-    //    spoof "mnt_id"), because the inode numbers won't match.
+    // * An attacker can no longer bind-mount their own fdinfo directory with just a
+    //   buch of handles to "/proc" open (assuming the attacker is trying to spoof
+    //   "mnt_id"), because the inode numbers won't match.
     //
-    //    They also can't really fake inode numbers in real procfs fdinfo
-    //    files, so they would need to create fake fdinfo files using
-    //    individual file arbitrary-data gadgets (like /proc/self/environ).
-    //    However, every program only has one environment so they would need
-    //    to create a new child process for every fd they are trying to
-    //    attack simultaneously (and accurately update their environment
-    //    data to avoid detection).
+    //   They also can't really fake inode numbers in real procfs fdinfo files,
+    //   so they would need to create fake fdinfo files using individual file
+    //   arbitrary-data gadgets (like /proc/self/environ). However, every
+    //   program only has one environment so they would need to create a new
+    //   child process for every fd they are trying to attack simultaneously
+    //   (and accurately update their environment data to avoid detection).
     //
-    // This isn't perfect protection by any means, but it's probably the
-    // best we can do for very old kernels (given the constraints). At the very
-    // least, it makes exploitation _much_ harder than if we didn't do anything
-    // at all.
+    // This isn't perfect protection by any means, but it's probably the best we
+    // can do for very old kernels (given the constraints). At the very least,
+    // it makes exploitation _much_ harder than if we didn't do anything at all.
     let actual_ino: u64 = fd.metadata().wrap("get inode number of fd")?.ino();
-    let fdinfo_ino: u64 =
+    let fdinfo_ino: Option<u64> =
         match parse_and_find_fdinfo_field(rdr, "ino").map_err(|err| (err.kind(), err)) {
-            Ok(Some(ino)) => Ok(ino),
-            // "ino" *must* exist as a field -- make sure we return a
-            // SafetyViolation here if it is missing or an invalid value
-            // (InternalError), otherwise an attacker could silence this check
-            // by creating a "ino"-less fdinfo.
+            Ok(Some(ino)) => Ok(Some(ino)),
+            Ok(None) => {
+                // Unfortunately, the "ino" field in fdinfo was only added in
+                // Linux 5.14 (see kcommit 3845f256a8b52 ("procfs/dmabuf: add
+                // inode number to /proc/*/fdinfo")) and so we cannot require
+                // this for such old kernels.
+                //
+                // However, *for post-5.14 kernels*, "ino" *must* exist as a
+                // field, so make sure we return a SafetyViolation here if it is
+                // missing. Otherwise an attacker could silence this check by
+                // creating a "ino"-less fdinfo.
+                //
+                // [kcommit-3845f256a8b52]: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=3845f256a8b527127bfbd4ced21e93d9e89aa6d7
+                if kernel_version::is_gte!(5, 14) {
+                    Err(ErrorImpl::SafetyViolation {
+                        description: format!(
+                            r#"fd {:?} has a fake fdinfo: missing "ino" field"#,
+                            fd.as_raw_fd(),
+                        )
+                        .into(),
+                    })?;
+                }
+                Ok(None)
+            }
             // TODO: Should we actually match for ErrorImpl::ParseIntError here?
-            Ok(None) | Err((ErrorKind::InternalError, _)) => Err(ErrorImpl::SafetyViolation {
+            Err((ErrorKind::InternalError, _)) => Err(ErrorImpl::SafetyViolation {
                 description: format!(
-                    r#"fd {:?} has a fake fdinfo: invalid or missing "ino" field"#,
+                    r#"fd {:?} has a fake fdinfo: invalid "ino" field"#,
                     fd.as_raw_fd(),
                 )
                 .into(),
@@ -146,14 +162,17 @@ where
             // Pass through any other errors.
             Err((_, err)) => Err(err),
         }?;
-    if actual_ino != fdinfo_ino {
-        Err(ErrorImpl::SafetyViolation {
+    // MSRV(1.85): Use let chain here (Rust 2024).
+    if let Some(fdinfo_ino) = fdinfo_ino {
+        if actual_ino != fdinfo_ino {
+            Err(ErrorImpl::SafetyViolation {
                 description: format!(
                     "fd {:?} has a fake fdinfo: wrong inode number (ino is {fdinfo_ino:X} not {actual_ino:X})",
                     fd.as_raw_fd()
                 )
                 .into(),
             })?;
+        }
     }
 
     // Reset the position in the fdinfo file, and re-parse it to look for
@@ -169,7 +188,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::ErrorKind;
+    use crate::{error::ErrorKind, syscalls};
 
     use std::{
         fmt::Debug,
@@ -528,9 +547,13 @@ mod tests {
         Ok(())
     }
 
-    // Make sure that a missing "ino" entry also fails.
+    // Make sure that a missing "ino" entry also fails on new kernels.
     #[test]
-    fn fd_get_verify_fdinfo_no_ino() -> Result<(), Error> {
+    fn fd_get_verify_fdinfo_no_ino_kernel514() -> Result<(), Error> {
+        if !kernel_version::is_gte!(5, 14) {
+            return Ok(());
+        }
+
         const FAKE_FDINFO: &[u8] = indoc! {b"
             foo: abcdef
             mnt_id: 12345
@@ -561,6 +584,42 @@ mod tests {
             Err(ErrorKind::SafetyViolation),
         )
         .expect(r#"get "non_exist" from fdinfo with missing ino"#);
+
+        Ok(())
+    }
+
+    // Make sure that a missing "ino" entry succeeds on old kernels (emulated).
+    #[test]
+    fn fd_get_verify_fdinfo_no_ino_oldkernel() -> Result<(), Error> {
+        // The UNAME26 personality lets us fake a pre-5.14 kernel version to
+        // kernel_version::is_gte.
+        let _persona_guard = syscalls::scoped_personality(syscalls::PER_UNAME26);
+
+        const FAKE_FDINFO: &[u8] = indoc! {b"
+            foo: abcdef
+            mnt_id: 12345
+        "};
+
+        let file = File::open(".").context("open dummy file")?;
+
+        check_fd_get_verify_fdinfo::<u64>(
+            &mut Cursor::new(&FAKE_FDINFO),
+            &file,
+            "mnt_id",
+            Ok(Some(12345)),
+        )
+        .expect(r#"get "mnt_id" from fdinfo with missing ino (pre-5.14)"#);
+
+        check_fd_get_verify_fdinfo::<u64>(&mut Cursor::new(&FAKE_FDINFO), &file, "ino", Ok(None))
+            .expect(r#"get "ino" from fdinfo with missing ino (pre-5.14)"#);
+
+        check_fd_get_verify_fdinfo::<String>(
+            &mut Cursor::new(&FAKE_FDINFO),
+            &file,
+            "non_exist",
+            Ok(None),
+        )
+        .expect(r#"get "non_exist" from fdinfo with missing ino (pre-5.14)"#);
 
         Ok(())
     }
