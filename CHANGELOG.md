@@ -34,6 +34,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   not a leak) but tools that search for file descriptor leaks (such as runc's
   test suite) could incorrectly classify this as a leak. We now close this
   `ProcfsBase` handle far more aggressively.
+- RHEL 8 kernels have backports of the fd-based mount API (`fsopen(2)`,
+  `open_tree(2)`, et al.) but some `runc` testing found that they have very bad
+  (and very difficult to debug) performance issues. Thus, to avoid broken
+  backports libpathrs will now explicitly refuse to use the fd-based mount API
+  if the reported kernel version is pre-5.2 and will instead fallback to the
+  less-secure `open("/proc")`.
 
 [rust-issue20267]: https://github.com/rust-lang/rust/issues/20267
 

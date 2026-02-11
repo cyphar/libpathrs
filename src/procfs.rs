@@ -63,7 +63,7 @@ use crate::{
     flags::{OpenFlags, ResolverFlags},
     resolvers::procfs::ProcfsResolver,
     syscalls,
-    utils::{self, FdExt, MaybeOwnedFd, RawProcfsRoot},
+    utils::{self, kernel_version, FdExt, MaybeOwnedFd, RawProcfsRoot},
 };
 
 use std::{
@@ -76,7 +76,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use once_cell::sync::OnceCell as OnceLock;
+use once_cell::sync::{Lazy, OnceCell as OnceLock};
 use rustix::{
     fs::{self as rustix_fs, Access, AtFlags},
     mount::{FsMountFlags, FsOpenFlags, MountAttrFlags, OpenTreeFlags},
@@ -806,11 +806,26 @@ impl<'fd> ProcfsHandleRef<'fd> {
 /// [lwn-procfs-overmounts]: https://lwn.net/Articles/934460/
 pub type ProcfsHandle = ProcfsHandleRef<'static>;
 
+/// Indicates whether this kernel is new enough that it should have the
+/// upstream-merged version of the new mount API. This is necessary because
+/// testing in runc found that RHEL 8 appears to have a broken backport of the
+/// new mount API that causes serious performance regressions -- as such, we
+/// should simply refuse to even try to use any of the new mount APIs on pre-5.2
+/// kernels.
+// MSRV(1.80): Use LazyLock.
+static HAS_UNBROKEN_MOUNT_API: Lazy<bool> = Lazy::new(|| kernel_version::is_gte!(5, 2));
+
 impl ProcfsHandle {
     /// Create a new `fsopen(2)`-based [`ProcfsHandle`]. This handle is safe
     /// against racing attackers changing the mount table and is guaranteed to
     /// have no overmounts because it is a brand-new procfs.
     pub(crate) fn new_fsopen(subset: bool) -> Result<Self, Error> {
+        if !*HAS_UNBROKEN_MOUNT_API {
+            Err(ErrorImpl::NotSupported {
+                feature: "fsopen".into(),
+            })?
+        }
+
         let sfd = syscalls::fsopen("proc", FsOpenFlags::FSOPEN_CLOEXEC).map_err(|err| {
             ErrorImpl::RawOsError {
                 operation: "create procfs suberblock".into(),
@@ -852,6 +867,12 @@ impl ProcfsHandle {
     /// guaranteed to be safe against racing attackers, and will not have
     /// overmounts unless `flags` contains `OpenTreeFlags::AT_RECURSIVE`.
     pub(crate) fn new_open_tree(flags: OpenTreeFlags) -> Result<Self, Error> {
+        if !*HAS_UNBROKEN_MOUNT_API {
+            Err(ErrorImpl::NotSupported {
+                feature: "open_tree".into(),
+            })?
+        }
+
         syscalls::open_tree(
             syscalls::BADFD,
             "/proc",
