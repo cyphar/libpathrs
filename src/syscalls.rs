@@ -875,6 +875,36 @@ pub(crate) mod openat2 {
 pub(crate) use openat2::{openat2, openat2_follow, OpenHow, ResolveFlags};
 
 #[cfg(test)]
+mod personality {
+    // musl doesn't expose UNAME26.
+    #[cfg(not(target_env = "musl"))]
+    pub(crate) const PER_UNAME26: u32 = libc::UNAME26 as _;
+    #[cfg(target_env = "musl")]
+    pub(crate) const PER_UNAME26: u32 = 0x0020000; /* <linux/personality.h> */
+
+    pub(crate) fn personality(persona: Option<u32>) -> u32 {
+        unsafe { libc::personality(persona.unwrap_or(0xFFFF_FFFF) as _) as _ }
+    }
+
+    /// Temporarily change the personality of the running thread.
+    ///
+    /// The personality is reset to the original persona value (i.e., when
+    /// [`scoped_personality`] was first called) once the returned `impl Drop`
+    /// value is dropped. Note that any threads or subprocesses spawned with
+    /// the `scoped_personality` guard held will permanently inherit the
+    /// specified persona.
+    #[must_use]
+    pub(crate) fn scoped_personality(persona: u32) -> impl Drop {
+        scopeguard::guard(personality(Some(persona)), |old_persona| {
+            personality(Some(old_persona));
+        })
+    }
+}
+
+#[cfg(test)]
+pub(crate) use personality::*;
+
+#[cfg(test)]
 pub(crate) fn getpid() -> rustix_process::RawPid {
     rustix_process::Pid::as_raw(Some(rustix_process::getpid()))
 }
