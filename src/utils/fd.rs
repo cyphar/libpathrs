@@ -317,9 +317,9 @@ impl<Fd: AsFd> FdExt for Fd {
     {
         let fd = self.as_fd();
         let fdinfo_path = match fd.as_raw_fd() {
-            // MSRV(1.66): Use ..=0 (half_open_range_patterns).
+            // MSRV(1.66): Use ..=-1 (half_open_range_patterns).
             // MSRV(1.80): Use ..0 (exclusive_range_pattern).
-            fd @ libc::AT_FDCWD | fd @ RawFd::MIN..=0 => Err(ErrorImpl::OsError {
+            fd @ libc::AT_FDCWD | fd @ RawFd::MIN..=-1 => Err(ErrorImpl::OsError {
                 operation: format!("get relative procfs fdinfo path for fd {fd}").into(),
                 source: IOError::from_raw_os_error(libc::EBADF),
             })?,

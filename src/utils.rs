@@ -52,3 +52,5 @@ pub(crate) use maybe_owned::*;
 
 mod raw_procfs;
 pub(crate) use raw_procfs::*;
+
+pub(crate) mod kernel_version;

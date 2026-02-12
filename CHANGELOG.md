@@ -34,8 +34,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   not a leak) but tools that search for file descriptor leaks (such as runc's
   test suite) could incorrectly classify this as a leak. We now close this
   `ProcfsBase` handle far more aggressively.
+- RHEL 8 kernels have backports of the fd-based mount API (`fsopen(2)`,
+  `open_tree(2)`, et al.) but some `runc` testing found that they have very bad
+  (and very difficult to debug) performance issues. Thus, to avoid broken
+  backports libpathrs will now explicitly refuse to use the fd-based mount API
+  if the reported kernel version is pre-5.2 and will instead fallback to the
+  less-secure `open("/proc")`.
+- libpathrs [0.2.0][] added some `fdinfo`-based hardening to the procfs
+  resolver when `openat2` is not available. Unfortunately, one aspect of this
+  hardening had a hard requirement on [a kernel feature only added in Linux
+  5.14][kcommit-3845f256a8b52] (namely the `ino` field in `fdinfo`) and thus
+  inadvertently increased our minimum kernel version requirement quite
+  significantly. This additional hardening is now only treated as mandatory if
+  the host kernel version is Linux 5.14 or newer.
 
 [rust-issue20267]: https://github.com/rust-lang/rust/issues/20267
+[kcommit-3845f256a8b52]: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=3845f256a8b527127bfbd4ced21e93d9e89aa6d7
 
 ## [0.2.3] - 2026-01-29 ##
 

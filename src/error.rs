@@ -92,7 +92,7 @@ pub(crate) enum ErrorImpl {
     #[error("feature {feature} is not implemented")]
     NotImplemented { feature: Cow<'static, str> },
 
-    #[error("feature {feature} not supported on this kernel")]
+    #[error("feature {feature} not supported by the system")]
     NotSupported { feature: Cow<'static, str> },
 
     #[error("invalid {name} argument: {description}")]
@@ -220,7 +220,7 @@ impl ErrorKind {
     /// errno values where appropriate.
     pub(crate) fn errno(&self) -> Option<i32> {
         match self {
-            ErrorKind::NotImplemented => Some(libc::ENOSYS),
+            ErrorKind::NotImplemented | ErrorKind::NotSupported => Some(libc::ENOSYS),
             ErrorKind::InvalidArgument => Some(libc::EINVAL),
             #[cfg(feature = "capi")]
             ErrorKind::UnsupportedStructureData => Some(libc::E2BIG),
