@@ -319,7 +319,7 @@ impl<Fd: AsFd> FdExt for Fd {
         let fdinfo_path = match fd.as_raw_fd() {
             // MSRV(1.66): Use ..=-1 (half_open_range_patterns).
             // MSRV(1.80): Use ..0 (exclusive_range_pattern).
-            fd @ libc::AT_FDCWD | fd @ RawFd::MIN..=-1 => Err(ErrorImpl::OsError {
+            fd @ (libc::AT_FDCWD | RawFd::MIN..=-1) => Err(ErrorImpl::OsError {
                 operation: format!("get relative procfs fdinfo path for fd {fd}").into(),
                 source: IOError::from_raw_os_error(libc::EBADF),
             })?,
@@ -328,14 +328,19 @@ impl<Fd: AsFd> FdExt for Fd {
 
         let mut fdinfo_file: File = proc_rootfd
             .open_beneath(fdinfo_path, OpenFlags::O_RDONLY)
-            .with_wrap(|| format!("open fd {} fdinfo", fd.as_raw_fd()))?
+            .with_wrap(|| format!("open fd {} fdinfo", syscalls::FrozenFd::from(&fd)))?
             .into();
 
         // As this is called from within fetch_mnt_id as a fallback, the only
         // thing we can do here is verify that it is actually procfs. However,
         // in practice it will be quite difficult for an attacker to over-mount
         // every fdinfo file for a process.
-        procfs::verify_is_procfs(&fdinfo_file)?;
+        procfs::verify_is_procfs(&fdinfo_file).with_wrap(|| {
+            format!(
+                "fdinfo for fd {} is not a procfs file",
+                syscalls::FrozenFd::from(&fd)
+            )
+        })?;
 
         // Get the requested field -- this will also verify that the fdinfo
         // contains an inode number that matches the original fd.
@@ -457,6 +462,7 @@ pub(crate) fn fetch_mnt_id(
 
         match file
             .get_fdinfo_field(proc_rootfd, "mnt_id")
+            .wrap(r#"fetch "mnt_id" fdinfo field"#)
             .map_err(|err| (err.kind(), err))
         {
             Ok(Some(mnt_id)) => Ok(mnt_id),

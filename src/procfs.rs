@@ -452,7 +452,12 @@ impl<'fd> ProcfsHandleRef<'fd> {
             oflags,
             ResolverFlags::empty(),
         )?;
-        self.verify_same_procfs_mnt(&fd)?;
+        self.verify_same_procfs_mnt(&fd).with_wrap(|| {
+            format!(
+                "validate that procfs subpath fd {} is on the same procfs mount",
+                syscalls::FrozenFd::from(&fd),
+            )
+        })?;
         Ok(fd)
     }
 
@@ -559,7 +564,13 @@ impl<'fd> ProcfsHandleRef<'fd> {
         // However, ProcfsHandle::open already checks that the mount ID and
         // fstype are safe, so we can just reuse the mount ID we get without
         // issue.
-        let parent_mnt_id = utils::fetch_mnt_id(self.as_raw_procfs(), &parentdir, "")?;
+        let parent_mnt_id =
+            utils::fetch_mnt_id(self.as_raw_procfs(), &parentdir, "").with_wrap(|| {
+                format!(
+                    "get mount id of procfs fd {}",
+                    syscalls::FrozenFd::from(&parentdir)
+                )
+            })?;
 
         // Detect if the magic-link we are about to open is actually a
         // bind-mount. There is no "statfsat" so we can't check that the f_type
@@ -570,7 +581,14 @@ impl<'fd> ProcfsHandleRef<'fd> {
         //
         // NOTE: This check is only safe if there are no racing mounts, so only
         // for the ProcfsHandle::{new_fsopen,new_open_tree} cases.
-        verify_same_mnt(self.as_raw_procfs(), parent_mnt_id, &parentdir, trailing)?;
+        verify_same_mnt(self.as_raw_procfs(), parent_mnt_id, &parentdir, trailing).with_wrap(
+            || {
+                format!(
+                    "check that parent dir {} and {trailing:?} are on the same procfs mount",
+                    syscalls::FrozenFd::from(&parentdir)
+                )
+            },
+        )?;
 
         syscalls::openat_follow(parentdir, trailing, oflags, 0)
             .map(File::from)
@@ -689,11 +707,23 @@ impl<'fd> ProcfsHandleRef<'fd> {
     }
 
     fn try_from_maybe_owned_fd(inner: MaybeOwnedFd<'fd, OwnedFd>) -> Result<Self, Error> {
-        // Make sure the file is actually a procfs root.
-        verify_is_procfs_root(inner.as_fd())?;
+        let inner_fd = inner.as_fd();
 
-        let proc_rootfd = RawProcfsRoot::UnsafeFd(inner.as_fd());
-        let mnt_id = utils::fetch_mnt_id(proc_rootfd, inner.as_fd(), "")?;
+        // Make sure the file is actually a procfs root.
+        verify_is_procfs_root(inner_fd).with_wrap(|| {
+            format!(
+                "check if candidate procfs root fd {} is a procfs root",
+                syscalls::FrozenFd::from(inner_fd)
+            )
+        })?;
+
+        let proc_rootfd = RawProcfsRoot::UnsafeFd(inner_fd);
+        let mnt_id = utils::fetch_mnt_id(proc_rootfd, inner_fd, "").with_wrap(|| {
+            format!(
+                "get mount id for candidate procfs root fd {}",
+                syscalls::FrozenFd::from(inner_fd)
+            )
+        })?;
         let resolver = ProcfsResolver::default();
 
         // Figure out if the mount we have is subset=pid or hidepid=. For
@@ -702,13 +732,8 @@ impl<'fd> ProcfsHandleRef<'fd> {
         let is_subset = [/* subset=pid */ "stat", /* hidepid=n */ "1"]
             .iter()
             .any(|&subpath| {
-                syscalls::accessat(
-                    inner.as_fd(),
-                    subpath,
-                    Access::EXISTS,
-                    AtFlags::SYMLINK_NOFOLLOW,
-                )
-                .is_err()
+                syscalls::accessat(inner_fd, subpath, Access::EXISTS, AtFlags::SYMLINK_NOFOLLOW)
+                    .is_err()
             });
 
         // Figure out if this file descriptor is a detached mount (i.e., from
@@ -719,11 +744,11 @@ impl<'fd> ProcfsHandleRef<'fd> {
         //
         // If the handle is a detached mount, then ".." should be a procfs root
         // with the same mount ID.
-        let is_detached = verify_same_mnt(proc_rootfd, mnt_id, inner.as_fd(), "..")
+        let is_detached = verify_same_mnt(proc_rootfd, mnt_id, inner_fd, "..")
             .and_then(|_| {
                 verify_is_procfs_root(
                     syscalls::openat(
-                        inner.as_fd(),
+                        inner_fd,
                         "..",
                         OpenFlags::O_PATH | OpenFlags::O_DIRECTORY,
                         0,
@@ -940,7 +965,7 @@ pub(crate) fn verify_is_procfs(fd: impl AsFd) -> Result<(), Error> {
         .f_type;
     if fs_type != rustix_fs::PROC_SUPER_MAGIC {
         Err(ErrorImpl::OsError {
-            operation: "verify lookup is still on a procfs mount".into(),
+            operation: "verify fd is from procfs".into(),
             source: IOError::from_raw_os_error(libc::EXDEV),
         })
         .wrap(format!(
