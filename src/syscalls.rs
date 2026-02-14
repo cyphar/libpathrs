@@ -102,7 +102,7 @@ impl fmt::Display for FrozenFd {
             fd => write!(f, "[{fd}]")?,
         };
         match &self.1 {
-            Some(path) => write!(f, "{path:?}")?,
+            Some(path) => write!(f, "<{path:?}>")?,
             None => write!(f, "<unknown>")?,
         };
         Ok(())
@@ -1005,7 +1005,7 @@ mod tests {
         let cwd = getcwd().expect("getcwd");
         assert_eq!(
             format!("{}", FrozenFd::from(AT_FDCWD)),
-            format!("[AT_FDCWD]{cwd:?}"),
+            format!("[AT_FDCWD]<{cwd:?}>"),
             "FrozenFd::from(AT_FDCWD)"
         );
 
@@ -1020,7 +1020,7 @@ mod tests {
         let file = NamedTempFile::new().expect("mktemp file");
         assert_eq!(
             format!("{}", FrozenFd::from(file.as_file())),
-            format!("[{}]{:?}", file.as_file().as_raw_fd(), file.path()),
+            format!("[{}]<{:?}>", file.as_file().as_raw_fd(), file.path()),
             "FrozenFd::from(<tempfile>)"
         );
 
@@ -1035,7 +1035,7 @@ mod tests {
         };
         assert_eq!(
             format!("{}", frozen_fd),
-            format!("[{}]{:?}", fd, path),
+            format!("[{}]<{:?}>", fd, path),
             "FrozenFd::from(<tempfile>) after closing"
         );
     }
