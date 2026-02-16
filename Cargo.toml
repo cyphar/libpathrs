@@ -64,7 +64,7 @@ _test_race = []
 lto = true
 
 [dependencies]
-bitflags = "2.2"
+bitflags = "2.11"
 bytemuck = { version = "1", features = ["extern_crate_std", "derive"], optional = true }
 itertools = "0.14"
 libc = "0.2.181"
