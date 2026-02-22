@@ -310,7 +310,7 @@ fn opath_resolve(
         // Check that the next component is on the same mountpoint.
         // NOTE: If the root is the host /proc mount, this is only safe if there
         // are no racing mounts.
-        procfs::verify_same_mnt(proc_rootfd, root_mnt_id, &next, "")
+        procfs::verify_same_procfs_mnt(proc_rootfd, root_mnt_id, &next)
             .with_wrap(|| format!("open next component {part:?}"))
             .wrap("emulated procfs resolver RESOLVE_NO_XDEV")?;
 
@@ -385,7 +385,7 @@ fn opath_resolve(
                 // code!).
                 Ok(final_reopen) => {
                     // Re-verify the next component is on the same mount.
-                    procfs::verify_same_mnt(proc_rootfd, root_mnt_id, &final_reopen, "")
+                    procfs::verify_same_procfs_mnt(proc_rootfd, root_mnt_id, &final_reopen)
                         .wrap("re-open final component")
                         .wrap("emulated procfs resolver RESOLVE_NO_XDEV")?;
                     return Ok(final_reopen);
