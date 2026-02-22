@@ -689,14 +689,9 @@ impl<'fd> ProcfsHandleRef<'fd> {
         })
     }
 
+    #[inline]
     fn verify_same_procfs_mnt(&self, fd: impl AsFd) -> Result<(), Error> {
-        // Detect if the file we landed on is from a bind-mount.
-        verify_same_mnt(self.as_raw_procfs(), self.mnt_id, &fd, "")?;
-        // For pre-5.8 kernels there is no STATX_MNT_ID, so the best we can
-        // do is check the fs_type to avoid mounts non-procfs filesystems.
-        // Unfortunately, attackers can bind-mount procfs files and still
-        // cause damage so this protection is marginal at best.
-        verify_is_procfs(&fd)
+        verify_same_procfs_mnt(self.as_raw_procfs(), self.mnt_id, fd)
     }
 
     /// Try to convert a [`BorrowedFd`] into a [`ProcfsHandle`] with the same
@@ -1020,6 +1015,27 @@ pub(crate) fn verify_same_mnt(
         ))?
     }
     Ok(())
+}
+
+pub(crate) fn verify_same_procfs_mnt(
+    proc_rootfd: RawProcfsRoot<'_>,
+    root_mnt_id: u64,
+    fd: impl AsFd,
+) -> Result<(), Error> {
+    let fd = fd.as_fd();
+
+    // Detect if the file we landed on is from a bind-mount.
+    verify_same_mnt(proc_rootfd, root_mnt_id, fd, "")?;
+
+    // For pre-5.8 kernels there is no STATX_MNT_ID, so the protection we get
+    // from verify_same_mnt() can be a little weaker (as it relies on fdinfo,
+    // which needs other protections to be made safe).
+    //
+    // To try to frustrate attackers, we still check for the fstype here (even
+    // though it is strictly weaker than the mount-id check). Unfortunately,
+    // arbitrary procfs files can still easily cause damage so this protection
+    // is marginal at best.
+    verify_is_procfs(fd)
 }
 
 #[cfg(test)]
