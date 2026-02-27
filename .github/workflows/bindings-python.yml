@@ -96,7 +96,7 @@ jobs:
           [[ "$CRATE_VERSION" == "$PY_VERSION" ]] || exit 1
       # Include the dist/ in our artefacts.
       - name: upload python-pathrs bindings dist/
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: python-${{ matrix.python-version }}-pathrs-dist
           path: contrib/bindings/python/dist/
