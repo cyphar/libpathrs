@@ -140,11 +140,11 @@ pub(crate) fn host_kernel_version() -> KernelVersion {
         .expect("uname kernel release must be a valid KernelVersion string")
 }
 
-/// Returns whether the kernel version of the running system is at least as new
-/// as the kernel version specified. See the documentation of [`KernelVersion`]
-/// for more information on how kernel versions are compared.
-macro_rules! is_gte {
-    ($($part:literal),+) => {
+/// Returns the result of comparing the kernel version of the running system
+/// against the specified kernel version using the specified comparator.
+/// `is_kver!(>= 1,2,3)` is equivalent to `is_gte!(1, 2, 3)`.
+macro_rules! is_kver {
+    ($cmp:tt $($part:literal),+) => {
         {
             $(
                 const _: u64 = $part;
@@ -166,11 +166,31 @@ macro_rules! is_gte {
 
             let cmp_kver = &$crate::utils::kernel_version::KernelVersion(vec![$($part),+]);
 
-            host_kver >= cmp_kver
+            host_kver $cmp cmp_kver
         }
     };
 }
+pub(crate) use is_kver;
+
+/// Returns whether the kernel version of the running system is at least as new
+/// as the kernel version specified. See the documentation of [`KernelVersion`]
+/// for more information on how kernel versions are compared.
+macro_rules! is_gte {
+    ($($part:literal),+) => {
+        $crate::utils::kernel_version::is_kver!{>= $($part),*}
+    };
+}
 pub(crate) use is_gte;
+
+/// Returns whether the kernel version of the running system is older than the kernel version
+/// specified. See the documentation of [`KernelVersion`] for more information on how kernel
+/// versions are compared.
+macro_rules! is_lt {
+    ($($part:literal),+) => {
+        $crate::utils::kernel_version::is_kver!{< $($part),*}
+    };
+}
+pub(crate) use is_lt;
 
 #[cfg(test)]
 mod tests {
@@ -406,6 +426,16 @@ mod tests {
         assert!(
             !is_gte!(3, 0),
             "UNAME26 personality should always result in a <3.0 kernel version: is_gte!(3, 0) succeeded"
+        );
+
+        assert!(
+            is_lt!(3, 0),
+            "UNAME26 personality should always result in a <3.0 kernel version: is_lt!(3, 0) failed"
+        );
+
+        assert!(
+            is_kver!(!= 4, 0),
+            "UNAME26 personality should always result in a <3.0 kernel version: is_kver!(!= 4, 0) failed"
         );
     }
 }
