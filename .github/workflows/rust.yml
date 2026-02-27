@@ -195,7 +195,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo doc --document-private-items --workspace --all-features
       - name: upload docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: rustdoc
           path: target/doc
@@ -230,7 +230,7 @@ jobs:
               -F "${{ env.FEATURES }}" \
               --archive-file nextest-pathrs-${{ matrix.run-as }}.tar.zst
       - name: upload nextest archive
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nextest-archive-${{ matrix.run-as }}
           path: nextest-pathrs-${{ matrix.run-as }}.tar.zst
@@ -250,7 +250,7 @@ jobs:
       - uses: taiki-e/install-action@cargo-llvm-cov
       - run: make test-rust-doctest
       - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
@@ -341,7 +341,7 @@ jobs:
             "${{ env.NEXTEST_PATTERN_SPEC }}"
 
       - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
@@ -410,7 +410,7 @@ jobs:
           find "${{ steps.rust-coverage.outputs.download-path }}" -name '*.profraw' -type f >"$profraw_list"
           rust-profdata merge --sparse -f "$profraw_list" -o ./target/llvm-cov-target/libpathrs-combined.profraw
       - name: upload merged rust coverage
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: libpathrs-combined-profraw
           path: target/llvm-cov-target/libpathrs-combined.profraw
@@ -438,7 +438,7 @@ jobs:
       - name: generate coverage html
         run: cargo llvm-cov report --html
       - name: upload coverage html
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: target/llvm-cov/html
