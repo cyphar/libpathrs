@@ -35,7 +35,7 @@ use crate::{
     flags::OpenFlags,
     procfs::{self, ProcfsBase, ProcfsHandle},
     syscalls,
-    utils::{self, MaybeOwnedFd, RawProcfsRoot},
+    utils::{self, kernel_version, MaybeOwnedFd, RawProcfsRoot},
 };
 
 use std::{
@@ -49,7 +49,10 @@ use std::{
     str::FromStr,
 };
 
-use rustix::fs::{self as rustix_fs, StatxFlags};
+use rustix::{
+    fs::{self as rustix_fs, StatxFlags},
+    process::DumpableBehavior,
+};
 
 pub(crate) struct Metadata(rustix_fs::Stat);
 
@@ -326,10 +329,29 @@ impl<Fd: AsFd> FdExt for Fd {
             fd => proc_threadself_subpath(proc_rootfd, &format!("fdinfo/{fd}")),
         };
 
-        let mut fdinfo_file: File = proc_rootfd
-            .open_beneath(fdinfo_path, OpenFlags::O_RDONLY)
-            .with_wrap(|| format!("open fd {} fdinfo", syscalls::FrozenFd::from(&fd)))?
-            .into();
+        let mut fdinfo_file: File = match proc_rootfd
+            .open_beneath(&fdinfo_path, OpenFlags::O_RDONLY)
+            .with_wrap(|| format!("open fd {} fdinfo", syscalls::FrozenFd::from(&fd)))
+            .map_err(|err| (err.kind(), err))
+        {
+            Ok(fd) => fd,
+            // If we are in a situation where fdinfo can be inaccessible
+            // legitimately, we just pretend as though all of the fields are
+            // missing.
+            Err((ErrorKind::OsError(Some(libc::EACCES)), _))
+                // Open the fdinfo file O_PATH instead to check the mode. If
+                // this fails, we assume it's an attack but return the original
+                // error.
+                if proc_rootfd
+                    .open_beneath(&fdinfo_path, OpenFlags::O_PATH)
+                    .and_then(|fdinfo| Ok(fdinfo_inaccessible(fdinfo)))
+                    .unwrap_or(false) =>
+            {
+                return Ok(None)
+            }
+            Err((_, err)) => Err(err)?,
+        }
+        .into();
 
         // As this is called from within fetch_mnt_id as a fallback, the only
         // thing we can do here is verify that it is actually procfs. However,
@@ -348,11 +370,44 @@ impl<Fd: AsFd> FdExt for Fd {
     }
 }
 
+/// Detect whether we are in a situation where attempts to read some `fdinfo`
+/// file failing with `EACCES` is reasonable.
+///
+/// For background, on pre-5.14 kernels `fdinfo` files had a mode of `0o400`
+/// which means that if the process is not dumpable (as happens during runc's
+/// execution) the inodes are all owned by root and are thus inaccessible to us.
+/// See [kcommit 7bc3fa0172a4 ("procfs: allow reading fdinfo with
+/// PTRACE_MODE_READ")][kcommit-7bc3fa0172a4] for more details.
+///
+/// Thus, if we got `EACCES` from fdinfo and we are:
+///
+///  * Running on a pre-5.14 kernel;
+///  * Not dumpable (`PR_GET_DUMPABLE ==> 0`); and
+///  * The mode of `/proc/self/fdinfo/0` is `0o400`,
+///
+/// then we allow this error to be ignored. There are some races here but it's
+/// not really clear if there is much we can do at this stage. For all other
+/// cases, an error should be assumed to be an attack.
+///
+/// [kcommit-7bc3fa0172a4]: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=7bc3fa0172a423afb34e6df7a3998e5f23b1a94a
+fn fdinfo_inaccessible<Fd: AsFd>(fdinfo_fd: Fd) -> bool {
+    kernel_version::is_lt!(5, 14)
+        && syscalls::prctl_get_dumpable().unwrap_or(DumpableBehavior::Dumpable)
+            != DumpableBehavior::Dumpable
+        && fdinfo_fd
+            .metadata()
+            .and_then(|m| Ok(m.mode()))
+            .unwrap_or(0o444)
+            & !libc::S_IFMT
+            == 0o400
+    // TODO: Should we also check that the owner is uid 0?
+}
+
 pub(crate) fn fetch_mnt_id(
     proc_rootfd: RawProcfsRoot<'_>,
     dirfd: impl AsFd,
     path: impl AsRef<Path>,
-) -> Result<u64, Error> {
+) -> Result<Option<u64>, Error> {
     let dirfd = dirfd.as_fd();
     let path = path.as_ref();
 
@@ -419,7 +474,7 @@ pub(crate) fn fetch_mnt_id(
         Ok(stx) => {
             let got_mask = StatxFlags::from_bits_retain(stx.stx_mask);
             if got_mask.intersects(want_mask) {
-                Some(stx.stx_mnt_id)
+                Some(Some(stx.stx_mnt_id))
             } else {
                 None
             }
@@ -445,7 +500,7 @@ pub(crate) fn fetch_mnt_id(
         }
         .into()
     })
-    .or_else(|_: Error| -> Result<_, Error> {
+    .or_else(|_: Error| -> Result<Option<_>, Error> {
         // openat doesn't support O_EMPTYPATH, so if we are operating on "" we
         // should reuse the dirfd directly.
         let file = if path.as_os_str().is_empty() {
@@ -465,11 +520,23 @@ pub(crate) fn fetch_mnt_id(
             .wrap(r#"fetch "mnt_id" fdinfo field"#)
             .map_err(|err| (err.kind(), err))
         {
-            Ok(Some(mnt_id)) => Ok(mnt_id),
-            // "mnt_id" *must* exist as a field -- make sure we return a
-            // SafetyViolation here if it is missing or an invalid value
-            // (InternalError), otherwise an attacker could silence this check
-            // by creating a "mnt_id"-less fdinfo.
+            Ok(Some(mnt_id)) => Ok(Some(mnt_id)),
+            // Only permit a missing "mnt_id" field if fdinfo is inaccessible.
+            Ok(None)
+                if proc_rootfd
+                    .open_beneath(
+                        format!("self/fdinfo/{}", file.as_raw_fd()),
+                        OpenFlags::O_PATH,
+                    )
+                    .and_then(|fdinfo| Ok(fdinfo_inaccessible(fdinfo)))
+                    .unwrap_or(false) =>
+            {
+                Ok(None)
+            }
+            // Otherwise, "mnt_id" *must* exist as a field -- make sure we
+            // return a SafetyViolation here if it is missing or an invalid
+            // value (InternalError), otherwise an attacker could silence this
+            // check by creating a "mnt_id"-less fdinfo.
             // TODO: Should we actually match for ErrorImpl::ParseIntError here?
             Ok(None) | Err((ErrorKind::InternalError, _)) => Err(ErrorImpl::SafetyViolation {
                 description: format!(
@@ -493,17 +560,21 @@ mod tests {
         flags::OpenFlags,
         procfs::ProcfsHandle,
         syscalls,
-        utils::{FdExt, RawProcfsRoot},
+        utils::{kernel_version, FdExt, RawProcfsRoot},
     };
 
     use std::{
-        fs::File,
-        os::unix::{fs::MetadataExt, io::AsFd},
+        fs::{File, Permissions},
+        os::unix::{
+            fs::{MetadataExt, PermissionsExt},
+            io::{AsFd, OwnedFd},
+        },
         path::Path,
     };
 
     use anyhow::{Context, Error};
     use pretty_assertions::assert_eq;
+    use rustix::process::{self as rustix_process, DumpableBehavior};
     use tempfile::TempDir;
 
     fn check_as_unsafe_path(fd: impl AsFd, want_path: impl AsRef<Path>) -> Result<(), Error> {
@@ -703,6 +774,128 @@ mod tests {
             None,
             "non_exist should not be present in fdinfo"
         );
+
+        Ok(())
+    }
+
+    fn prctl_dumpable_guard(new: DumpableBehavior) -> Result<impl Drop, Error> {
+        let old = syscalls::prctl_get_dumpable()?;
+        rustix_process::set_dumpable_behavior(new)?;
+        Ok(scopeguard::guard(old, |old| {
+            rustix_process::set_dumpable_behavior(old)
+                .with_context(|| format!("prctl(PR_SET_DUMPABLE, {old:?})"))
+                .expect("DumpableBehavior reset must succeed")
+        }))
+    }
+
+    fn fake_fdinfo_with_mode(mode: u32) -> Result<OwnedFd, Error> {
+        let f = tempfile::tempfile().context("mktemp")?;
+        f.set_permissions(Permissions::from_mode(mode))
+            .with_context(|| format!("chmod {mode:o} tmpfile"))?;
+        Ok(f.into())
+    }
+
+    #[test]
+    fn fdinfo_inaccessible() -> Result<(), Error> {
+        // Check the real kernel version before any personality changes.
+        let real_is_pre514 = kernel_version::is_lt!(5, 14);
+
+        assert_eq!(
+            syscalls::prctl_get_dumpable()?,
+            DumpableBehavior::Dumpable,
+            "test should have PR_SET_DUMPABLE=1 by default"
+        );
+
+        // fake pre-5.14 kernel + non-dumpable + 0o400 fdinfo mode ==> true
+        {
+            let _persona = syscalls::scoped_personality(syscalls::PER_UNAME26);
+            let _dumpable = prctl_dumpable_guard(DumpableBehavior::NotDumpable)?;
+            let fdinfo = fake_fdinfo_with_mode(0o400)?;
+            assert_eq!(
+                super::fdinfo_inaccessible(fdinfo),
+                true,
+                "fdinfo_inaccessible should be true when all conditions are met"
+            );
+        }
+
+        // fake pre-5.14 kernel + non-dumpable + 0o444 fdinfo mode ==> false
+        {
+            let _persona = syscalls::scoped_personality(syscalls::PER_UNAME26);
+            let _dumpable = prctl_dumpable_guard(DumpableBehavior::NotDumpable)?;
+            let fdinfo = fake_fdinfo_with_mode(0o444)?;
+            assert_eq!(
+                super::fdinfo_inaccessible(fdinfo),
+                false,
+                "fdinfo_inaccessible should be false when fdinfo mode is 0o444"
+            );
+        }
+
+        // fake pre-5.14 kernel + dumpable + 0o400 fdinfo mode ==> false
+        {
+            let _persona = syscalls::scoped_personality(syscalls::PER_UNAME26);
+            let fdinfo = fake_fdinfo_with_mode(0o400)?;
+            assert_eq!(
+                super::fdinfo_inaccessible(fdinfo),
+                false,
+                "fdinfo_inaccessible should be false when process is dumpable"
+            );
+        }
+
+        // host kernel + non-dumpable + 0o400 fdinfo mode ==> true iff pre-5.14
+        {
+            let _dumpable = prctl_dumpable_guard(DumpableBehavior::NotDumpable)?;
+            let fdinfo = fake_fdinfo_with_mode(0o400)?;
+            assert_eq!(
+                super::fdinfo_inaccessible(fdinfo),
+                real_is_pre514,
+                "fdinfo_inaccessible should be true when all conditions are met (host kernel {} is pre-5.14? {real_is_pre514:?})",
+                kernel_version::host_kernel_version(),
+            );
+        }
+
+        // fake pre-5.14 kernel + dumpable + 0o444 fdinfo mode ==> false
+        {
+            let _persona = syscalls::scoped_personality(syscalls::PER_UNAME26);
+            let fdinfo = fake_fdinfo_with_mode(0o444)?;
+            assert_eq!(
+                super::fdinfo_inaccessible(fdinfo),
+                false,
+                "fdinfo_inaccessible should be false when process is dumpable and fdinfo mode is 0o444"
+            );
+        }
+
+        // host kernel + non-dumpable + 0o400 fdinfo mode ==> false
+        {
+            let _dumpable = prctl_dumpable_guard(DumpableBehavior::NotDumpable)?;
+            let fdinfo = fake_fdinfo_with_mode(0o400)?;
+            assert_eq!(
+                super::fdinfo_inaccessible(fdinfo),
+                false,
+                "fdinfo_inaccessible should be false when process is dumpable and fdinfo mode is 0o444"
+            );
+        }
+
+        // host kernel + dumpable + 0o400 fdinfo mode ==> false
+        {
+            let fdinfo = fake_fdinfo_with_mode(0o400)?;
+            assert_eq!(
+                super::fdinfo_inaccessible(fdinfo),
+                false,
+                "fdinfo_inaccessible should be false when process is dumpable (host kernel {} is pre-5.14? {real_is_pre514:?})",
+                kernel_version::host_kernel_version(),
+            );
+        }
+
+        // host kernel + dumpable + 0o444 fdinfo mode ==> false
+        {
+            let fdinfo = fake_fdinfo_with_mode(0o444)?;
+            assert_eq!(
+                super::fdinfo_inaccessible(fdinfo),
+                false,
+                "fdinfo_inaccessible should be false when no conditions met (host kernel {} is pre-5.14? {real_is_pre514:?})",
+                kernel_version::host_kernel_version(),
+            );
+        }
 
         Ok(())
     }
