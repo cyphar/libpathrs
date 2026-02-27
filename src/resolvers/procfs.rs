@@ -491,60 +491,62 @@ mod tests {
     type ExpectedResult = Result<PathBuf, ErrorKind>;
 
     macro_rules! procfs_resolver_tests {
-        ($($(#[$meta:meta])* $test_name:ident ($root:expr, $path:expr, $($oflag:ident)|+, $rflags:expr) == $expected_result:expr);* $(;)?) => {
-            $(
-                paste::paste! {
-                    #[test]
-                    $(#[$meta])*
-                    fn [<procfs_openat2_resolver_ $test_name>]() -> Result<(), Error> {
-                        // TODO: Drop this?
-                        if syscalls::openat2::openat2_is_not_supported() {
-                            return Ok(());
-                        }
-                        let root_dir: PathBuf = $root.into();
-                        let root = File::open(&root_dir)?;
-                        let expected: ExpectedResult = $expected_result.map(|p: PathBuf| root_dir.join(p));
-                        let oflags = $(OpenFlags::$oflag)|*;
-                        let res = ProcfsResolver::Openat2
-                            .resolve(RawProcfsRoot::UnsafeGlobal, &root, $path, oflags, $rflags)
-                            .as_ref()
-                            .map(|f| {
-                                f.as_unsafe_path_unchecked()
-                                    .expect("get actual path of resolved handle")
-                            })
-                            .map_err(PathrsError::kind);
-                        assert_eq!(
-                            res, expected,
-                            "expected resolve({:?}, {:?}, {:?}, {:?}) to give {:?}, got {:?}",
-                            $root, $path, oflags, $rflags, expected, res
-                        );
-                        Ok(())
-                    }
+        () => {};
 
-                    #[test]
-                    $(#[$meta])*
-                    fn [<procfs_opath_resolver_ $test_name>]() -> Result<(), Error> {
-                        let root_dir: PathBuf = $root.into();
-                        let root = File::open(&root_dir)?;
-                        let expected: ExpectedResult = $expected_result.map(|p: PathBuf| root_dir.join(p));
-                        let oflags = $(OpenFlags::$oflag)|*;
-                        let res = ProcfsResolver::RestrictedOpath
-                            .resolve(RawProcfsRoot::UnsafeGlobal, &root, $path, oflags, $rflags)
-                            .as_ref()
-                            .map(|f| {
-                                f.as_unsafe_path_unchecked()
-                                    .expect("get actual path of resolved handle")
-                            })
-                            .map_err(PathrsError::kind);
-                        assert_eq!(
-                            res, expected,
-                            "expected resolve({:?}, {:?}, {:?}, {:?}) to give {:?}, got {:?}",
-                            $root, $path, oflags, $rflags, expected, res
-                        );
-                        Ok(())
+        ($(#[$meta:meta])* $test_name:ident ($root:expr, $path:expr, $($oflag:ident)|+, $rflags:expr) == $expected_result:expr ; $($rest:tt)*) => {
+            paste::paste! {
+                #[test]
+                $(#[$meta])*
+                fn [<procfs_openat2_resolver_ $test_name>]() -> Result<(), Error> {
+                    // TODO: Drop this?
+                    if syscalls::openat2::openat2_is_not_supported() {
+                        return Ok(());
                     }
+                    let root_dir: PathBuf = $root.into();
+                    let root = File::open(&root_dir)?;
+                    let expected: ExpectedResult = $expected_result.map(|p: PathBuf| root_dir.join(p));
+                    let oflags = $(OpenFlags::$oflag)|*;
+                    let res = ProcfsResolver::Openat2
+                        .resolve(RawProcfsRoot::UnsafeGlobal, &root, $path, oflags, $rflags)
+                        .as_ref()
+                        .map(|f| {
+                            f.as_unsafe_path_unchecked()
+                                .expect("get actual path of resolved handle")
+                        })
+                        .map_err(PathrsError::kind);
+                    assert_eq!(
+                        res, expected,
+                        "expected resolve({:?}, {:?}, {:?}, {:?}) to give {:?}, got {:?}",
+                        $root, $path, oflags, $rflags, expected, res
+                    );
+                    Ok(())
                 }
-            )*
+
+                #[test]
+                $(#[$meta])*
+                fn [<procfs_opath_resolver_ $test_name>]() -> Result<(), Error> {
+                    let root_dir: PathBuf = $root.into();
+                    let root = File::open(&root_dir)?;
+                    let expected: ExpectedResult = $expected_result.map(|p: PathBuf| root_dir.join(p));
+                    let oflags = $(OpenFlags::$oflag)|*;
+                    let res = ProcfsResolver::RestrictedOpath
+                        .resolve(RawProcfsRoot::UnsafeGlobal, &root, $path, oflags, $rflags)
+                        .as_ref()
+                        .map(|f| {
+                            f.as_unsafe_path_unchecked()
+                                .expect("get actual path of resolved handle")
+                        })
+                        .map_err(PathrsError::kind);
+                    assert_eq!(
+                        res, expected,
+                        "expected resolve({:?}, {:?}, {:?}, {:?}) to give {:?}, got {:?}",
+                        $root, $path, oflags, $rflags, expected, res
+                    );
+                    Ok(())
+                }
+            }
+
+            procfs_resolver_tests! { $($rest)* }
         };
     }
 
