@@ -42,6 +42,7 @@ pub(in crate::tests) trait HandleImpl: AsFd + std::fmt::Debug + Sized {
     type Error: ErrorImpl;
 
     // NOTE: We return Self::Cloned so that we can share types with HandleRef.
+    #[cfg_attr(not(feature = "capi"), allow(dead_code))] // this method is only used by capi tests
     fn from_fd(fd: impl Into<OwnedFd>) -> Self::Cloned;
 
     fn try_clone(&self) -> Result<Self::Cloned, anyhow::Error>;
