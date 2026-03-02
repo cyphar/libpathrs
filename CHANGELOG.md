@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   to make cross-compilation workflows easier to write (in particular, this is
   needed for runc's release scripts).
 
+### Changed ###
+- The `O_PATH` resolver for `procfs` now has an additional bit of hardening
+  (each component must be on a procfs -- previously we would check that it is
+  on the same mount, which is an even stronger requirement but on older kernels
+  it is possible to not have a mount ID to check against).
+
 ### Fixed ###
 - Previously, `staticlib` builds of libpathrs (i.e., `libpathrs.a`)
   inadvertently included symbol versioned symbols (`@@LIBPATHRS_X.Y`), which

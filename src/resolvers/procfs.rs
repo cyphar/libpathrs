@@ -310,7 +310,7 @@ fn opath_resolve(
         // Check that the next component is on the same mountpoint.
         // NOTE: If the root is the host /proc mount, this is only safe if there
         // are no racing mounts.
-        procfs::verify_same_mnt(proc_rootfd, root_mnt_id, &next, "")
+        procfs::verify_same_procfs_mnt(proc_rootfd, root_mnt_id, &next)
             .with_wrap(|| format!("open next component {part:?}"))
             .wrap("emulated procfs resolver RESOLVE_NO_XDEV")?;
 
@@ -385,7 +385,7 @@ fn opath_resolve(
                 // code!).
                 Ok(final_reopen) => {
                     // Re-verify the next component is on the same mount.
-                    procfs::verify_same_mnt(proc_rootfd, root_mnt_id, &final_reopen, "")
+                    procfs::verify_same_procfs_mnt(proc_rootfd, root_mnt_id, &final_reopen)
                         .wrap("re-open final component")
                         .wrap("emulated procfs resolver RESOLVE_NO_XDEV")?;
                     return Ok(final_reopen);
@@ -476,75 +476,137 @@ mod tests {
         flags::{OpenFlags, ResolverFlags},
         resolvers::procfs::ProcfsResolver,
         syscalls,
-        tests::common as tests_common,
         utils::{FdExt, RawProcfsRoot},
     };
 
     use std::{
         fs::File,
+        os::unix::io::{AsRawFd, OwnedFd, RawFd},
         path::{Path, PathBuf},
     };
 
-    use anyhow::Error;
+    use anyhow::{Context, Error};
     use pretty_assertions::{assert_eq, assert_matches};
+    use rustix::io as rustix_io;
 
     type ExpectedResult = Result<PathBuf, ErrorKind>;
 
-    macro_rules! procfs_resolver_tests {
-        ($($(#[$meta:meta])* $test_name:ident ($root:expr, $path:expr, $($oflag:ident)|+, $rflags:expr) == $expected_result:expr);* $(;)?) => {
-            $(
-                paste::paste! {
-                    #[test]
-                    $(#[$meta])*
-                    fn [<procfs_openat2_resolver_ $test_name>]() -> Result<(), Error> {
-                        // TODO: Drop this?
-                        if syscalls::openat2::openat2_is_not_supported() {
-                            return Ok(());
-                        }
-                        let root_dir: PathBuf = $root.into();
-                        let root = File::open(&root_dir)?;
-                        let expected: ExpectedResult = $expected_result.map(|p: PathBuf| root_dir.join(p));
-                        let oflags = $(OpenFlags::$oflag)|*;
-                        let res = ProcfsResolver::Openat2
-                            .resolve(RawProcfsRoot::UnsafeGlobal, &root, $path, oflags, $rflags)
-                            .as_ref()
-                            .map(|f| {
-                                f.as_unsafe_path_unchecked()
-                                    .expect("get actual path of resolved handle")
-                            })
-                            .map_err(PathrsError::kind);
-                        assert_eq!(
-                            res, expected,
-                            "expected resolve({:?}, {:?}, {:?}, {:?}) to give {:?}, got {:?}",
-                            $root, $path, oflags, $rflags, expected, res
-                        );
-                        Ok(())
-                    }
+    /// Dummy type to create a symlink loop in procfs that fulfils
+    /// `AsRef<Path>`.
+    #[derive(Debug)]
+    struct FdSymlinkLoop {
+        fd: OwnedFd,
+        fd_subpath: PathBuf,
+    }
 
-                    #[test]
-                    $(#[$meta])*
-                    fn [<procfs_opath_resolver_ $test_name>]() -> Result<(), Error> {
-                        let root_dir: PathBuf = $root.into();
-                        let root = File::open(&root_dir)?;
-                        let expected: ExpectedResult = $expected_result.map(|p: PathBuf| root_dir.join(p));
-                        let oflags = $(OpenFlags::$oflag)|*;
-                        let res = ProcfsResolver::RestrictedOpath
-                            .resolve(RawProcfsRoot::UnsafeGlobal, &root, $path, oflags, $rflags)
-                            .as_ref()
-                            .map(|f| {
-                                f.as_unsafe_path_unchecked()
-                                    .expect("get actual path of resolved handle")
-                            })
-                            .map_err(PathrsError::kind);
-                        assert_eq!(
-                            res, expected,
-                            "expected resolve({:?}, {:?}, {:?}, {:?}) to give {:?}, got {:?}",
-                            $root, $path, oflags, $rflags, expected, res
-                        );
-                        Ok(())
+    impl AsRef<Path> for FdSymlinkLoop {
+        fn as_ref(&self) -> &Path {
+            &self.fd_subpath
+        }
+    }
+
+    impl AsRawFd for FdSymlinkLoop {
+        fn as_raw_fd(&self) -> RawFd {
+            self.fd.as_raw_fd()
+        }
+    }
+
+    impl FdSymlinkLoop {
+        fn new() -> Result<Self, Error> {
+            // In order to create a symlink loop in procfs, we create a dummy
+            // file with fd $n, open /proc/self/fd/$n as O_PATH|O_NOFOLLOW, and
+            // then dup2(2) the second fd over $n.
+            let mut target_fd = syscalls::openat(syscalls::AT_FDCWD, ".", OpenFlags::O_RDONLY, 0)
+                .context("open dummy fd")?;
+
+            let fdlink_subpath = PathBuf::from(format!("self/fd/{}", target_fd.as_raw_fd()));
+
+            let fdlink_fd = syscalls::openat(
+                syscalls::BADFD,
+                PathBuf::from("/proc").join(&fdlink_subpath),
+                OpenFlags::O_PATH | OpenFlags::O_NOFOLLOW,
+                0,
+            )
+            .context("open proc fdlink")?;
+
+            rustix_io::dup2(fdlink_fd, &mut target_fd)
+                .context("dup fdlink handle over the original fd")?;
+
+            Ok(Self {
+                fd: target_fd,
+                fd_subpath: fdlink_subpath,
+            })
+        }
+    }
+
+    macro_rules! procfs_resolver_tests {
+        () => {};
+
+        ($(#[$meta:meta])* $test_name:ident ($root:expr, $path:expr, $($oflag:ident)|+, $rflags:expr) == $expected_result:expr ; $($rest:tt)*) => {
+            procfs_resolver_tests! {
+                $(#[$meta])*
+                $test_name($root, path @ $path, $($oflag)|*, $rflags) == $expected_result;
+
+                $($rest)*
+            }
+        };
+
+        ($(#[$meta:meta])* $test_name:ident ($root:expr, $path_var:ident @ $path:expr, $($oflag:ident)|+, $rflags:expr) == $expected_result:expr ; $($rest:tt)*) => {
+            paste::paste! {
+                #[test]
+                $(#[$meta])*
+                fn [<procfs_openat2_resolver_ $test_name>]() -> Result<(), Error> {
+                    // TODO: Drop this?
+                    if syscalls::openat2::openat2_is_not_supported() {
+                        return Ok(());
                     }
+                    let root_dir: PathBuf = $root.into();
+                    let root = File::open(&root_dir)?;
+                    let $path_var = $path;
+                    let expected: ExpectedResult = $expected_result.map(|p: PathBuf| root_dir.join(p));
+                    let oflags = $(OpenFlags::$oflag)|*;
+                    let res = ProcfsResolver::Openat2
+                        .resolve(RawProcfsRoot::UnsafeGlobal, &root, &$path_var, oflags, $rflags)
+                        .as_ref()
+                        .map(|f| {
+                            f.as_unsafe_path_unchecked()
+                                .expect("get actual path of resolved handle")
+                        })
+                        .map_err(PathrsError::kind);
+                    assert_eq!(
+                        res, expected,
+                        "expected resolve({:?}, {:?}, {:?}, {:?}) to give {:?}, got {:?}",
+                        $root, &$path_var, oflags, $rflags, expected, res
+                    );
+                    Ok(())
                 }
-            )*
+
+                #[test]
+                $(#[$meta])*
+                fn [<procfs_opath_resolver_ $test_name>]() -> Result<(), Error> {
+                    let root_dir: PathBuf = $root.into();
+                    let root = File::open(&root_dir)?;
+                    let $path_var = $path;
+                    let expected: ExpectedResult = $expected_result.map(|p: PathBuf| root_dir.join(p));
+                    let oflags = $(OpenFlags::$oflag)|*;
+                    let res = ProcfsResolver::RestrictedOpath
+                        .resolve(RawProcfsRoot::UnsafeGlobal, &root, &$path_var, oflags, $rflags)
+                        .as_ref()
+                        .map(|f| {
+                            f.as_unsafe_path_unchecked()
+                                .expect("get actual path of resolved handle")
+                        })
+                        .map_err(PathrsError::kind);
+                    assert_eq!(
+                        res, expected,
+                        "expected resolve({:?}, {:?}, {:?}, {:?}) to give {:?}, got {:?}",
+                        $root, &$path_var, oflags, $rflags, expected, res
+                    );
+                    Ok(())
+                }
+            }
+
+            procfs_resolver_tests! { $($rest)* }
         };
     }
 
@@ -596,8 +658,8 @@ mod tests {
         magiclink_anoninode_parent_opath_onofollow("/proc", "self/ns/uts/foo", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
 
         // Check symlink loops.
-        symloop(tests_common::create_basic_tree()?.keep(), "loop/basic-loop1", O_PATH, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
-        symloop_opath_onofollow(tests_common::create_basic_tree()?.keep(), "loop/basic-loop1", O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Ok("loop/basic-loop1".into());
+        symloop("/proc", FdSymlinkLoop::new()?, O_PATH, ResolverFlags::empty()) == Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        symloop_opath_onofollow("/proc", fdpath @ FdSymlinkLoop::new()?, O_PATH|O_NOFOLLOW, ResolverFlags::empty()) == Ok(format!("/proc/{}/fd/{}", syscalls::getpid(), fdpath.as_raw_fd()).into());
 
         // Check that our {O_PATH, O_NOFOLLOW, O_DIRECTORY} logic is correct,
         // based on the table in opath_resolve().
