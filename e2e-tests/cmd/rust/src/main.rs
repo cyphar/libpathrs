@@ -11,11 +11,12 @@
 
 use pathrs::error::{Error as PathrsError, ErrorKind as PathrsErrorKind};
 
-use std::process::ExitCode;
+use std::{env, process::ExitCode};
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Context, Error};
 use clap::Command;
 use errno::Errno;
+use rustix::process::{self as rustix_process, DumpableBehavior};
 
 mod procfs;
 mod root;
@@ -66,6 +67,22 @@ fn handle_error(func: impl FnOnce() -> Result<(), Error>) -> ExitCode {
 
 fn main() -> ExitCode {
     handle_error(|| {
+        if let Ok(dumpable) = env::var("PR_SET_DUMPABLE") {
+            match dumpable.as_str() {
+                "" => (), // noop
+                s => {
+                    let dumpable: DumpableBehavior = s
+                        .parse::<i32>()
+                        .context("PR_SET_DUMPABLE environment variable must be int or ''")?
+                        .try_into()
+                        .context("invalid PR_SET_DUMPABLE environment variable value")?;
+
+                    rustix_process::set_dumpable_behavior(dumpable)
+                        .with_context(|| format!("failed to set PR_SET_DUMPABLE={dumpable:?}"))?;
+                }
+            }
+        }
+
         let mut app = cli();
 
         match app.get_matches_mut().subcommand() {

@@ -554,6 +554,11 @@ def parse_args(
 
 
 def main(*argv: str):
+    if os.environ.get("PR_SET_DUMPABLE", "") != "":
+        raise NotImplementedError(
+            "PR_SET_DUMPABLE is not supported by the python pathrs-cmd implementation"
+        )
+
     parser, args = parse_args(argv)
     if args.func is not None:
         args.func(args)
