@@ -51,6 +51,7 @@ use std::{
 
 use rustix::fs::{self as rustix_fs, StatxFlags};
 
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Metadata(rustix_fs::Stat);
 
 impl Metadata {
