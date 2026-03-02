@@ -180,3 +180,9 @@ install: release
 	@echo "[Sleeping for 3 seconds.]"
 	@sleep 3s
 	./install.sh
+
+GPG_KEYID ?= cyphar@cyphar.com
+
+.PHONY: dist-release
+dist-release:
+	./hack/release.sh -S $(GPG_KEYID)
