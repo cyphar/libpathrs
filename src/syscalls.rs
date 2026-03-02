@@ -39,6 +39,7 @@ use crate::{
 };
 
 use std::{
+    borrow::Cow,
     ffi::OsStr,
     fmt,
     io::Error as IOError,
@@ -59,7 +60,8 @@ use rustix::{
     },
     io::Errno,
     mount::{self as rustix_mount, FsMountFlags, FsOpenFlags, MountAttrFlags, OpenTreeFlags},
-    process as rustix_process, thread as rustix_thread,
+    process::{self as rustix_process, DumpableBehavior},
+    thread as rustix_thread,
 };
 
 // TODO: Figure out how we can put a backtrace here (it seems we can't use
@@ -273,6 +275,12 @@ pub(crate) enum Error {
         flags: OpenTreeFlags,
         source: Errno,
     },
+
+    #[error("prctl({get_flag})")]
+    PrctlGet {
+        get_flag: Cow<'static, str>,
+        source: Errno,
+    },
 }
 
 impl Error {
@@ -299,6 +307,7 @@ impl Error {
             Error::FsconfigSetString { source, .. } => source,
             Error::Fsmount { source, .. } => source,
             Error::OpenTree { source, .. } => source,
+            Error::PrctlGet { source, .. } => source,
         }
     }
 
@@ -926,6 +935,13 @@ pub(crate) fn getegid() -> rustix_process::RawGid {
 pub(crate) fn getcwd() -> Result<PathBuf, anyhow::Error> {
     let buffer = Vec::with_capacity(libc::PATH_MAX as usize);
     Ok(OsStr::from_bytes(rustix_process::getcwd(buffer)?.to_bytes()).into())
+}
+
+pub(crate) fn prctl_get_dumpable() -> Result<DumpableBehavior, Error> {
+    rustix_process::dumpable_behavior().map_err(|errno| Error::PrctlGet {
+        get_flag: "PR_GET_DUMPABLE".into(),
+        source: errno,
+    })
 }
 
 pub(crate) fn fsopen(fstype: &str, flags: FsOpenFlags) -> Result<OwnedFd, Error> {

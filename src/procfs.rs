@@ -397,7 +397,7 @@ impl ProcfsHandleBuilder {
 #[derive(Debug)]
 pub struct ProcfsHandleRef<'fd> {
     inner: MaybeOwnedFd<'fd, OwnedFd>,
-    mnt_id: u64,
+    mnt_id: Option<u64>,
     is_subset: bool,
     is_detached: bool,
     pub(crate) resolver: ProcfsResolver,
@@ -1001,7 +1001,7 @@ pub(crate) fn verify_is_procfs_root(fd: impl AsFd) -> Result<(), Error> {
 
 pub(crate) fn verify_same_mnt(
     proc_rootfd: RawProcfsRoot<'_>,
-    root_mnt_id: u64,
+    root_mnt_id: Option<u64>,
     dirfd: impl AsFd,
     path: impl AsRef<Path>,
 ) -> Result<(), Error> {

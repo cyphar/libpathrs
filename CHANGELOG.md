@@ -47,6 +47,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   inadvertently increased our minimum kernel version requirement quite
   significantly. This additional hardening is now only treated as mandatory if
   the host kernel version is Linux 5.14 or newer.
+- Some of the same `fdinfo`-based hardening had a separate issue when running
+  in the context of a non-dumpable process on pre-5.14 kernels -- causing
+  spurious `EACCES` errors. We now permit `fdinfo` to be inaccessible in this
+  *very specific* situation.
 
 [rust-issue20267]: https://github.com/rust-lang/rust/issues/20267
 [kcommit-3845f256a8b52]: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=3845f256a8b527127bfbd4ced21e93d9e89aa6d7

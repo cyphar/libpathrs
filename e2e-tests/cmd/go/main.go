@@ -16,12 +16,24 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"syscall"
 
 	"github.com/urfave/cli/v3"
+	"golang.org/x/sys/unix"
 )
 
-func main() {
+func Main(args []string) error {
+	if dumpableStr := os.Getenv("PR_SET_DUMPABLE"); dumpableStr != "" {
+		dumpable, err := strconv.ParseUint(dumpableStr, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid PR_SET_DUMPABLE environment variable value: %w", err)
+		}
+		if err := unix.Prctl(unix.PR_SET_DUMPABLE, uintptr(dumpable), 0, 0, 0); err != nil {
+			return fmt.Errorf("failed to set PR_SET_DUMPABLE=%v: %w", dumpable, err)
+		}
+	}
+
 	cmd := &cli.Command{
 		Name:  "pathrs-cmd",
 		Usage: "helper binary for testing libpathrs",
@@ -33,7 +45,11 @@ func main() {
 			procfsCmd,
 		},
 	}
-	if err := cmd.Run(context.Background(), os.Args); err != nil {
+	return cmd.Run(context.Background(), args)
+}
+
+func main() {
+	if err := Main(os.Args); err != nil {
 		var errno syscall.Errno
 		if errors.As(err, &errno) {
 			fmt.Fprintf(os.Stderr, "ERRNO %d (%s)\n", errno, errno)
