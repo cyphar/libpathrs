@@ -45,7 +45,7 @@ use std::{
 
 use libc::{c_char, c_int};
 use once_cell::sync::Lazy;
-use rand::{self, Rng};
+use rand::{self, RngExt};
 
 /// The smallest return value which cannot be a libpathrs error ID.
 ///
