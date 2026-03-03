@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - `install.sh` now accepts `--rust-target` and `--rust-buildmode` as parameters
   to make cross-compilation workflows easier to write (in particular, this is
   needed for runc's release scripts).
+- We now produce signed release artefacts for our releases (though currently
+  only in the form of signed source and `cargo vendor` tarballs). The accepted
+  set of signing keys are available in [`libpathrs.keyring`](./libpathrs.keyring).
 
 ### Changed ###
 - The `O_PATH` resolver for `procfs` now has an additional bit of hardening

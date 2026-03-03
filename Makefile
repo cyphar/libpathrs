@@ -131,6 +131,10 @@ validate-cbindgen:
 validate-elf-symbols: release
 	./hack/check-elf-symbols.sh ./target/release/libpathrs.so
 
+.PHONY: validate-keyring
+validate-keyring:
+	./hack/keyring-validate.sh
+
 .PHONY: test-rust-doctest
 test-rust-doctest:
 	$(CARGO_LLVM_COV) --no-report --branch --doc
@@ -176,3 +180,9 @@ install: release
 	@echo "[Sleeping for 3 seconds.]"
 	@sleep 3s
 	./install.sh
+
+GPG_KEYID ?= cyphar@cyphar.com
+
+.PHONY: dist-release
+dist-release:
+	./hack/release.sh -S $(GPG_KEYID)

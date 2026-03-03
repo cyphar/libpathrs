@@ -166,6 +166,23 @@ jobs:
         run: sudo apt-get install -y lld
       - run: make validate-elf-symbols
 
+  validate-keyring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: make validate-keyring
+
+  validate-dist-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - run: make dist-release
+      - name: check release artefacts
+        run: |-
+          ls -la release/*/
+          cat release/*/libpathrs.sha256sum
+
   build:
     runs-on: ubuntu-latest
     strategy:
@@ -521,6 +538,8 @@ jobs:
       - check-lint-nohack
       - validate-cbindgen
       - validate-elf-symbols
+      - validate-keyring
+      - validate-dist-release
       - build
       - rustdoc
       - doctest
