@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+## [0.2.4] - 2026-03-03 ##
+
+> そう。神を生贄に捧げる！
+
 ### Added ###
 - New `EXTRA_RUSTC_FLAGS` and `EXTRA_CARGO_FLAGS` variables have been added to
   our `Makefile`, making it easier for packaging tools to adjust builds while
@@ -680,7 +684,8 @@ Initial release.
   - C FFI.
   - Python bindings.
 
-[Unreleased]: https://github.com/cyphar/libpathrs/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/cyphar/libpathrs/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/cyphar/libpathrs/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/cyphar/libpathrs/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/cyphar/libpathrs/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/cyphar/libpathrs/compare/v0.2.0...v0.2.1
