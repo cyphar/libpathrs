@@ -361,8 +361,11 @@ impl Root {
     ///
     /// # Errors
     ///
-    /// If the path already exists (regardless of the type of the existing
-    /// inode), an error is returned.
+    /// In addition to the regular filesystem errors that can be returned, note
+    /// that if the path already exists (regardless of the type of the existing
+    /// inode), [`EEXIST`] will be returned.
+    ///
+    /// [`EEXIST`]: std::io::ErrorKind::AlreadyExists
     #[doc(alias = "pathrs_inroot_mkdir")]
     #[doc(alias = "pathrs_inroot_mknod")]
     #[doc(alias = "pathrs_inroot_symlink")]
@@ -391,7 +394,9 @@ impl Root {
     ///
     /// # Errors
     ///
-    /// Identical to [`create`].
+    /// Mostly identical to [`create`], except that an error will only be
+    /// returned if the path already exists if and only if [`OpenFlags::O_EXCL`]
+    /// is set in `flags`.
     ///
     /// [`create`]: Self::create
     /// [`create_file`]: Self::create_file
@@ -879,8 +884,11 @@ impl RootRef<'_> {
     ///
     /// # Errors
     ///
-    /// If the path already exists (regardless of the type of the existing
-    /// inode), an error is returned.
+    /// In addition to the regular filesystem errors that can be returned, note
+    /// that if the path already exists (regardless of the type of the existing
+    /// inode), [`EEXIST`] will be returned.
+    ///
+    /// [`EEXIST`]: std::io::ErrorKind::AlreadyExists
     #[doc(alias = "pathrs_inroot_mkdir")]
     #[doc(alias = "pathrs_inroot_mknod")]
     #[doc(alias = "pathrs_inroot_symlink")]
@@ -979,7 +987,9 @@ impl RootRef<'_> {
     ///
     /// # Errors
     ///
-    /// Identical to [`create`].
+    /// Mostly identical to [`create`], except that an error will only be
+    /// returned if the path already exists if and only if [`OpenFlags::O_EXCL`]
+    /// is set in `flags`.
     ///
     /// [`create`]: Self::create
     /// [`create_file`]: Self::create_file
