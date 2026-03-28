@@ -378,7 +378,7 @@ jobs:
           cargo llvm-cov report --lcov --output-path="$CODECOV_FILE"
           echo "file=$CODECOV_FILE" >>"$GITHUB_OUTPUT"
       - name: upload rust coverage (codecov)
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: cyphar/libpathrs
