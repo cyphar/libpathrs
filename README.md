@@ -14,19 +14,54 @@
 [![bindings-python build status](https://github.com/cyphar/libpathrs/actions/workflows/bindings-python.yml/badge.svg)](https://github.com/cyphar/libpathrs/actions/workflows/bindings-python.yml)
 
 This library implements a set of C-friendly APIs (written in Rust) to make path
-resolution within a potentially-untrusted directory safe on GNU/Linux. There
+resolution within a potentially-untrusted directory safe on GNU/Linux. [There
 are countless examples of security vulnerabilities caused by bad handling of
-paths (symlinks make the issue significantly worse).
+paths][avoidable-issues]; this library provides an easy-to-use set of VFS APIs
+to avoid those kinds of issues.
 
-### Example ###
+[avoidable-issues]: ./docs/avoidable-vulnerabilities.md
 
-#### Root and Handle API ####
+### Examples ###
 
 Here is a toy example of using this library to open a path (`/etc/passwd`)
 inside a root filesystem (`/path/to/root`) safely. More detailed examples can
 be found in `examples/` and `tests/`.
 
+<table>
+<tr><th>Rust</th><th>C</th></tr>
+<tr>
+<td>
+
+```rust
+use std::fs::File;
+
+use pathrs::{flags::OpenFlags, Root};
+
+fn get_my_fd() -> Result<File, Error> {
+    const ROOT_PATH: &'static str = "/path/to/root";
+    const UNSAFE_PATH: &'static str = "/etc/passwd";
+
+    let root = Root::open(ROOT_PATH)?;
+    let handle = root.resolve(UNSAFE_PATH)?;
+    let file = handle.reopen(OpenFlags::O_RDONLY)?;
+
+    // The handle step can be skipped using root.open_subpath().
+
+    Ok(file)
+}
+```
+
+</td>
+<td>
+
 ```c
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <pathrs.h>
 
 int get_my_fd(void)
@@ -57,6 +92,8 @@ int get_my_fd(void)
 		goto err;
 	}
 
+    /* The handle step can be skipped using pathrs_inroot_open(). */
+
 err:
 	if (IS_PATHRS_ERR(liberr)) {
 		pathrs_error_t *error = pathrs_errorinfo(liberr);
@@ -69,181 +106,30 @@ err:
 }
 ```
 
-#### Safe `procfs` API ####
+</td>
+</tr>
+</table>
 
-`libpathrs` also provides a set of primitives to safely interact with `procfs`.
-This is very important for some programs (such as container runtimes), because
-`/proc` has several key system administration purposes that make it different
-to other filesystems. It particular, `/proc` is used:
+On Linux, libpathrs also provides an API for safe `procfs` operations with
+strict path safety [in the `procfs` module][docs.rs-procfs]. [Click
+here][procfs-api] to see some concrete examples of its usage.
 
-1. As a mechanism for doing certain filesystem operations through
-   `/proc/self/fd/...` (and other similar magic-links) that cannot be done by
-   other means.
-1. As a source of true information about processes and the general system (such
-   as by looking `/proc/$pid/status`).
-1. As an administrative tool for managing processes (such as setting LSM labels
-   like `/proc/self/attr/apparmor/exec`).
-
-These operations have stronger requirements than regular filesystems. For (1)
-we need to open the magic-link for real (magic-links are symlinks that are not
-resolved lexically, they are in-kernel objects that warp you to other files
-without doing a regular path lookup) which much harder to do safely (even with
-`openat2`). For (2) and (3) we have the requirement that we need to open a
-specific file, not just any file within `/proc` (if there are overmounts or
-symlinks) which is not the case `pathrs_inroot_resolve()`. As a result, it is
-necessary to take far more care when doing operations of `/proc` and
-`libpathrs` provides very useful helper to do this. Failure to do so can lead
-to security issues such as those in [CVE-2019-16884][cve-2019-16884] and
-[CVE-2019-19921][cve-2019-19921].
-
-In addition, with the [new mount API][lwn-newmount] (`fsopen(2)` and
-`open_tree(2)` in particular, added in Linux 5.2), it is possible to get a
-totally private `procfs` handle that can be used without worrying about racing
-mount operations. `libpathrs` will try to use this if it can (this usually
-requires root).
-
-Here are a few examples of practical things you might want to do with
-`libpathrs`'s `procfs` API:
-
-```c
-/*
- * Safely get an fd to /proc/self/exe. This is something runc does to re-exec
- * itself during the container setup process.
- */
-int get_self_exe(void)
-{
-    /* This follows the trailing magic-link! */
-    int fd = pathrs_proc_open(PATHRS_PROC_SELF, "exe", O_PATH);
-    if (IS_PATHRS_ERR(fd)) {
-        pathrs_error_t *error = pathrs_errorinfo(fd);
-        /* ... print the error ... */
-        pathrs_errorinfo_free(error);
-        return -1;
-    }
-    return fd;
-}
-
-/*
- * Safely set the AppArmor exec label for the current process. This is
- * something runc does while configuring the container process.
- */
-int write_apparmor_label(const char *label)
-{
-    int fd, err;
-
-    /*
-     * Note the usage of O_NOFOLLOW here. You should use O_NOFOLLOW except in
-     * the very rare case where you need to open a magic-link or you really
-     * want to follow a trailing symlink.
-     */
-    fd = pathrs_proc_open(PATHRS_PROC_SELF, "attr/apparmor/exec",
-                          O_WRONLY|O_NOFOLLOW);
-    if (IS_PATHRS_ERR(fd)) {
-        pathrs_error_t *error = pathrs_errorinfo(fd);
-        /* ... print the error ... */
-        pathrs_errorinfo_free(error);
-        return -1;
-    }
-
-    err = write(fd, label, strlen(label));
-    close(fd);
-    return err;
-}
-
-/*
- * Sometimes you need to get the "real" path of a file descriptor. This path
- * MUST NOT be used for actual filesystem operations, because it's possible for
- * an attacker to move the file or change one of the path components to a
- * symlink, which could lead to you operating on files you didn't expect
- * (including host files if you're a container runtime).
- *
- * In most cases, this kind of function would be used for diagnostic purposes
- * (such as in error messages, to provide context about what file the error is
- * in relation to).
- */
-char *get_unsafe_path(int fd)
-{
-    char *fdpath;
-
-    if (asprintf(&fdpath, "fd/%d", fd) < 0)
-        return NULL;
-
-    int linkbuf_size = 128;
-    char *linkbuf = malloc(size);
-    if (!linkbuf)
-        goto err;
-    for (;;) {
-        int len = pathrs_proc_readlink(PATHRS_PROC_THREAD_SELF,
-                                       fdpath, linkbuf, linkbuf_size);
-        if (IS_PATHRS_ERR(len)) {
-            pathrs_error_t *error = pathrs_errorinfo(fd);
-            /* ... print the error ... */
-            pathrs_errorinfo_free(error);
-            goto err;
-        }
-
-        if (len <= linkbuf_size)
-            break;
-
-        linkbuf_size = len;
-        linkbuf = realloc(linkbuf, linkbuf_size);
-        if (!linkbuf)
-            goto err;
-    }
-
-    free(fdpath);
-    return linkbuf;
-
-err:
-    free(fdpath);
-    free(linkbuf);
-    return NULL;
-}
-```
-
-[cve-2019-16884]: https://nvd.nist.gov/vuln/detail/CVE-2019-16884
-[cve-2019-19921]: https://nvd.nist.gov/vuln/detail/CVE-2019-19921
-[lwn-newmount]: https://lwn.net/Articles/759499/
+[docs.rs-procfs]: https://docs.rs/pathrs/latest/pathrs/procfs/index.html
+[procfs-api]: ./docs/procfs-api.md
 
 ### Kernel Support ###
 
-`libpathrs` is designed to only work with Linux, as it uses several Linux-only
-APIs.
+At the moment, `libpathrs` only works on Linux as it was designed around
+Linux-only APIs that are necessary to provide safe path operations. In future,
+we plan to expand support for other Unix-like operating systems.
 
-`libpathrs` was designed alongside [`openat2(2)`][] (available since Linux 5.6)
-and dynamically tries to use the latest kernel features to provide the maximum
-possible protection against racing attackers. However, it also provides support
-for older kernel versions (in theory up to Linux 2.6.39 but we do not currently
-test this) by emulating newer kernel features in userspace.
+While `libpathrs` will function on very old kernels (in theory back to Linux
+2.6.39, though we do not currently test this) we *strongly* recommend using at
+least Linux 5.6 to get a reasonable amount of protection against various
+attacks. The oldest Linux kernel which currently supports [all of the features
+we use for hardening][kernel-feature-list] is Linux 6.8.
 
-However, we strongly recommend you use at least Linux 5.6 to get a
-reasonable amount of protection against various attacks, and ideally at
-least Linux 6.8 to make use of all of the protections we have implemented.
-See the following table for what kernel features we optionally support and
-what they are used for.
-
-| Feature               | Minimum Kernel Version  | Description | Fallback |
-| --------------------- | ----------------------- | ----------- | -------- |
-| `/proc/thread-self`   | Linux 3.17 (2014-10-05) | Used when operating on the current thread's `/proc` directory for use with `PATHRS_PROC_THREAD_SELF`. | `/proc/self/task/$tid` is used, but this might not be available in some edge cases so `/proc/self` is used as a final fallback. |
-| [`open_tree(2)`][]    | Linux 5.2 (2019-07-07)  | Used to create a private procfs handle when operating on `/proc` (this is a copy of the host `/proc` -- in most cases this will also strip any overmounts). Requires `CAP_SYS_ADMIN` privileges. | Open a regular handle to `/proc`. This can lead to certain race attacks if the attacker can dynamically create mounts. |
-| [`fsopen(2)`][]       | Linux 5.2 (2019-07-07)  | Used to create a private procfs handle when operating on `/proc` (with a completely fresh copy of `/proc` -- in some cases this operation will fail if there are locked overmounts on top of `/proc`). Requires `CAP_SYS_ADMIN` privileges. | Try to use [`open_tree(2)`] instead -- in the case of errors due to locked overmounts, [`open_tree(2)`] will be used to create a recursive copy that preserves the overmounts. This means that an attacker would not be able to actively change the mounts on top of `/proc` but there might be some overmounts that libpathrs will detect (and reject). |
-| [`openat2(2)`][]      | Linux 5.6 (2020-03-29)  | In-kernel restrictions of path lookup. This is used extensively by `libpathrs` to safely do path lookups. | Userspace emulated path lookups. |
-| `subset=pid`          | Linux 5.8 (2020-08-02)  | Allows for a `procfs` handle created with [`fsopen(2)`][] to not contain any global procfs files that would be dangerous for an attacker to write to. Detached `procfs` mounts with `subset=pid` are deemed safe(r) to leak into containers and so libpathrs will internally cache `subset=pid` `ProcfsHandle`s. | libpathrs's `ProcfsHandle`s will have global files and thus libpathrs will not cache a copy of the file descriptor for each operation (possibly causing substantially higher syscall usage as a result -- our testing found that this can have a performance impact in some cases). |
-| `STATX_MNT_ID`        | Linux 5.8 (2020-08-02)  | Used to verify whether there are bind-mounts on top of `/proc` that could result in insecure operations (on systems with `fsopen(2)` or `open_tree(2)` this protection is somewhat redundant for privileged programs -- those kinds of `procfs` handles will typically not have overmounts.) | Parse the `/proc/thread-self/fdinfo/$fd` directly -- for systems with `openat2(2)`, this is guaranteed to be safe against attacks. For systems without `openat2(2)`, we have to fallback to unsafe opens that could be fooled by bind-mounts -- however, we believe that exploitation of this would be difficult in practice (even with an attacker that has the persistent ability to mount to arbitrary paths) due to the way we verify `procfs` accesses. |
-| `STATX_MNT_ID_UNIQUE` | Linux 6.8 (2024-03-10)  | Used for the same reason as `STATX_MNT_ID`, but allows us to protect against mount ID recycling. This is effectively a safer version of `STATX_MNT_ID`. | `STATX_MNT_ID` is used (see the `STATX_MNT_ID` fallback if it's not available either). |
-
-For more information about the work behind `openat2(2)`, you can read the
-following LWN articles (note that the merged version of `openat2(2)` is
-different to the version described by LWN):
-
- * [New AT_ flags for restricting pathname lookup][lwn-atflags]
- * [Restricting path name lookup with openat2()][lwn-openat2]
-
-[`openat2(2)`]: https://www.man7.org/linux/man-pages/man2/openat2.2.html
-[`open_tree(2)`]: https://github.com/brauner/man-pages-md/blob/main/open_tree.md
-[`fsopen(2)`]: https://github.com/brauner/man-pages-md/blob/main/fsopen.md
-[lwn-atflags]: https://lwn.net/Articles/767547/
-[lwn-openat2]: https://lwn.net/Articles/796868/
+[kernel-feature-list]: ./docs/kernel-features.md
 
 ### License ###
 
