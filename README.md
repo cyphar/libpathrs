@@ -14,9 +14,12 @@
 [![bindings-python build status](https://github.com/cyphar/libpathrs/actions/workflows/bindings-python.yml/badge.svg)](https://github.com/cyphar/libpathrs/actions/workflows/bindings-python.yml)
 
 This library implements a set of C-friendly APIs (written in Rust) to make path
-resolution within a potentially-untrusted directory safe on GNU/Linux. There
+resolution within a potentially-untrusted directory safe on GNU/Linux. [There
 are countless examples of security vulnerabilities caused by bad handling of
-paths (symlinks make the issue significantly worse).
+paths][avoidable-issues]; this library provides an easy-to-use set of VFS APIs
+to avoid those kinds of issues.
+
+[avoidable-issues]: ./docs/avoidable-vulnerabilities.md
 
 ### Example ###
 
