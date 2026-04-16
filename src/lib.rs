@@ -31,13 +31,21 @@
  */
 
 //! libpathrs provides a series of primitives for Linux programs to safely
-//! handle path operations inside an untrusted directory tree.
+//! handle path operations inside an untrusted directory tree. [There are
+//! countless examples of security vulnerabilities caused by bad handling of
+//! paths][avoidable-issues]; this library provides an easy-to-use set of VFS
+//! APIs to avoid those kinds of issues.
 //!
 //! The idea is that a [`Root`] handle is like a handle for resolution inside a
 //! [`chroot(2)`], with [`Handle`] being an `O_PATH` descriptor which you can
 //! "upgrade" to a proper [`File`]. However this library acts far more
 //! efficiently than spawning a new process and doing a full [`chroot(2)`] for
 //! every operation.
+//!
+//! [avoidable-issues]: https://github.com/cyphar/libpathrs/blob/main/docs/avoidable-vulnerabilities.md
+//! [`chroot(2)`]: http://man7.org/linux/man-pages/man2/chroot.2.html
+//! [`File`]: std::fs::File
+//! [`ProcfsHandle`]: crate::procfs::ProcfsHandle
 //!
 //! # Example
 //!
@@ -62,103 +70,17 @@
 //! # }
 //! ```
 //!
-//! # C API
-//!
-//! In order to ensure the maximum possible number of people can make us of this
-//! library to increase the overall security of Linux tooling, it is written in
-//! Rust (to be memory-safe) and produces C dylibs for usage with any language
-//! that supports C-based FFI. To further help expand how many folks can use
-//! libpathrs, libpathrs's MSRV is Rust 1.63, to allow us to build on more
-//! stable operating systems (such as Debian Buster, which provides Rust 1.63).
-//!
-//! A C example corresponding to the above Rust code would look like:
-//!
-//! ```c
-//! #include <pathrs.h>
-//!
-//! int get_my_fd(void)
-//! {
-//!     const char *root_path = "/path/to/root";
-//!     const char *unsafe_path = "/etc/passwd";
-//!
-//!     int liberr = 0;
-//!     int root = -EBADF,
-//!         handle = -EBADF,
-//!         fd = -EBADF;
-//!
-//!     root = pathrs_open_root(root_path);
-//!     if (IS_PATHRS_ERR(root)) {
-//!         liberr = root;
-//!         goto err;
-//!     }
-//!
-//!     handle = pathrs_inroot_resolve(root, unsafe_path);
-//!     if (IS_PATHRS_ERR(handle)) {
-//!         liberr = handle;
-//!         goto err;
-//!     }
-//!
-//!     fd = pathrs_reopen(handle, O_RDONLY);
-//!     if (IS_PATHRS_ERR(fd)) {
-//!         liberr = fd;
-//!         goto err;
-//!     }
-//!
-//! err:
-//!     if (IS_PATHRS_ERR(liberr)) {
-//!         pathrs_error_t *error = pathrs_errorinfo(liberr);
-//!         fprintf(stderr, "Uh-oh: %s (errno=%d)\n", error->description, error->saved_errno);
-//!         pathrs_errorinfo_free(error);
-//!     }
-//!     close(root);
-//!     close(handle);
-//!     return fd;
-//! }
-//! ```
-//!
 //! # Kernel Support
 //!
-//! libpathrs is designed to only work with Linux, as it uses several Linux-only
-//! APIs.
+//! At the moment, `libpathrs` only works on Linux as it was designed around
+//! Linux-only APIs that are necessary to provide safe path operations. In
+//! future, we plan to expand support for other Unix-like operating systems.
 //!
-//! libpathrs was designed alongside [`openat2(2)`] (available since Linux 5.6)
-//! and dynamically tries to use the latest kernel features to provide the
-//! maximum possible protection against racing attackers. However, it also
-//! provides support for older kernel versions (in theory up to Linux
-//! 2.6.39 but we do not currently test this) by emulating newer kernel features
-//! in userspace.
+//! Please consult the [markdown documentation][kernel-feature-list] for the
+//! latest information about what kernel features are supported and recommended
+//! minimum kernel versions.
 //!
-//! However, we strongly recommend you use at least Linux 5.6 to get a
-//! reasonable amount of protection against various attacks, and ideally at
-//! least Linux 6.8 to make use of all of the protections we have implemented.
-//! See the following table for what kernel features we optionally support and
-//! what they are used for.
-//!
-//! | Feature               | Minimum Kernel Version  | Description | Fallback |
-//! | --------------------- | ----------------------- | ----------- | -------- |
-//! | `/proc/thread-self`   | Linux 3.17 (2014-10-05) | Used when operating on the current thread's `/proc` directory for use with `PATHRS_PROC_THREAD_SELF`. | `/proc/self/task/$tid` is used, but this might not be available in some edge cases so `/proc/self` is used as a final fallback. |
-//! | [`open_tree(2)`]      | Linux 5.2 (2018-07-07)  | Used to create a private procfs handle when operating on `/proc` (this is a copy of the host `/proc` -- in most cases this will also strip any overmounts). Requires `CAP_SYS_ADMIN` privileges. | Open a regular handle to `/proc`. This can lead to certain race attacks if the attacker can dynamically create mounts. |
-//! | [`fsopen(2)`]         | Linux 5.2 (2019-07-07)  | Used to create a private procfs handle when operating on `/proc` (with a completely fresh copy of `/proc` -- in some cases this operation will fail if there are locked overmounts on top of `/proc`). Requires `CAP_SYS_ADMIN` privileges. | Try to use [`open_tree(2)`] instead -- in the case of errors due to locked overmounts, [`open_tree(2)`] will be used to create a recursive copy that preserves the overmounts. This means that an attacker would not be able to actively change the mounts on top of `/proc` but there might be some overmounts that libpathrs will detect (and reject). |
-//! | [`openat2(2)`]        | Linux 5.6 (2020-03-29)  | In-kernel restrictions of path lookup. This is used extensively by `libpathrs` to safely do path lookups. | Userspace emulated path lookups. |
-//! | `subset=pid`          | Linux 5.8 (2020-08-02)  | Allows for a `procfs` handle created with [`fsopen(2)`][] to not contain any global procfs files that would be dangerous for an attacker to write to. Detached `procfs` mounts with `subset=pid` are deemed safe(r) to leak into containers and so libpathrs will internally cache `subset=pid` [`ProcfsHandle`]s. | libpathrs's [`ProcfsHandle`]s will have global files and thus libpathrs will not cache a copy of the file descriptor for each operation (possibly causing substantially higher syscall usage as a result -- our testing found that this can have a performance impact in some cases). |
-//! | `STATX_MNT_ID`        | Linux 5.8 (2020-08-02)  | Used to verify whether there are bind-mounts on top of `/proc` that could result in insecure operations (on systems with `fsopen(2)` or `open_tree(2)` this protection is somewhat redundant for privileged programs -- those kinds of `procfs` handles will typically not have overmounts.) | Parse the `/proc/thread-self/fdinfo/$fd` directly -- for systems with `openat2(2)`, this is guaranteed to be safe against attacks. For systems without `openat2(2)`, we have to fallback to unsafe opens that could be fooled by bind-mounts -- however, we believe that exploitation of this would be difficult in practice (even with an attacker that has the persistent ability to mount to arbitrary paths) due to the way we verify `procfs` accesses. |
-//! | `STATX_MNT_ID_UNIQUE` | Linux 6.8 (2024-03-10)  | Used for the same reason as `STATX_MNT_ID`, but allows us to protect against mount ID recycling. This is effectively a safer version of `STATX_MNT_ID`. | `STATX_MNT_ID` is used (see the `STATX_MNT_ID` fallback if it's not available either). |
-//!
-//! For more information about the work behind `openat2(2)`, you can read the
-//! following LWN articles (note that the merged version of `openat2(2)` is
-//! different to the version described by LWN):
-//!
-//!  * [New AT_ flags for restricting pathname lookup][lwn-atflags]
-//!  * [Restricting path name lookup with openat2()][lwn-openat2]
-//!
-//! [`openat2(2)`]: https://www.man7.org/linux/man-pages/man2/openat2.2.html
-//! [lwn-atflags]: https://lwn.net/Articles/767547/
-//! [lwn-openat2]: https://lwn.net/Articles/796868/
-//! [`File`]: std::fs::File
-//! [`chroot(2)`]: http://man7.org/linux/man-pages/man2/chroot.2.html
-//! [`open_tree(2)`]: https://github.com/brauner/man-pages-md/blob/main/open_tree.md
-//! [`fsopen(2)`]: https://github.com/brauner/man-pages-md/blob/main/fsopen.md
-//! [`ProcfsHandle`]: crate::procfs::ProcfsHandle
+//! [kernel-feature-list]: https://github.com/cyphar/libpathrs/blob/main/docs/kernel-features.md
 
 // libpathrs only supports Linux at the moment.
 #![cfg(target_os = "linux")]
