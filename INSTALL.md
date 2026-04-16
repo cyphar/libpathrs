@@ -59,8 +59,6 @@ Most Linux distributions ship `cargo` and `rustc` packages:
 | Fedora             | `dnf install cargo rust`          |
 | openSUSE           | `zypper install cargo rust`       |
 | Arch Linux         | `pacman -S rust`                  |
-| Alpine Linux       | `apk add cargo rust`              |
-| Gentoo             | `emerge dev-lang/rust`            |
 
 Distribution-packaged Rust versions may be quite old -- make sure yours ships
 at least Rust 1.63. If it doesn't, use [rustup][] instead:
