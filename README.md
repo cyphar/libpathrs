@@ -27,7 +27,41 @@ Here is a toy example of using this library to open a path (`/etc/passwd`)
 inside a root filesystem (`/path/to/root`) safely. More detailed examples can
 be found in `examples/` and `tests/`.
 
+<table>
+<tr><th>Rust</th><th>C</th></tr>
+<tr>
+<td>
+
+```rust
+use std::fs::File;
+
+use pathrs::{flags::OpenFlags, Root};
+
+fn get_my_fd() -> Result<File, Error> {
+    const ROOT_PATH: &'static str = "/path/to/root";
+    const UNSAFE_PATH: &'static str = "/etc/passwd";
+
+    let root = Root::open(ROOT_PATH)?;
+    let handle = root.resolve(UNSAFE_PATH)?;
+    let file = handle.reopen(OpenFlags::O_RDONLY)?;
+
+    // The handle step can be skipped using root.open_subpath().
+
+    Ok(file)
+}
+```
+
+</td>
+<td>
+
 ```c
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <pathrs.h>
 
 int get_my_fd(void)
@@ -58,6 +92,8 @@ int get_my_fd(void)
 		goto err;
 	}
 
+    /* The handle step can be skipped using pathrs_inroot_open(). */
+
 err:
 	if (IS_PATHRS_ERR(liberr)) {
 		pathrs_error_t *error = pathrs_errorinfo(liberr);
@@ -69,6 +105,10 @@ err:
 	return fd;
 }
 ```
+
+</td>
+</tr>
+</table>
 
 On Linux, libpathrs also provides an API for safe `procfs` operations with
 strict path safety [in the `procfs` module][docs.rs-procfs]. [Click
