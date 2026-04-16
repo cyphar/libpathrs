@@ -41,7 +41,7 @@ of this nature, and so we anticipate this list is much longer than given here.
 * [CVE-2026-33945](https://github.com/lxc/incus/security/advisories/GHSA-q4q8-7f2j-9h9f)
 * [CVE-2026-39860](https://github.com/NixOS/nix/security/advisories/GHSA-g3g9-5vj6-r3gj)
 
-### Strict Path Safety ###
+### [Strict Path Safety](./procfs-api.md) ###
 
 These bugs are more specific than "classic" path safety, and usually involve a
 privileged process operating on pseudofilesystems like `/proc` in a context
