@@ -28,7 +28,7 @@ inside a root filesystem (`/path/to/root`) safely. More detailed examples can
 be found in `examples/` and `tests/`.
 
 <table>
-<tr><th>Rust</th><th>C</th></tr>
+<tr><th>Rust</th><th>C</th><th>Go</th></tr>
 <tr>
 <td>
 
@@ -103,6 +103,39 @@ err:
 	close(root);
 	close(handle);
 	return fd;
+}
+```
+
+</td>
+<td>
+
+```go
+package main
+
+import (
+	"os"
+
+	"cyphar.com/go-pathrs"
+)
+
+func getMyFD() (*os.File, error) {
+	const rootPath = "/path/to/root"
+	const unsafePath = "/etc/passwd"
+
+	root, err := pathrs.OpenRoot(rootPath)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	handle, err := root.Resolve(unsafePath)
+	if err != nil {
+		return nil, err
+	}
+	defer handle.Close()
+
+	// The handle step can be skipped using root.Open().
+	return handle.Open()
 }
 ```
 

@@ -39,14 +39,12 @@ requires root).
 
 ### Examples ###
 
-<!-- TODO: Add Go examples...? -->
-
 The most common usage of the procfs API is writing to specific files in
 `/proc`. The following are two examples that are adapted from real code in
 container runtimes:
 
 <table>
-<tr><th>Rust</th><th>C</th></tr>
+<tr><th>Rust</th><th>C</th><th>Go</th></tr>
 <tr>
 <td>
 
@@ -169,6 +167,67 @@ int write_sysctl(const char *name, const char *value)
 ```
 
 </td>
+<td>
+
+```go
+import (
+    "cyphar.com/go-pathrs/procfs"
+    "golang.org/x/sys/unix"
+)
+
+// Configure the current process's AppArmor label.
+func writeAppArmorLabel(label string) error {
+    proc, err := procfs.Open()
+    if err != nil {
+        return err
+    }
+    defer proc.Close()
+
+    // You should always use O_NOFOLLOW unless you are dealing with
+    // magic-links or otherwise really need to operate on a trailing
+    // symlink.
+    file, err := proc.OpenSelf("attr/apparmor/exec", unix.O_WRONLY|unix.O_NOFOLLOW)
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+
+    _, err = file.WriteString(label)
+    return err
+}
+```
+```go
+import (
+    "strings"
+
+    "cyphar.com/go-pathrs/procfs"
+    "golang.org/x/sys/unix"
+)
+
+// Configure the given sysctl.
+func writeSysctl(name, value string) error {
+    proc, err := procfs.Open()
+    if err != nil {
+        return err
+    }
+    defer proc.Close()
+
+    // /proc/sys/<key/name>
+    keyPath := "sys/" + strings.ReplaceAll(name, ".", "/")
+    file, err := proc.OpenRoot(keyPath, unix.O_WRONLY|unix.O_NOFOLLOW)
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+
+    _, err = file.WriteString(value)
+    // If you need to do lots of these operations, you should use
+    // procfs.Open(procfs.UnmaskedProcRoot) to create a temporary handle.
+    return err
+}
+```
+
+</td>
 </tr>
 </table>
 
@@ -181,7 +240,7 @@ able to call [`fsopen(2)`].
 [`fsopen(2)`]: https://www.man7.org/linux/man-pages/man2/fsopen.2.html
 
 <table>
-<tr><th>Rust</th><th>C</th></tr>
+<tr><th>Rust</th><th>C</th><th>Go</th></tr>
 <tr>
 <td>
 
@@ -232,6 +291,31 @@ int get_self_exe(void)
 ```
 
 </td>
+<td>
+
+```go
+import (
+    "os"
+
+    "cyphar.com/go-pathrs/procfs"
+    "golang.org/x/sys/unix"
+)
+
+// Safely get an fd to /proc/self/exe. This is something runc
+// does to re-exec itself during the container setup process.
+func getSelfExe() (*os.File, error) {
+    proc, err := procfs.Open()
+    if err != nil {
+        return nil, err
+    }
+    defer proc.Close()
+
+    // This follows the trailing magic-link -- no O_NOFOLLOW!
+    return proc.OpenSelf("exe", unix.O_PATH)
+}
+```
+
+</td>
 </tr>
 </table>
 
@@ -243,7 +327,7 @@ to a symlink, which could lead to you operating on files you didn't expect
 permissive security decisions because the attacker can always rename the file.
 
 <table>
-<tr><th>Rust</th><th>C</th></tr>
+<tr><th>Rust</th><th>C</th><th>Go</th></tr>
 <tr>
 <td>
 
@@ -322,6 +406,32 @@ err:
     free(fdpath);
     free(linkbuf);
     return NULL;
+}
+```
+
+</td>
+<td>
+
+```go
+import (
+    "fmt"
+
+    "cyphar.com/go-pathrs/procfs"
+)
+
+// Get an *unstable* and *unsafe* path string for a file descriptor.
+//
+// In most cases, this kind of function would be used for diagnostic
+// purposes (such as in error messages, to provide context about what
+// file the error is in relation to).
+func getUnsafePath(fd int) (string, error) {
+    proc, err := procfs.Open()
+    if err != nil {
+        return "", err
+    }
+    defer proc.Close()
+
+    return proc.Readlink(procfs.ProcThreadSelf, fmt.Sprintf("fd/%d", fd))
 }
 ```
 
