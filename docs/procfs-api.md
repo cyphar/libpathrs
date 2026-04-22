@@ -43,10 +43,7 @@ The most common usage of the procfs API is writing to specific files in
 `/proc`. The following are two examples that are adapted from real code in
 container runtimes:
 
-<table>
-<tr><th>Rust</th><th>C</th><th>Go</th></tr>
-<tr>
-<td>
+#### Rust ####
 
 ```rust
 use pathrs::{
@@ -94,8 +91,7 @@ fn write_sysctl(name: impl AsRef<str>, value: impl AsRef<[u8]>) -> Result<(), Er
 }
 ```
 
-</td>
-<td>
+#### C #####
 
 ```c
 #include <unistd.h>
@@ -166,8 +162,7 @@ int write_sysctl(const char *name, const char *value)
 }
 ```
 
-</td>
-<td>
+#### Go ####
 
 ```go
 import (
@@ -227,9 +222,7 @@ func writeSysctl(name, value string) error {
 }
 ```
 
-</td>
-</tr>
-</table>
+- - -
 
 Another very powerful primitive is safe magic-link operations, which allow you
 to operate on certain files with guarantees from the kernel that the object is
@@ -239,10 +232,7 @@ able to call [`fsopen(2)`].
 
 [`fsopen(2)`]: https://www.man7.org/linux/man-pages/man2/fsopen.2.html
 
-<table>
-<tr><th>Rust</th><th>C</th><th>Go</th></tr>
-<tr>
-<td>
+#### Rust ####
 
 ```rust
 use std::fs::File;
@@ -263,8 +253,7 @@ fn get_self_exe() -> Result<File, Error> {
 }
 ```
 
-</td>
-<td>
+#### C ####
 
 ```c
 #include <unistd.h>
@@ -290,8 +279,7 @@ int get_self_exe(void)
 }
 ```
 
-</td>
-<td>
+#### Go ####
 
 ```go
 import (
@@ -315,9 +303,7 @@ func getSelfExe() (*os.File, error) {
 }
 ```
 
-</td>
-</tr>
-</table>
+- - -
 
 In some (rare) cases, you need to get the "real" path for a file descriptor.
 This path MUST NOT be used for actual filesystem operations because it's
@@ -326,10 +312,7 @@ to a symlink, which could lead to you operating on files you didn't expect
 (including host files). Similarly, you should not use the pathname for
 permissive security decisions because the attacker can always rename the file.
 
-<table>
-<tr><th>Rust</th><th>C</th><th>Go</th></tr>
-<tr>
-<td>
+#### Rust ####
 
 ```rust
 use std::{
@@ -349,8 +332,7 @@ fn get_unsafe_path(fd: impl AsFd) -> Result<PathBuf, Error> {
 }
 ```
 
-</td>
-<td>
+#### C ####
 
 ```c
 #define _GNU_SOURCE
@@ -409,8 +391,7 @@ err:
 }
 ```
 
-</td>
-<td>
+#### Go ####
 
 ```go
 import (
@@ -434,7 +415,3 @@ func getUnsafePath(fd int) (string, error) {
     return proc.Readlink(procfs.ProcThreadSelf, fmt.Sprintf("fd/%d", fd))
 }
 ```
-
-</td>
-</tr>
-</table>
