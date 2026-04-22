@@ -27,7 +27,7 @@ import (
 // purpose of this "root handle" is to perform operations within the directory
 // tree, or to get a [Handle] to inodes within the directory tree.
 //
-// At time of writing, it is considered a *VERY BAD IDEA* to open a [Root]
+// At time of writing, it is considered a *VERY BAD IDEA* to open a Root
 // inside a possibly-attacker-controlled directory tree. While we do have
 // protections that should defend against it, it's far more dangerous than just
 // opening a directory tree which is not inside a potentially-untrusted
