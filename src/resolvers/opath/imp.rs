@@ -52,7 +52,7 @@
 use crate::{
     error::{Error, ErrorExt, ErrorImpl},
     flags::{OpenFlags, ResolverFlags},
-    procfs::ProcfsHandle,
+    procfs::{self, ProcfsHandle},
     resolvers::{opath::SymlinkStack, PartialLookup, MAX_SYMLINK_TRAVERSALS},
     syscalls,
     utils::{self, FdExt, PathIterExt},
@@ -245,6 +245,16 @@ fn do_resolve(
     );
     let mut current = Rc::clone(&root);
 
+    // If the user asked for RESOLVE_NO_XDEV, fetch the mount id of the root
+    // once so we can compare against each component we walk into. Any mismatch
+    // means we crossed a mount boundary, and we emulate openat2(2) by
+    // returning EXDEV.
+    let no_xdev_root_mnt_id = if flags.contains(ResolverFlags::NO_XDEV) {
+        Some(utils::fetch_mnt_id(procfs.as_raw_procfs(), &*root, "")?)
+    } else {
+        None
+    };
+
     // Get initial set of components from the passed path. We remove components
     // as we do the path walk, and update them with the contents of any symlinks
     // we encounter. Path walking terminates when there are no components left.
@@ -353,6 +363,24 @@ fn do_resolve(
                     // MSRV(1.69): Remove &*.
                     check_current(&procfs, &next, &*root, &expected_path)
                         .wrap("check next '..' component didn't escape")?;
+                }
+
+                // If the user asked for RESOLVE_NO_XDEV, verify we haven't
+                // crossed a mount boundary by walking into this component.
+                // Bind-mounts get their own mount id, so this catches bind
+                // mounts as well as "traditional" mounts on top of a dir.
+                //
+                // We propagate the error directly (matching openat2(2))
+                // rather than returning a PartialLookup::Partial, because
+                // EXDEV counts as a safety violation and partial lookups
+                // short-circuit on such errors (see resolve_partial in
+                // ../openat2.rs).
+                if let Some(root_mnt_id) = no_xdev_root_mnt_id {
+                    procfs::verify_same_mnt(procfs.as_raw_procfs(), root_mnt_id, &next, "")
+                        .with_wrap(|| {
+                            format!("check lookup of {part:?} didn't cross mount boundary")
+                        })
+                        .wrap("emulated RESOLVE_NO_XDEV")?;
                 }
 
                 // Is the next dirfd a symlink or an ordinary path? If we're an

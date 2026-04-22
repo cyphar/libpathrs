@@ -696,6 +696,44 @@ resolve_tests! {
 }
 
 resolve_tests! {
+    [with_overmount_root] {
+        // Baseline (no NO_XDEV): mounts are traversed and lookups complete.
+        #[cfg(feature = "_test_as_root")]
+        xdev_bind_baseline: resolve_partial("mnt-bind/file") => Ok(PartialLookup::Complete(("/mnt-bind/file", libc::S_IFREG)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_tmpfs_baseline: resolve_partial("mnt-tmpfs/file") => Ok(PartialLookup::Complete(("/mnt-tmpfs/file", libc::S_IFREG)));
+
+        // In-mount paths succeed with NO_XDEV.
+        #[cfg(feature = "_test_as_root")]
+        xdev_same_mount_dir: resolve_partial("a", rflags = NO_XDEV) => Ok(PartialLookup::Complete(("/a", libc::S_IFDIR)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_same_mount_deep: resolve_partial("b/c/d/e/f", rflags = NO_XDEV) => Ok(PartialLookup::Complete(("/b/c/d/e/f", libc::S_IFDIR)));
+
+        // Crossing a mount boundary is a safety violation and is surfaced as
+        // an EXDEV error rather than a partial lookup, matching openat2.
+        #[cfg(feature = "_test_as_root")]
+        xdev_bind_direct: resolve_partial("mnt-bind", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_bind_subfile: resolve_partial("mnt-bind/file", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_tmpfs_direct: resolve_partial("mnt-tmpfs", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_tmpfs_subfile: resolve_partial("mnt-tmpfs/file", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_deep_subfile: resolve_partial("b/c/mnt-deep/file", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        // Missing path inside a mount is still an EXDEV (the crossing fails first).
+        #[cfg(feature = "_test_as_root")]
+        xdev_tmpfs_missing: resolve_partial("mnt-tmpfs/does-not-exist", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+
+        // Symlinks that resolve across a mount boundary also fail with EXDEV.
+        #[cfg(feature = "_test_as_root")]
+        xdev_link_bind_abs: resolve_partial("link-bind-abs", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_link_tmpfs_abs: resolve_partial("link-tmpfs-abs", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+    }
+}
+
+resolve_tests! {
     [with_nosymfollow_root] {
         #[cfg(feature = "_test_as_root")]
         symlink_regular_symfollow: resolve_partial("nosymfollow/goodlink") => Ok(PartialLookup::Complete((".", libc::S_IFDIR)));
@@ -758,6 +796,23 @@ mod utils {
             let root = Root::open(&root_dir)?;
 
             tests_common::mask_nosymfollow(root_dir.path())?;
+
+            let res = func(root);
+
+            let _root_dir = root_dir; // make sure tmpdir is kept alive
+            res
+        })
+    }
+
+    pub(super) fn with_overmount_root<F>(func: F) -> Result<(), Error>
+    where
+        F: FnOnce(Root) -> Result<(), Error>,
+    {
+        tests_common::in_mnt_ns(|| {
+            let root_dir = tests_common::create_overmount_tree()?;
+            let root = Root::open(&root_dir)?;
+
+            tests_common::apply_overmounts(root_dir.path())?;
 
             let res = func(root);
 

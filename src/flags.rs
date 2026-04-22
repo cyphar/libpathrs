@@ -303,5 +303,6 @@ bitflags! {
     pub struct ResolverFlags: u64 {
         // TODO: We should probably have our own bits...
         const NO_SYMLINKS = libc::RESOLVE_NO_SYMLINKS;
+        const NO_XDEV = libc::RESOLVE_NO_XDEV;
     }
 }

@@ -469,6 +469,12 @@ resolve_tests! {
         symlink_component_nosym1: resolve("e/f", rflags = NO_SYMLINKS) => Err(ErrorKind::OsError(Some(libc::ELOOP)));
         symlink_component_nosym2: resolve("link2/link1_abs/target_rel", rflags = NO_SYMLINKS) => Err(ErrorKind::OsError(Some(libc::ELOOP)));
         loop_nosym: resolve("loop/link", rflags = NO_SYMLINKS) => Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        // RESOLVE_NO_XDEV on a tree with no mounts should behave identically
+        // to a lookup with no resolver flags set.
+        dir_noxdev: resolve("b/c/d/e", rflags = NO_XDEV) => Ok(("b/c/d/e", libc::S_IFDIR));
+        file_noxdev: resolve("b/c/file", rflags = NO_XDEV) => Ok(("b/c/file", libc::S_IFREG));
+        symlink_noxdev: resolve("link3/target_abs", rflags = NO_XDEV) => Ok(("target", libc::S_IFDIR));
+        dotdot_noxdev: resolve("b/c/d/e/f/../..", rflags = NO_XDEV) => Ok(("b/c/d", libc::S_IFDIR));
         // fs.protected_symlinks for a directory owned by us.
         protected_symlinks_selfdir_selfsym: resolve("tmpfs-self/link-self") => Ok(("tmpfs-self/file", libc::S_IFREG));
         protected_symlinks_selfdir_selfsym_nofollow: resolve("tmpfs-self/link-self", no_follow_trailing = true) => Ok(("tmpfs-self/link-self", libc::S_IFLNK));
@@ -509,6 +515,80 @@ resolve_tests! {
         protected_symlinks_otherdir_othersym: resolve("tmpfs-other/link-other") => Err(ErrorKind::OsError(Some(libc::EACCES)));
         #[cfg(feature = "_test_as_root")]
         protected_symlinks_otherdir_othersym_nofollow: resolve("tmpfs-other/link-other", no_follow_trailing = true) => Ok(("tmpfs-other/link-other", libc::S_IFLNK));
+    }
+}
+
+resolve_tests! {
+    [with_overmount_root] {
+        // Sanity-check: without NO_XDEV the mount setup still resolves fine.
+        #[cfg(feature = "_test_as_root")]
+        xdev_bind_baseline: resolve("mnt-bind") => Ok(("/mnt-bind", libc::S_IFDIR));
+        #[cfg(feature = "_test_as_root")]
+        xdev_bind_subfile_baseline: resolve("mnt-bind/file") => Ok(("/mnt-bind/file", libc::S_IFREG));
+        #[cfg(feature = "_test_as_root")]
+        xdev_tmpfs_baseline: resolve("mnt-tmpfs") => Ok(("/mnt-tmpfs", libc::S_IFDIR));
+        #[cfg(feature = "_test_as_root")]
+        xdev_tmpfs_subfile_baseline: resolve("mnt-tmpfs/file") => Ok(("/mnt-tmpfs/file", libc::S_IFREG));
+        #[cfg(feature = "_test_as_root")]
+        xdev_deep_baseline: resolve("b/c/mnt-deep") => Ok(("/b/c/mnt-deep", libc::S_IFDIR));
+        #[cfg(feature = "_test_as_root")]
+        xdev_link_bind_baseline: resolve("link-bind-abs") => Ok(("/mnt-bind", libc::S_IFDIR));
+
+        // Paths that stay within the root mount succeed even with NO_XDEV.
+        #[cfg(feature = "_test_as_root")]
+        xdev_same_mount_dir: resolve("a", rflags = NO_XDEV) => Ok(("/a", libc::S_IFDIR));
+        #[cfg(feature = "_test_as_root")]
+        xdev_same_mount_subfile: resolve("a/file", rflags = NO_XDEV) => Ok(("/a/file", libc::S_IFREG));
+        #[cfg(feature = "_test_as_root")]
+        xdev_same_mount_deep: resolve("b/c/d/e/f", rflags = NO_XDEV) => Ok(("/b/c/d/e/f", libc::S_IFDIR));
+        #[cfg(feature = "_test_as_root")]
+        xdev_same_mount_file: resolve("b/c/file", rflags = NO_XDEV) => Ok(("/b/c/file", libc::S_IFREG));
+        // ".." lookups that stay inside the root mount are fine.
+        #[cfg(feature = "_test_as_root")]
+        xdev_same_mount_dotdot: resolve("a/..", rflags = NO_XDEV) => Ok(("/", libc::S_IFDIR));
+        #[cfg(feature = "_test_as_root")]
+        xdev_same_mount_dotdot_deep: resolve("b/c/d/e/f/../..", rflags = NO_XDEV) => Ok(("/b/c/d", libc::S_IFDIR));
+        // Symlinks that don't cross mount boundaries are fine.
+        #[cfg(feature = "_test_as_root")]
+        xdev_link_a_abs: resolve("link-a-abs", rflags = NO_XDEV) => Ok(("/a", libc::S_IFDIR));
+        #[cfg(feature = "_test_as_root")]
+        xdev_link_a_rel: resolve("link-a-rel", rflags = NO_XDEV) => Ok(("/a", libc::S_IFDIR));
+
+        // Direct walks across a bind mount boundary fail with EXDEV.
+        #[cfg(feature = "_test_as_root")]
+        xdev_bind_direct: resolve("mnt-bind", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_bind_subfile: resolve("mnt-bind/file", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        // Direct walks across a tmpfs mount boundary fail with EXDEV.
+        #[cfg(feature = "_test_as_root")]
+        xdev_tmpfs_direct: resolve("mnt-tmpfs", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_tmpfs_subfile: resolve("mnt-tmpfs/file", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_tmpfs_subdir: resolve("mnt-tmpfs/subdir", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        // A mount crossing part-way through a deeper walk also fails.
+        #[cfg(feature = "_test_as_root")]
+        xdev_deep_direct: resolve("b/c/mnt-deep", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_deep_subfile: resolve("b/c/mnt-deep/file", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+
+        // Symlinks that lead across a mount boundary fail with EXDEV.
+        #[cfg(feature = "_test_as_root")]
+        xdev_link_bind_abs: resolve("link-bind-abs", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_link_bind_rel: resolve("link-bind-rel", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_link_tmpfs_abs: resolve("link-tmpfs-abs", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_link_deep_abs: resolve("link-deep-abs", rflags = NO_XDEV) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
+
+        // Combining NO_XDEV and NO_SYMLINKS: a symlink encountered before a
+        // mount boundary is reported as ELOOP (NO_SYMLINKS fires first), while
+        // a non-symlink mount crossing is still EXDEV.
+        #[cfg(feature = "_test_as_root")]
+        xdev_nosym_link_bind: resolve("link-bind-abs", rflags = NO_XDEV|NO_SYMLINKS) => Err(ErrorKind::OsError(Some(libc::ELOOP)));
+        #[cfg(feature = "_test_as_root")]
+        xdev_nosym_bind_direct: resolve("mnt-bind", rflags = NO_XDEV|NO_SYMLINKS) => Err(ErrorKind::OsError(Some(libc::EXDEV)));
     }
 }
 
@@ -571,6 +651,22 @@ mod utils {
             let root_dir = tests_common::create_basic_tree()?;
 
             tests_common::mask_nosymfollow(root_dir.path())?;
+
+            let res = func(root_dir.path());
+
+            let _root_dir = root_dir; // make sure tmpdir is kept alive
+            res
+        })
+    }
+
+    pub(super) fn with_overmount_root<F>(func: F) -> Result<(), Error>
+    where
+        F: FnOnce(&Path) -> Result<(), Error>,
+    {
+        tests_common::in_mnt_ns(|| {
+            let root_dir = tests_common::create_overmount_tree()?;
+
+            tests_common::apply_overmounts(root_dir.path())?;
 
             let res = func(root_dir.path());
 

@@ -374,6 +374,56 @@ pub(crate) fn mask_nosymfollow(root: &Path) -> Result<(), Error> {
     Ok(())
 }
 
+pub(crate) fn create_overmount_tree() -> Result<TempDir, Error> {
+    Ok(create_tree! {
+        // A small tree that lives on the root mount.
+        "a" => (dir);
+        "a/file" => (file);
+        "b/c/d/e/f" => (dir);
+        "b/c/file" => (file);
+        // Placeholder directories for mounts to be applied on top of.
+        "mnt-bind" => (dir);            // bind-mount of /a
+        "mnt-tmpfs" => (dir);           // fresh tmpfs
+        "b/c/mnt-deep" => (dir);        // deep bind-mount of /a
+        // Symlinks that traverse a mount boundary when followed.
+        "link-bind-abs" => (symlink -> "/mnt-bind");
+        "link-bind-rel" => (symlink -> "mnt-bind");
+        "link-tmpfs-abs" => (symlink -> "/mnt-tmpfs");
+        "link-deep-abs" => (symlink -> "/b/c/mnt-deep");
+        // Symlinks that don't cross mounts.
+        "link-a-abs" => (symlink -> "/a");
+        "link-a-rel" => (symlink -> "a");
+    })
+}
+
+pub(crate) fn apply_overmounts(root: &Path) -> Result<(), Error> {
+    let root_prefix = root.to_path_buf();
+
+    // Bind-mount /a over /mnt-bind.
+    tests_common::mount(
+        root_prefix.join("mnt-bind"),
+        MountType::Bind {
+            src: root_prefix.join("a"),
+        },
+    )?;
+    // Tmpfs over /mnt-tmpfs. Populate with a file and subdir after mounting so
+    // we can test partial walks across the mount boundary.
+    tests_common::mount(root_prefix.join("mnt-tmpfs"), MountType::Tmpfs)?;
+    fs::File::create(root_prefix.join("mnt-tmpfs/file"))
+        .with_context(|| "create file in tmpfs mount")?;
+    fs::create_dir(root_prefix.join("mnt-tmpfs/subdir"))
+        .with_context(|| "mkdir in tmpfs mount")?;
+    // Bind-mount /a over a deeper path.
+    tests_common::mount(
+        root_prefix.join("b/c/mnt-deep"),
+        MountType::Bind {
+            src: root_prefix.join("a"),
+        },
+    )?;
+
+    Ok(())
+}
+
 pub(crate) fn create_race_tree() -> Result<(TempDir, PathBuf), Error> {
     let tmpdir = create_tree! {
         // Our root.

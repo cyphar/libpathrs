@@ -502,6 +502,7 @@ pub(crate) fn fetch_mnt_id(
         }
         .into()
     })
+    .or_else(|_: Error| -> Result<Option<_>, Error> {})?
     .or_else(|_: Error| -> Result<Option<_>, Error> {
         // openat doesn't support O_EMPTYPATH, so if we are operating on "" we
         // should reuse the dirfd directly.
