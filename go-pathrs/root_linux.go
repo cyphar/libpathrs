@@ -27,7 +27,7 @@ import (
 // purpose of this "root handle" is to perform operations within the directory
 // tree, or to get a [Handle] to inodes within the directory tree.
 //
-// At time of writing, it is considered a *VERY BAD IDEA* to open a [Root]
+// At time of writing, it is considered a *VERY BAD IDEA* to open a Root
 // inside a possibly-attacker-controlled directory tree. While we do have
 // protections that should defend against it, it's far more dangerous than just
 // opening a directory tree which is not inside a potentially-untrusted
@@ -68,7 +68,7 @@ func RootFromFile(file *os.File) (*Root, error) {
 //
 // All symlinks (including trailing symlinks) are followed, but they are
 // resolved within the rootfs. If you wish to open a handle to the symlink
-// itself, use [ResolveNoFollow].
+// itself, use [Root.ResolveNoFollow].
 func (r *Root) Resolve(path string) (*Handle, error) {
 	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (*Handle, error) {
 		handleFd, err := libpathrs.InRootResolve(rootFd, path)
@@ -83,9 +83,9 @@ func (r *Root) Resolve(path string) (*Handle, error) {
 	})
 }
 
-// ResolveNoFollow is effectively an O_NOFOLLOW version of [Resolve]. Their
-// behaviour is identical, except that *trailing* symlinks will not be
-// followed. If the final component is a trailing symlink, an O_PATH|O_NOFOLLOW
+// ResolveNoFollow is effectively an [os.O_NOFOLLOW] version of [Root.Resolve].
+// Their behaviour is identical, except that *trailing* symlinks will not be
+// followed. If the final component is a trailing symlink, an [os.O_PATH]|[os.O_NOFOLLOW]
 // handle to the symlink itself is returned.
 func (r *Root) ResolveNoFollow(path string) (*Handle, error) {
 	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (*Handle, error) {
@@ -101,7 +101,7 @@ func (r *Root) ResolveNoFollow(path string) (*Handle, error) {
 	})
 }
 
-// Open is effectively shorthand for [Resolve] followed by [Handle.Open], but
+// Open is effectively shorthand for [Root.Resolve] followed by [Handle.Open], but
 // can be slightly more efficient (it reduces CGo overhead and the number of
 // syscalls used when using the openat2-based resolver) and is arguably more
 // ergonomic to use.
@@ -111,17 +111,17 @@ func (r *Root) Open(path string) (*os.File, error) {
 	return r.OpenFile(path, os.O_RDONLY)
 }
 
-// OpenFile is effectively shorthand for [Resolve] followed by
+// OpenFile is effectively shorthand for [Root.Resolve] followed by
 // [Handle.OpenFile], but can be slightly more efficient (it reduces CGo
 // overhead and the number of syscalls used when using the openat2-based
 // resolver) and is arguably more ergonomic to use.
 //
-// However, if flags contains os.O_NOFOLLOW and the path is a symlink, then
+// However, if flags contains [os.O_NOFOLLOW] and the path is a symlink, then
 // OpenFile's behaviour will match that of openat2. In most cases an error will
-// be returned, but if os.O_PATH is provided along with os.O_NOFOLLOW then a
-// file equivalent to [ResolveNoFollow] will be returned instead.
+// be returned, but if [os.O_PATH] is provided along with [os.O_NOFOLLOW] then a
+// file equivalent to [Root.ResolveNoFollow] will be returned instead.
 //
-// This is effectively equivalent to [os.OpenFile], except that os.O_CREAT is
+// This is effectively equivalent to [os.OpenFile], except that [os.O_CREAT] is
 // not supported.
 func (r *Root) OpenFile(path string, flags int) (*os.File, error) {
 	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (*os.File, error) {
