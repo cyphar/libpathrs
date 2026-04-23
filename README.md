@@ -27,10 +27,7 @@ Here is a toy example of using this library to open a path (`/etc/passwd`)
 inside a root filesystem (`/path/to/root`) safely. More detailed examples can
 be found in `examples/` and `tests/`.
 
-<table>
-<tr><th>Rust</th><th>C</th><th>Go</th></tr>
-<tr>
-<td>
+#### Rust ####
 
 ```rust
 use std::fs::File;
@@ -51,8 +48,7 @@ fn get_my_fd() -> Result<File, Error> {
 }
 ```
 
-</td>
-<td>
+#### C ####
 
 ```c
 #define _GNU_SOURCE
@@ -106,8 +102,7 @@ err:
 }
 ```
 
-</td>
-<td>
+#### Go ####
 
 ```go
 package main
@@ -138,10 +133,6 @@ func getMyFD() (*os.File, error) {
 	return handle.Open()
 }
 ```
-
-</td>
-</tr>
-</table>
 
 On Linux, libpathrs also provides an API for safe `procfs` operations with
 strict path safety [in the `procfs` module][docs.rs-procfs]. [Click
