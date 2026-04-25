@@ -98,6 +98,7 @@ err:
 }
 
 void usage(void) {
+	printf("cat (libpathrs %s)\n", pathrs_version());
 	printf("usage: cat <root> <unsafe-path>\n");
 	exit(1);
 }

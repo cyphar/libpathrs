@@ -18,6 +18,7 @@ import os
 import sys
 
 sys.path.append(os.path.dirname(__file__) + "/../contrib/bindings/python")
+import pathrs
 from pathrs import procfs
 from pathrs.procfs import ProcfsHandle
 
@@ -64,6 +65,12 @@ def main(*args):
     parser = argparse.ArgumentParser(
         prog="sysctl.py",
         description="A minimal implementation of sysctl(8) but using the libpathrs procfs API.",
+    )
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"sysctl.py (libpathrs {pathrs.library_version()})",
     )
     parser.add_argument(
         "-n",
