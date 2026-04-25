@@ -28,10 +28,15 @@ import (
 	"cyphar.com/go-pathrs"
 )
 
+func usage() {
+	fmt.Fprintf(os.Stderr, "cat (libpathrs %s)\n", pathrs.Version())
+	fmt.Fprintln(os.Stderr, "usage: cat <root> <unsafe-path>")
+	os.Exit(1)
+}
+
 func Main(args ...string) error {
 	if len(args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: cat <root> <unsafe-path>")
-		os.Exit(1)
+		usage()
 	}
 
 	rootPath, unsafePath := args[0], args[1]

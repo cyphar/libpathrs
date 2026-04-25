@@ -28,6 +28,7 @@ from ._internal import (
     INTERNAL_ERROR,
     # CFFI helpers.
     _cstr,
+    _pystr,
     _cbuffer,
 )
 from ._libpathrs_cffi import lib as libpathrs_so
@@ -51,9 +52,24 @@ __all__ = [
     # Core api.
     "Root",
     "Handle",
+    "library_version",
     # Error api (re-export).
     "PathrsError",
 ]
+
+
+def library_version() -> str:
+    """
+    Return the version of the underlying libpathrs C library that this Python
+    binding is linked against.
+
+    The returned string follows SemVer 2.0.0 (with an optional
+    "+<build-metadata>" suffix for pre-release builds, e.g. "0.2.4+dev").
+
+    This is distinct from pathrs.__version__ which contains the version of the
+    Python pathrs package itself.
+    """
+    return _pystr(libpathrs_so.pathrs_version())
 
 
 class Handle(WrappedFd):
