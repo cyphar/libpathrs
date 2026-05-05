@@ -50,6 +50,11 @@ func fetchError(errID C.int) error {
 	return err
 }
 
+// Version wraps pathrs_version.
+func Version() string {
+	return C.GoString(C.pathrs_version())
+}
+
 // OpenRoot wraps pathrs_open_root.
 func OpenRoot(path string) (uintptr, error) {
 	cPath := C.CString(path)

@@ -49,6 +49,26 @@ use std::{
 
 use libc::{c_char, c_int, c_uint, dev_t, size_t};
 
+/// Get the libpathrs version as a static, NUL-terminated string.
+///
+/// The returned string follows [SemVer 2.0.0][semver] (with an optional
+/// `+<build-metadata>` suffix for pre-release builds, e.g. `0.2.4+dev`).
+///
+/// # Return Value
+///
+/// This function returns a pointer to a static, NUL-terminated string
+/// containing the libpathrs version. The returned pointer must not be freed,
+/// and remains valid for the lifetime of the program.
+///
+/// [semver]: https://semver.org/spec/v2.0.0.html
+#[no_mangle]
+pub extern "C" fn pathrs_version() -> *const c_char {
+    concat!(env!("CARGO_PKG_VERSION"), "\0").as_ptr() as *const c_char
+}
+utils::symver! {
+    fn pathrs_version <- (pathrs_version, version = "LIBPATHRS_0.2", default);
+}
+
 /// Open a root handle.
 ///
 /// The provided path must be an existing directory.

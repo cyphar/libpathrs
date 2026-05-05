@@ -196,6 +196,22 @@ typedef struct __CBINDGEN_ALIGNED(8) {
 #define __PATHRS_MAX_ERR_VALUE -4096
 
 /**
+ * Get the libpathrs version as a static, NUL-terminated string.
+ *
+ * The returned string follows [SemVer 2.0.0][semver] (with an optional
+ * `+<build-metadata>` suffix for pre-release builds, e.g. `0.2.4+dev`).
+ *
+ * # Return Value
+ *
+ * This function returns a pointer to a static, NUL-terminated string
+ * containing the libpathrs version. The returned pointer must not be freed,
+ * and remains valid for the lifetime of the program.
+ *
+ * [semver]: https://semver.org/spec/v2.0.0.html
+ */
+const char *pathrs_version(void);
+
+/**
  * Open a root handle.
  *
  * The provided path must be an existing directory.
