@@ -46,4 +46,7 @@ pub mod error;
 /// Helpers for converting [`Result`] into C-style int returns.
 pub mod ret;
 
+/// Version information.
+pub mod version;
+
 mod utils;

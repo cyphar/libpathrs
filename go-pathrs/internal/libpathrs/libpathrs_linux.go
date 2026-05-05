@@ -335,3 +335,31 @@ func ProcfsOpen(how *ProcfsOpenHow) (uintptr, error) {
 	fd := C.pathrs_procfs_open((*C.pathrs_procfs_open_how)(how), C.size_t(unsafe.Sizeof(*how)))
 	return uintptr(fd), fetchError(fd)
 }
+
+// VersionInfo is a Go-friendly form of pathrs_version_info_t (struct).
+type VersionInfo struct {
+	VersionString string
+}
+
+// versionInfo is pathrs_version_info_t (struct).
+type versionInfo C.pathrs_version_info_t
+
+// Version is pathrs_version_info_t (sizeof(version) is passed automatically).
+func Version() (*VersionInfo, error) {
+	var rawVersion versionInfo
+	size := C.pathrs_version((*C.pathrs_version_info_t)(&rawVersion), C.size_t(unsafe.Sizeof(rawVersion)))
+	switch {
+	case size < 0:
+		return nil, fetchError(size)
+	case size > 0:
+		// TODO(log): Logging?
+		fallthrough
+	default:
+		// TODO(log): Add a log statement if sizeof(rawVersion) is bigger than
+		// the number of fields we store in VersionInfo. Otherwise a rebuild
+		// will mask that Go callers cannot see any new fields.
+		return &VersionInfo{
+			VersionString: C.GoString(rawVersion.version_string),
+		}, nil
+	}
+}

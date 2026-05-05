@@ -32,6 +32,13 @@ __PATHRS_MAX_ERR_VALUE: ErrorId
 def pathrs_errorinfo(err_id: Union[ErrorId, int]) -> CError: ...
 def pathrs_errorinfo_free(err: CError) -> None: ...
 
+# pathrs_version_info_t *
+@type_check_only
+class VersionInfo:
+    version_string: CString
+
+def pathrs_version(info: VersionInfo, size: int) -> Union[ErrorId, int]: ...
+
 # uint64_t
 ProcfsOpenFlags: TypeAlias = int
 PATHRS_PROCFS_NEW_UNMASKED: ProcfsOpenFlags

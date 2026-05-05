@@ -152,6 +152,8 @@ exclude = [
 	"CBorrowedFd",
 	# CReturn is a rust-only typedef.
 	"CReturn",
+	# CStringPtr is just const char *.
+	"CStringPtr",
 	# Don't export the RESOLVE_* definitions.
 	"RESOLVE_NO_XDEV",
 	"RESOLVE_NO_MAGICLINKS",
@@ -167,6 +169,8 @@ exclude = [
 "ProcfsOpenFlags" = "uint64_t"
 "ProcfsOpenHow" = "pathrs_procfs_open_how"
 
+"VersionInfo" = "pathrs_version_info_t"
+
 # Error API.
 "CError" = "pathrs_error_t"
 
@@ -174,3 +178,4 @@ exclude = [
 "RawFd" = "int"
 "BorrowedFd" = "int"
 "CBorrowedFd" = "int"
+"CStringPtr" = "const char *"

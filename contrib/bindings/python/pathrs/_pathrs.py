@@ -12,12 +12,15 @@
 import os
 
 import typing
-from typing import Any, IO, Union
+from typing import Any, IO, Union, cast
+import warnings
 
 # TODO: Remove this once we only support Python >= 3.11.
 from typing_extensions import TypeAlias
 
 from ._internal import (
+    # Generic helpers.
+    SingletonClass,
     # File type helpers.
     FileLike,
     WrappedFd,
@@ -28,6 +31,7 @@ from ._internal import (
     INTERNAL_ERROR,
     # CFFI helpers.
     _cstr,
+    _pystr,
     _cbuffer,
 )
 from ._libpathrs_cffi import lib as libpathrs_so
@@ -51,9 +55,44 @@ __all__ = [
     # Core api.
     "Root",
     "Handle",
+    "library_version",
     # Error api (re-export).
     "PathrsError",
 ]
+
+
+class VersionInfo(metaclass=SingletonClass):
+    """Stores information about the runtime version of libpathrs.so."""
+
+    _VERSION_INFO_TYPE = "pathrs_version_info_t *"
+
+    version_string: str
+
+    def __init__(self):  # type: ignore[no-untyped-def] # TODO: mypy appears to struggle with metaclasses.
+        info = cast("libpathrs_so.VersionInfo", ffi.new(self._VERSION_INFO_TYPE))
+        info_size = ffi.sizeof(cast("Any", info))
+
+        size = libpathrs_so.pathrs_version(info, info_size)
+        if _is_pathrs_err(size):
+            raise PathrsError._fetch(size) or INTERNAL_ERROR
+        if size > 0:
+            # TODO: We should also output a warning if the size of
+            # pathrs_version_info_t is bigger than the number of fields in the
+            # python-native VersionInfo. Otherwise a rebuild will mask that
+            # Python callers cannot see any new fields.
+            warnings.warn(
+                f"pathrs_version returned extra data we could not parse (need {size} bytes but buffer was only {info_size})"
+            )
+
+        self.version_string = _pystr(info.version_string)
+
+
+def library_version() -> VersionInfo:
+    """
+    Returns information about the runtime version of libpathrs.so.
+    This is just shorthand for VersionInfo().
+    """
+    return VersionInfo()  # type: ignore[no-untyped-call] # TODO: mypy appears to struggle with metaclasses.
 
 
 class Handle(WrappedFd):
