@@ -93,7 +93,7 @@ class PathrsError(Exception):
             return None
 
         err = libpathrs_so.pathrs_errorinfo(err_id)
-        if err == ffi.NULL:  # type: ignore # TODO: Make this check nicer...
+        if err == ffi.NULL:  # TODO: Make this check nicer...
             return None
 
         description = _pystr(err.description)

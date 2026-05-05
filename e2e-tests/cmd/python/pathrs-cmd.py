@@ -571,6 +571,9 @@ if __name__ == "__main__":
     try:
         main(*sys.argv[1:])
     except pathrs.PathrsError as e:
-        print(f"ERRNO {e.errno} ({os.strerror(e.errno)})")
+        errstr = "<unknown error>"
+        if e.errno is not None:
+            errstr = os.strerror(e.errno)
+        print(f"ERRNO {e.errno} ({errstr})")
         print(f"error: {e.message}")
         sys.exit(1)
