@@ -520,7 +520,9 @@ int pathrs_inroot_mknod(int root_fd,
  * the system errno(7) value associated with the error, etc), use
  * pathrs_errorinfo().
  */
-int pathrs_inroot_symlink(int root_fd, const char *path, const char *target);
+int pathrs_inroot_symlink(int root_fd,
+                          const char *target,
+                          const char *linkpath);
 
 /**
  * Create a hardlink within the rootfs referenced by root_fd. Both the hardlink
@@ -535,7 +537,9 @@ int pathrs_inroot_symlink(int root_fd, const char *path, const char *target);
  * the system errno(7) value associated with the error, etc), use
  * pathrs_errorinfo().
  */
-int pathrs_inroot_hardlink(int root_fd, const char *path, const char *target);
+int pathrs_inroot_hardlink(int root_fd,
+                           const char *target,
+                           const char *linkpath);
 
 /**
  * Create a new (custom) procfs root handle.

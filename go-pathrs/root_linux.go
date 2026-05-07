@@ -277,26 +277,26 @@ func (r *Root) Mknod(path string, mode os.FileMode, dev uint64) error {
 }
 
 // Symlink creates a symlink within a [Root]'s directory tree. The symlink is
-// created at path and is a link to target.
+// created at newname and is a link to oldname.
 //
 // This is effectively equivalent to [os.Symlink].
-func (r *Root) Symlink(path, target string) error {
+func (r *Root) Symlink(oldname, newname string) error {
 	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
-		err := libpathrs.InRootSymlink(rootFd, path, target)
+		err := libpathrs.InRootSymlink(rootFd, oldname, newname)
 		return struct{}{}, err
 	})
 	return err
 }
 
 // Hardlink creates a hardlink within a [Root]'s directory tree. The hardlink
-// is created at path and is a link to target. Both paths are within the
+// is created at newname and is a link to oldname. Both paths are within the
 // [Root]'s directory tree (you cannot hardlink to a different [Root] or the
 // host).
 //
 // This is effectively equivalent to [os.Link].
-func (r *Root) Hardlink(path, target string) error {
+func (r *Root) Hardlink(oldname, newname string) error {
 	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
-		err := libpathrs.InRootHardlink(rootFd, path, target)
+		err := libpathrs.InRootHardlink(rootFd, oldname, newname)
 		return struct{}{}, err
 	})
 	return err
