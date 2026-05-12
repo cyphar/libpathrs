@@ -153,7 +153,11 @@ fn check_current(
 static PROTECTED_SYMLINKS_SYSCTL: Lazy<u32> = Lazy::new(|| {
     let procfs = ProcfsHandle::new().expect("should be able to get a procfs handle");
     utils::sysctl_read_parse(&procfs, "fs.protected_symlinks")
-        .expect("should be able to parse fs.protected_symlinks")
+        // In container workloads, /proc/sys might be overmounted as read-only
+        // and we really don't want to fail in this case so we just assume that
+        // fs.protected_symlinks is enabled (to be conservative).
+        // TODO(log): Add logging?
+        .unwrap_or(1u32)
 });
 
 /// Verify that we should follow the symlink as per `fs.protected_symlinks`.
