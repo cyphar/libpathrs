@@ -367,6 +367,13 @@ int pathrs_inroot_readlink(int root_fd,
  * Rename a path within the rootfs referenced by root_fd. The flags argument is
  * identical to the renameat2(2) flags that are supported on the system.
  *
+ * # Future-proofing
+ *
+ * This function takes two `root_fd` arguments in order for future extensions
+ * to be able to use them, but callers must specify the same *value* for both
+ * arguments. (NOTE: This is not referring to the same underlying file, the
+ * actual file descriptor number must be identical.)
+ *
  * # Return Value
  *
  * On success, this function returns 0.
@@ -376,10 +383,11 @@ int pathrs_inroot_readlink(int root_fd,
  * the system errno(7) value associated with the error, etc), use
  * pathrs_errorinfo().
  */
-int pathrs_inroot_rename(int root_fd,
-                         const char *src,
-                         const char *dst,
-                         uint32_t flags);
+int pathrs_inroot_rename(int old_root_fd,
+                         const char *old_path,
+                         int new_root_fd,
+                         const char *new_path,
+                         uint64_t flags);
 
 /**
  * Remove the empty directory at path within the rootfs referenced by root_fd.
@@ -530,11 +538,22 @@ int pathrs_inroot_mknod(int root_fd,
  * the system errno(7) value associated with the error, etc), use
  * pathrs_errorinfo().
  */
-int pathrs_inroot_symlink(int root_fd, const char *path, const char *target);
+int pathrs_inroot_symlink(const char *target,
+                          int root_fd,
+                          const char *linkpath);
 
 /**
  * Create a hardlink within the rootfs referenced by root_fd. Both the hardlink
  * path and target are resolved within the rootfs.
+ *
+ * # Future-proofing
+ *
+ * This function takes two `root_fd` arguments in order for future extensions
+ * to be able to use them, but callers must specify the same *value* for both
+ * arguments. (NOTE: This is not referring to the same underlying file, the
+ * actual file descriptor number must be identical.)
+ *
+ * The `flags` argument is included for future extensions and must be 0.
  *
  * # Return Value
  *
@@ -545,7 +564,11 @@ int pathrs_inroot_symlink(int root_fd, const char *path, const char *target);
  * the system errno(7) value associated with the error, etc), use
  * pathrs_errorinfo().
  */
-int pathrs_inroot_hardlink(int root_fd, const char *path, const char *target);
+int pathrs_inroot_hardlink(int old_root_fd,
+                           const char *old_path,
+                           int new_root_fd,
+                           const char *new_path,
+                           uint64_t flags);
 
 /**
  * Create a new (custom) procfs root handle.

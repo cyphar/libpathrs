@@ -154,14 +154,14 @@ func InRootCreat(rootFd uintptr, path string, flags int, mode uint32) (uintptr, 
 }
 
 // InRootRename wraps pathrs_inroot_rename.
-func InRootRename(rootFd uintptr, src, dst string, flags uint) error {
-	cSrc := C.CString(src)
-	defer C.free(unsafe.Pointer(cSrc))
+func InRootRename(oldRootFd uintptr, oldPath string, newRootFd uintptr, newPath string, flags uint64) error {
+	cOldPath := C.CString(oldPath)
+	defer C.free(unsafe.Pointer(cOldPath))
 
-	cDst := C.CString(dst)
-	defer C.free(unsafe.Pointer(cDst))
+	cNewPath := C.CString(newPath)
+	defer C.free(unsafe.Pointer(cNewPath))
 
-	err := C.pathrs_inroot_rename(C.int(rootFd), cSrc, cDst, C.uint(flags))
+	err := C.pathrs_inroot_rename(C.int(oldRootFd), cOldPath, C.int(newRootFd), cNewPath, C.uint64_t(flags))
 	return fetchError(err)
 }
 
@@ -193,26 +193,26 @@ func InRootMknod(rootFd uintptr, path string, mode uint32, dev uint64) error {
 }
 
 // InRootSymlink wraps pathrs_inroot_symlink.
-func InRootSymlink(rootFd uintptr, path, target string) error {
-	cPath := C.CString(path)
-	defer C.free(unsafe.Pointer(cPath))
+func InRootSymlink(target string, rootFd uintptr, linkpath string) error {
+	cLinkpath := C.CString(linkpath)
+	defer C.free(unsafe.Pointer(cLinkpath))
 
 	cTarget := C.CString(target)
 	defer C.free(unsafe.Pointer(cTarget))
 
-	err := C.pathrs_inroot_symlink(C.int(rootFd), cPath, cTarget)
+	err := C.pathrs_inroot_symlink(cTarget, C.int(rootFd), cLinkpath)
 	return fetchError(err)
 }
 
 // InRootHardlink wraps pathrs_inroot_hardlink.
-func InRootHardlink(rootFd uintptr, path, target string) error {
-	cPath := C.CString(path)
-	defer C.free(unsafe.Pointer(cPath))
+func InRootHardlink(oldRootFd uintptr, oldPath string, newRootFd uintptr, newPath string, flags uint64) error {
+	cNewPath := C.CString(newPath)
+	defer C.free(unsafe.Pointer(cNewPath))
 
-	cTarget := C.CString(target)
-	defer C.free(unsafe.Pointer(cTarget))
+	cOldPath := C.CString(oldPath)
+	defer C.free(unsafe.Pointer(cOldPath))
 
-	err := C.pathrs_inroot_hardlink(C.int(rootFd), cPath, cTarget)
+	err := C.pathrs_inroot_hardlink(C.int(oldRootFd), cOldPath, C.int(newRootFd), cNewPath, C.uint64_t(flags))
 	return fetchError(err)
 }
 

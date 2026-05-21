@@ -90,7 +90,11 @@ def pathrs_inroot_creat(
     rootfd: RawFd, path: CString, flags: int, filemode: int
 ) -> Union[RawFd, ErrorId]: ...
 def pathrs_inroot_rename(
-    rootfd: RawFd, src: CString, dst: CString, flags: int
+    old_rootfd: RawFd,
+    old_path: CString,
+    new_rootfd: RawFd,
+    new_path: CString,
+    flags: int,
 ) -> Union[Literal[0], ErrorId]: ...
 def pathrs_inroot_rmdir(rootfd: RawFd, path: CString) -> Union[Literal[0], ErrorId]: ...
 def pathrs_inroot_unlink(
@@ -107,10 +111,16 @@ def pathrs_inroot_mknod(
     rootfd: RawFd, path: CString, mode: int, dev: int
 ) -> Union[Literal[0], ErrorId]: ...
 def pathrs_inroot_hardlink(
-    rootfd: RawFd, path: CString, target: CString
+    old_rootfd: RawFd,
+    old_path: CString,
+    new_rootfd: RawFd,
+    new_path: CString,
+    flags: int,
 ) -> Union[Literal[0], ErrorId]: ...
 def pathrs_inroot_symlink(
-    rootfd: RawFd, path: CString, target: CString
+    target: CString,
+    rootfd: RawFd,
+    linkpath: CString,
 ) -> Union[Literal[0], ErrorId]: ...
 def pathrs_inroot_readlink(
     rootfd: RawFd, path: CString, linkbuf: CBuffer, linkbuf_size: int

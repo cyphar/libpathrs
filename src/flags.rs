@@ -204,10 +204,10 @@ bitflags! {
     /// [`renameat2(2)`]: http://man7.org/linux/man-pages/man2/rename.2.html
     /// [`Root::rename`]: crate::Root::rename
     #[derive(Default, PartialEq, Eq, Debug, Clone, Copy)]
-    pub struct RenameFlags: libc::c_uint {
-        const RENAME_EXCHANGE = libc::RENAME_EXCHANGE;
-        const RENAME_NOREPLACE = libc::RENAME_NOREPLACE;
-        const RENAME_WHITEOUT = libc::RENAME_WHITEOUT;
+    pub struct RenameFlags: u64 {
+        const RENAME_EXCHANGE = libc::RENAME_EXCHANGE as _;
+        const RENAME_NOREPLACE = libc::RENAME_NOREPLACE as _;
+        const RENAME_WHITEOUT = libc::RENAME_WHITEOUT as _;
 
         // Don't clobber unknown RENAME_* bits.
         const _ = !0;
@@ -216,7 +216,11 @@ bitflags! {
 
 impl From<RenameFlags> for rustix::fs::RenameFlags {
     fn from(flags: RenameFlags) -> Self {
-        Self::from_bits_retain(flags.bits())
+        debug_assert!(
+            flags.bits() < (1u64 << 32),
+            "RenameFlags cannot contain anything in the top 32 bits."
+        );
+        Self::from_bits_retain(flags.bits() as _)
     }
 }
 

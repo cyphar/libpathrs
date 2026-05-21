@@ -305,7 +305,7 @@ class Root(WrappedFd):
         """
         # TODO: Should we have a separate Root.swap() operation?
         err = libpathrs_so.pathrs_inroot_rename(
-            self.fileno(), _cstr(src), _cstr(dst), flags
+            self.fileno(), _cstr(src), self.fileno(), _cstr(dst), flags
         )
         if _is_pathrs_err(err):
             raise PathrsError._fetch(err) or INTERNAL_ERROR
@@ -398,35 +398,35 @@ class Root(WrappedFd):
         if _is_pathrs_err(err):
             raise PathrsError._fetch(err) or INTERNAL_ERROR
 
-    def hardlink(self, path: str, target: str, /) -> None:
+    def hardlink(self, target: str, linkname: str, /) -> None:
         """
         Create a hardlink between two paths inside the Root.
 
-        path is the path to the *new* hardlink, and target is a path to the
-        *existing* file.
+        linkname is the path to the *new* hardlink, and target is a path to
+        the *existing* file.
 
         A pathrs.Error is raised if the path for the new hardlink already
         exists.
         """
         err = libpathrs_so.pathrs_inroot_hardlink(
-            self.fileno(), _cstr(path), _cstr(target)
+            self.fileno(), _cstr(target), self.fileno(), _cstr(linkname), 0
         )
         if _is_pathrs_err(err):
             raise PathrsError._fetch(err) or INTERNAL_ERROR
 
-    def symlink(self, path: str, target: str, /) -> None:
+    def symlink(self, target: str, linkname: str, /) -> None:
         """
         Create a symlink at the given path in the Root.
 
-        path is the path to the *new* symlink, and target is what the symink
-        will point to. Note that symlinks contents are not verified on Linux,
-        so there are no restrictions on what target you put.
+        linkname is the path to the *new* symlink, and target is what the
+        symlink will point to. Note that symlink contents are not verified on
+        Linux, so there are no restrictions on what target you put.
 
         A pathrs.Error is raised if the path for the new symlink already
         exists.
         """
         err = libpathrs_so.pathrs_inroot_symlink(
-            self.fileno(), _cstr(path), _cstr(target)
+            _cstr(target), self.fileno(), _cstr(linkname)
         )
         if _is_pathrs_err(err):
             raise PathrsError._fetch(err) or INTERNAL_ERROR

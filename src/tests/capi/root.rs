@@ -138,9 +138,9 @@ impl CapiRoot {
                 let target = capi_utils::path_to_cstring(target);
                 unsafe {
                     capi::core::pathrs_inroot_symlink(
+                        target.as_ptr(),
                         root_fd.into(),
                         path.as_ptr(),
-                        target.as_ptr(),
                     )
                 }
             }
@@ -149,8 +149,10 @@ impl CapiRoot {
                 unsafe {
                     capi::core::pathrs_inroot_hardlink(
                         root_fd.into(),
-                        path.as_ptr(),
                         target.as_ptr(),
+                        root_fd.into(),
+                        path.as_ptr(),
+                        0,
                     )
                 }
             }
@@ -257,8 +259,9 @@ impl CapiRoot {
             capi::core::pathrs_inroot_rename(
                 root_fd.into(),
                 source.as_ptr(),
+                root_fd.into(),
                 destination.as_ptr(),
-                rflags.bits(),
+                rflags.bits() as _,
             )
         })
     }

@@ -314,8 +314,7 @@ var rootHardlinkCmd = &cli.Command{
 		target := cmd.StringArg("target")
 		linkname := cmd.StringArg("linkname")
 
-		// TODO: These arguments need to get swapped.
-		return root.Hardlink(linkname, target)
+		return root.Hardlink(target, linkname)
 	},
 }
 
@@ -336,8 +335,7 @@ var rootSymlinkCmd = &cli.Command{
 		target := cmd.StringArg("target")
 		linkname := cmd.StringArg("linkname")
 
-		// TODO: These arguments need to get swapped.
-		return root.Symlink(linkname, target)
+		return root.Symlink(target, linkname)
 	},
 }
 
@@ -443,7 +441,7 @@ var rootRenameCmd = &cli.Command{
 		src := cmd.StringArg("source")
 		dst := cmd.StringArg("destination")
 
-		var renameArgs uint
+		var renameArgs uint64
 		if !cmd.Bool("clobber") {
 			renameArgs |= unix.RENAME_NOREPLACE
 		}

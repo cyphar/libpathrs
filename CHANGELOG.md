@@ -6,6 +6,30 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Breaking ###
+* `pathrs_inroot_hardlink` and `pathrs_inroot_symlink` have been switched to
+  using the standard argument order from their respective system calls
+  (previously the order was swapped, which lead to possible confusion).
+  - Previously compiled programs will continue to work (thanks to symbol
+    versioning) but rebuilt programs will need to adjust their argument order.
+  - Rust users are not affected by this change.
+  - For the Go and Python bindings, the wrappers have also had their argument
+    orders swapped to match the C API and so will also need to be updated when
+    rebuilding.
+  - For the sake of future extensions (and to ease the migration),
+    `pathrs_inroot_hardlink` now accepts both an `old_root_fd` and
+    `new_root_fd`. At the moment, callers must pass *the same value* to both
+    arguments (this means the same numeric file descriptor value, not just a
+    reference to the same underlying file).
+* `pathrs_inroot_rename` also now accepts both an `old_root_fd` and
+  `new_root_fd`, with the same caveats as `pathrs_inroot_hardlink` above.
+* `RenameFlags` is now backed by a `u64` (instead of `libc::c_uint`) so that we
+  can accommodate future extension bits beyond the kernel's current 32-bit ABI.
+  Rust callers using `RenameFlags::bits()` or storing the raw value will need
+  to adjust their types.
+  - As part of this, `pathrs_inroot_rename` now also takes a `uint64_t`, and
+    thus the the Go `(*Root).Rename` wrapper takes a `uint64` as well.
+
 ### Added ###
 - capi: We now have a new `pathrs_version` API that provides runtime version
   information, which loosely matches other libraries like `libseccomp`. The API
