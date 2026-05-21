@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Fixed ###
+- Containers often have `/proc/sys` overmounted with a read-only mount to avoid
+  container escapes, this caused:
+  - The `O_PATH` resolver to panic because the hardened procfs lookup for
+    `/proc/sys/fs/protected_symlinks` would fail. We now conservatively assume
+    that `fs.protected_symlinks` is enabled if we cannot access the file for
+    any reason.
+
 ## [0.2.4] - 2026-03-03 ##
 
 > そう。神を生贄に捧げる！
