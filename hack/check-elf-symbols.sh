@@ -74,7 +74,7 @@ echo "$(wc -l <<<"$SYMBOL_OBJDUMP") pathrs symbols present in $ELF_FILE"
 for node in "${EXPECTED_VERSION_NODES[@]}"; do
 	awk -v NODE="$node" '
 	BEGIN { num_symbols = 0 }
-	$(NF-1) == NODE {
+	$(NF-1) == NODE || $(NF-1) == "(" NODE ")" {
 		symbols[$NF]++
 		num_symbols++
 	}
@@ -89,7 +89,7 @@ for node in "${EXPECTED_VERSION_NODES[@]}"; do
 	' <<<"$SYMBOL_OBJDUMP"
 done
 
-unversioned="$(awk '!($(NF-1) ~ /^LIBPATHRS_/)' <<<"$SYMBOL_OBJDUMP")"
+unversioned="$(awk '!($(NF-1) ~ /^LIBPATHRS_|^\(LIBPATHRS_.*\)/)' <<<"$SYMBOL_OBJDUMP")"
 [ -z "$unversioned" ] || {
 	echo "UNVERSIONED SYMBOLS ($(wc -l <<<"$unversioned") total):"
 	echo "$unversioned"
