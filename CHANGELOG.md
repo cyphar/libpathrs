@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Added ###
+- capi: We now have a new `pathrs_version` API that provides runtime version
+  information, which loosely matches other libraries like `libseccomp`. The API
+  is based on extensible structs, so we can add more information here in the
+  future.
+
 ### Fixed ###
 - Containers often have `/proc/sys` overmounted with a read-only mount to avoid
   container escapes, this caused:

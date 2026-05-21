@@ -22,7 +22,7 @@ def parse_pyproject() -> Dict[str, Any]:
         openmode = "rb"
     except ImportError:
         # TODO: Remove this once we only support Python >= 3.11.
-        import toml as tomllib  # type: ignore
+        import toml as tomllib  # type: ignore # The types are not compatible.
 
         openmode = "r"
 

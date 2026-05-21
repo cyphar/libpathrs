@@ -93,7 +93,7 @@ class PathrsError(Exception):
             return None
 
         err = libpathrs_so.pathrs_errorinfo(err_id)
-        if err == ffi.NULL:  # TODO: Make this check nicer...
+        if err == ffi.NULL:  # type: ignore[comparison-overlap,unused-ignore] # TODO: Make this check nicer...
             return None
 
         description = _pystr(err.description)
@@ -344,3 +344,14 @@ def _convert_mode(mode: str) -> int:
 
     # We don't care about "b" or "t" since that's just a Python thing.
     return flags
+
+
+class SingletonClass(type):
+    """Metaclass used to create singleton classes."""
+
+    _instances: dict[type, Type[Any]] = {}
+
+    def __call__(cls, *args, **kwargs):  # type: ignore[no-untyped-def] # TODO: Not clear what annotations to use, and mypy appears to be confused by metaclasses.
+        if cls not in cls._instances:
+            cls._instances[cls] = super(SingletonClass, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]

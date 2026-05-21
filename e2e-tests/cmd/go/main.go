@@ -21,7 +21,22 @@ import (
 
 	"github.com/urfave/cli/v3"
 	"golang.org/x/sys/unix"
+
+	"cyphar.com/go-pathrs"
 )
+
+var versionCmd = &cli.Command{
+	Name:  "version",
+	Usage: "output the libpathrs.so version",
+	Action: func(_ context.Context, _ *cli.Command) error {
+		version, err := pathrs.LibraryVersion()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("VERSION %s\n", version.VersionString)
+		return nil
+	},
+}
 
 func Main(args []string) error {
 	if dumpableStr := os.Getenv("PR_SET_DUMPABLE"); dumpableStr != "" {
@@ -41,6 +56,7 @@ func Main(args []string) error {
 			"Aleksa Sarai <cyphar@cyphar.com>",
 		},
 		Commands: []*cli.Command{
+			versionCmd,
 			rootCmd,
 			procfsCmd,
 		},

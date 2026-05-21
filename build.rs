@@ -83,9 +83,10 @@ fn main() {
                 // output .so. For more information about getting all of this to
                 // work nicely, see <https://internals.rust-lang.org/t/23626>.
                 r#"
-            LIBPATHRS_0.1 {{ }};
-            LIBPATHRS_0.2 {{ local: *; }} LIBPATHRS_0.1;
-            "#
+                LIBPATHRS_0.1 {{ }};
+                LIBPATHRS_0.2 {{ }} LIBPATHRS_0.1;
+                LIBPATHRS_0.2.5 {{ local: *; }} LIBPATHRS_0.2;
+                "#
             )
             .expect("write version script");
             println!("cargo:rustc-cdylib-link-arg=-Wl,--version-script={version_script_path}");

@@ -33,7 +33,8 @@
 use crate::error::{Error, ErrorImpl};
 
 use std::{
-    any, cmp,
+    any,
+    cmp::{self, Ordering},
     ffi::{CStr, CString, OsStr},
     marker::PhantomData,
     mem,
@@ -45,7 +46,7 @@ use std::{
     ptr, slice,
 };
 
-use bytemuck::Pod;
+use bytemuck::{NoUninit, Pod};
 use libc::{c_char, c_int, size_t};
 
 /// Generate `.symver` entries for a given function.
@@ -299,6 +300,58 @@ pub(crate) unsafe fn copy_from_extensible_struct<T: Pod>(
     })
 }
 
+/// Copy a `repr(C)` extensible structure to a buffer owned by a C caller. If
+/// the C caller's buffer is larger than the library type, the trailing bytes
+/// will be zero-filled. If the library type is larger than the C callers buffer
+/// and the trailing portion contains non-zero bytes, `Ok(true)` is returned to
+/// indicate the data was truncated.
+pub(crate) unsafe fn copy_into_extensible_struct<T: NoUninit>(
+    dst: *mut T,
+    dst_size: usize,
+    src: &T,
+) -> Result<bool, Error> {
+    let raw_src = bytemuck::bytes_of(src);
+
+    if dst.is_null() {
+        if dst_size > 0 {
+            Err(ErrorImpl::InvalidArgument {
+                name: "dst".into(),
+                description: "cannot be NULL with non-zero buffer size".into(),
+            })?
+        }
+        // Pretend we "truncated" at size 0.
+        return Ok(raw_src.iter().any(|&b| b != 0u8));
+    }
+
+    // SAFETY: The C caller guarantees that dst is from a single allocation, is
+    // aligned for a u8 slice (generally true for all arrays) and is at least
+    // dst_size bytes in length.
+    let dst_buffer = unsafe { slice::from_raw_parts_mut(dst as *mut u8, dst_size) };
+    let struct_size = mem::size_of::<T>();
+
+    let to_copy = cmp::min(dst_size, struct_size);
+    let rest = to_copy..;
+
+    // Copy the common bytes.
+    dst_buffer[..to_copy].copy_from_slice(&raw_src[..to_copy]);
+
+    Ok(match dst_size.cmp(&struct_size) {
+        // (dst_size < struct_size)
+        Ordering::Less => {
+            // Were there any non-zero bytes we just truncated?
+            raw_src[rest].iter().any(|&b| b != 0u8)
+        }
+        // (dst_size > struct_size)
+        Ordering::Greater => {
+            // Clear any trailing bytes.
+            bytemuck::fill_zeroes(&mut dst_buffer[rest]);
+            false
+        }
+        // (dst_size == struct_size)
+        Ordering::Equal => false, // nothing truncated
+    })
+}
+
 pub(crate) trait Leakable: Sized {
     /// Leak a structure such that it can be passed through C-FFI.
     fn leak(self) -> &'static mut Self {
@@ -335,16 +388,61 @@ mod tests {
     use bytemuck::{Pod, Zeroable};
     use pretty_assertions::assert_eq;
 
-    #[repr(C)]
     #[derive(PartialEq, Eq, Default, Debug, Clone, Copy, Pod, Zeroable)]
+    #[repr(C)]
     struct Struct {
         foo: u64,
         bar: u32,
         baz: u32,
     }
 
+    /// Wrap a structure and ensure that operations on it do not write outside
+    /// of its bounds. This is checked on `Drop` but can also be manually
+    /// checked with [`assert`][Self::assert].
+    #[derive(Debug, Clone)]
+    #[repr(C)]
+    struct Guarded<T> {
+        guard_before: [u8; 16],
+        data: T,
+        guard_after: [u8; 16],
+    }
+
+    impl<T> Guarded<T> {
+        const GUARD_DATA: [u8; 16] = [0xa5; 16];
+
+        fn new(data: T) -> Self {
+            Self {
+                guard_before: Self::GUARD_DATA,
+                data,
+                guard_after: Self::GUARD_DATA,
+            }
+        }
+
+        fn assert(&self) {
+            assert_eq!(
+                self.guard_before,
+                Self::GUARD_DATA,
+                "guard_before was modified",
+            );
+            assert_eq!(
+                self.guard_after,
+                Self::GUARD_DATA,
+                "guard_after was modified",
+            );
+        }
+    }
+
+    impl<T> Drop for Guarded<T> {
+        fn drop(&mut self) {
+            // Don't mask an existing panic.
+            if !std::thread::panicking() {
+                self.assert();
+            }
+        }
+    }
+
     #[test]
-    fn extensible_struct() {
+    fn from_extensible_struct() {
         let example = Struct {
             foo: 0xdeadbeeff00dcafe,
             bar: 0x01234567,
@@ -362,7 +460,7 @@ mod tests {
     }
 
     #[test]
-    fn extensible_struct_short() {
+    fn from_extensible_struct_short() {
         let example = Struct {
             foo: 0xdeadbeeff00dcafe,
             bar: 0x01234567,
@@ -409,7 +507,7 @@ mod tests {
     }
 
     #[test]
-    fn extensible_struct_long() {
+    fn from_extensible_struct_long() {
         #[repr(C)]
         #[derive(PartialEq, Eq, Default, Debug, Clone, Copy, Pod, Zeroable)]
         struct StructV2 {
@@ -457,6 +555,267 @@ mod tests {
             .map_err(|err| err.kind()),
             Err(ErrorKind::UnsupportedStructureData),
             "copy_from_extensible_struct(structv2, sizeof(structv2)) with trailing non-zero bytes",
+        );
+    }
+
+    #[test]
+    fn into_extensible_struct() {
+        let example = Struct {
+            foo: 0xdeadbeeff00dcafe,
+            bar: 0x01234567,
+            baz: 0x89abcdef,
+        };
+
+        let mut guarded = Guarded::new(Struct::default());
+        assert_eq!(
+            unsafe {
+                copy_into_extensible_struct(
+                    &mut guarded.data as *mut Struct,
+                    mem::size_of::<Struct>(),
+                    &example,
+                )
+            }
+            .expect("copy_into_extensible_struct with dst_size=sizeof(struct)"),
+            false,
+            "copy_into_extensible_struct(struct, sizeof(struct)) should not be truncated",
+        );
+        assert_eq!(
+            guarded.data, example,
+            "copy_into_extensible_struct(struct, sizeof(struct)) should write the full struct",
+        );
+    }
+
+    #[test]
+    fn into_extensible_struct_short() {
+        let example = Struct {
+            foo: 0xdeadbeeff00dcafe,
+            bar: 0x01234567,
+            baz: 0x89abcdef,
+        };
+        let sentinel_dst = Struct {
+            foo: 0xaaaaaaaaaaaaaaaa,
+            bar: 0xbbbbbbbb,
+            baz: 0xcccccccc,
+        };
+
+        // Short size (one field) with non-zero trailing data should not
+        // overwrite later fields and returns Ok(true) to indicate that non-zero
+        // data was truncated.
+        let mut guarded = Guarded::new(sentinel_dst);
+        assert_eq!(
+            unsafe {
+                copy_into_extensible_struct(
+                    &mut guarded.data as *mut Struct,
+                    bytemuck::offset_of!(Struct, bar),
+                    &example,
+                )
+            }
+            .expect("copy_into_extensible_struct with dst_size=offsetof(struct, bar)"),
+            true,
+            "copy_into_extensible_struct(struct, offsetof(struct, bar)) with non-zero src trailing should be truncated",
+        );
+        assert_eq!(
+            guarded.data,
+            Struct {
+                foo: example.foo,
+                bar: sentinel_dst.bar,
+                baz: sentinel_dst.baz,
+            },
+            "copy_into_extensible_struct(struct, offsetof(struct, bar)) should only write foo, leaving trailing dst bytes untouched",
+        );
+        guarded.assert();
+
+        // Short size (two fields) with non-zero trailing data should not
+        // overwrite later fields and returns Ok(true) to indicate that non-zero
+        // data was truncated.
+        let mut guarded = Guarded::new(sentinel_dst);
+        assert_eq!(
+            unsafe {
+                copy_into_extensible_struct(
+                    &mut guarded.data as *mut Struct,
+                    bytemuck::offset_of!(Struct, baz),
+                    &example,
+                )
+            }
+            .expect("copy_into_extensible_struct with dst_size=offsetof(struct.baz)"),
+            true,
+            "copy_into_extensible_struct(struct, offsetof(struct.baz)) with non-zero src trailing should be truncated",
+        );
+        assert_eq!(
+            guarded.data,
+            Struct {
+                foo: example.foo,
+                bar: example.bar,
+                baz: sentinel_dst.baz,
+            },
+            "copy_into_extensible_struct(struct, offsetof(struct.baz)) should only write foo and bar, leaving trailing dst bytes untouched",
+        );
+        guarded.assert();
+
+        // Short size (one fields) with zero trailing data should not overwrite
+        // later fields and returns Ok(false) to indicate that non-zero data was
+        // *not* truncated.
+        let example_zero_trailing = Struct {
+            foo: 0xdeadbeeff00dcafe,
+            bar: 0,
+            baz: 0,
+        };
+        let mut guarded = Guarded::new(sentinel_dst);
+        assert_eq!(
+            unsafe {
+                copy_into_extensible_struct(
+                    &mut guarded.data as *mut Struct,
+                    bytemuck::offset_of!(Struct, bar),
+                    &example_zero_trailing,
+                )
+            }
+            .expect("copy_into_extensible_struct with dst_size=offsetof(struct, bar) and zero-trailing src"),
+            false,
+            "copy_into_extensible_struct(struct, offsetof(struct, bar)) with zero-trailing src should not be truncated",
+        );
+        assert_eq!(
+            guarded.data,
+            Struct {
+                foo: example_zero_trailing.foo,
+                bar: sentinel_dst.bar,
+                baz: sentinel_dst.baz,
+            },
+            "copy_into_extensible_struct(struct, offsetof(struct, bar)) with zero-trailing src should write foo only",
+        );
+        guarded.assert();
+    }
+
+    #[test]
+    fn into_extensible_struct_long() {
+        #[repr(C)]
+        #[derive(PartialEq, Eq, Default, Debug, Clone, Copy, Pod, Zeroable)]
+        struct StructV2 {
+            inner: Struct,
+            extra: u64,
+        }
+
+        let example = Struct {
+            foo: 0xdeadbeeff00dcafe,
+            bar: 0x01234567,
+            baz: 0x89abcdef,
+        };
+
+        // Copy to a larger buffer provided by the user will cause the trailing
+        // data (StructV2.extra) to get zeroed.
+        let mut guarded = Guarded::new(StructV2 {
+            inner: Struct {
+                foo: 0xaaaaaaaaaaaaaaaa,
+                bar: 0xbbbbbbbb,
+                baz: 0xcccccccc,
+            },
+            extra: 0xffffffffffffffff,
+        });
+        assert_eq!(
+            unsafe {
+                copy_into_extensible_struct(
+                    &mut guarded.data as *mut StructV2 as *mut Struct,
+                    mem::size_of::<StructV2>(),
+                    &example,
+                )
+            }
+            .expect("copy_into_extensible_struct with dst_size=sizeof(StructV2)"),
+            false,
+            "copy_into_extensible_struct(struct, sizeof(StructV2)) should not be truncated",
+        );
+        assert_eq!(
+            guarded.data,
+            StructV2 {
+                inner: example,
+                extra: 0,
+            },
+            "copy_into_extensible_struct(struct, sizeof(StructV2)) should write src and zero-fill trailing dst bytes",
+        );
+    }
+
+    #[test]
+    fn into_extensible_struct_zerosize() {
+        let example = Struct {
+            foo: 0xdeadbeeff00dcafe,
+            bar: 0x01234567,
+            baz: 0x89abcdef,
+        };
+        let sentinel_dst = Struct {
+            foo: 0xaaaaaaaaaaaaaaaa,
+            bar: 0xbbbbbbbb,
+            baz: 0xcccccccc,
+        };
+
+        // Zero size with non-zero struct should write nothing to the struct,
+        // and act as though it was truncated (i.e., return Ok(true)).
+        let mut guarded = Guarded::new(sentinel_dst);
+        assert_eq!(
+            unsafe { copy_into_extensible_struct(&mut guarded.data as *mut Struct, 0, &example) }
+                .expect("copy_into_extensible_struct with dst_size=0"),
+            true,
+            "copy_into_extensible_struct(struct, 0) with non-zero src should be truncated",
+        );
+        assert_eq!(
+            guarded.data, sentinel_dst,
+            "copy_into_extensible_struct(struct, 0) should not modify dst",
+        );
+        guarded.assert();
+
+        // Zero size with all-zero struct should write nothing to the struct,
+        // and act as though it was *not* truncated (i.e., return Ok(false)).
+        let mut guarded = Guarded::new(sentinel_dst);
+        assert_eq!(
+            unsafe {
+                copy_into_extensible_struct(&mut guarded.data as *mut Struct, 0, &Struct::default())
+            }
+            .expect("copy_into_extensible_struct with dst_size=0 and all-zero src"),
+            false,
+            "copy_into_extensible_struct(zero-struct, 0) should not be truncated",
+        );
+        assert_eq!(
+            guarded.data, sentinel_dst,
+            "copy_into_extensible_struct(zero-struct, 0) should not modify dst",
+        );
+        guarded.assert();
+    }
+
+    #[test]
+    fn into_extensible_struct_null() {
+        let example = Struct {
+            foo: 0xdeadbeeff00dcafe,
+            bar: 0x01234567,
+            baz: 0x89abcdef,
+        };
+
+        // NULL with zero size acts like zero size with any pointer value --
+        // "write" nothing to NULL and act as though it was truncated if the
+        // data was non-zero (i.e., return Ok(true)).
+        assert_eq!(
+            unsafe { copy_into_extensible_struct(ptr::null_mut::<Struct>(), 0, &example) }
+                .expect("copy_into_extensible_struct with NULL dst and dst_size=0"),
+            true,
+            "copy_into_extensible_struct(NULL, 0) should return Ok(true) for non-zero struct",
+        );
+        assert_eq!(
+            unsafe {
+                copy_into_extensible_struct(ptr::null_mut::<Struct>(), 0, &Struct::default())
+            }
+            .expect("copy_into_extensible_struct with NULL dst and dst_size=0"),
+            false,
+            "copy_into_extensible_struct(NULL, 0) should return Ok(false) for zero struct",
+        );
+
+        // NULL with non-zero size is an error.
+        assert_eq!(
+            unsafe {
+                copy_into_extensible_struct(
+                    ptr::null_mut::<Struct>(),
+                    mem::size_of::<Struct>(),
+                    &example,
+                )
+            }
+            .map_err(|err| err.kind()),
+            Err(ErrorKind::InvalidArgument),
+            "copy_into_extensible_struct(NULL, sizeof(struct)) should be InvalidArgument",
         );
     }
 }

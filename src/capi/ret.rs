@@ -62,6 +62,12 @@ impl IntoCReturn for CReturn {
     }
 }
 
+impl IntoCReturn for isize {
+    fn into_c_return(self) -> CReturn {
+        self as _
+    }
+}
+
 impl IntoCReturn for OwnedFd {
     fn into_c_return(self) -> CReturn {
         self.into_raw_fd()

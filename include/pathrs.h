@@ -182,6 +182,16 @@ typedef struct __CBINDGEN_ALIGNED(8) {
 } pathrs_error_t;
 
 /**
+ * Represents the version information of the runtime libpathrs library.
+ */
+typedef struct {
+    /**
+     * Pointer to static version string containing the crate version.
+     */
+    const char * version_string;
+} pathrs_version_info_t;
+
+/**
  * The smallest return value which cannot be a libpathrs error ID.
  *
  * While all libpathrs error IDs are negative numbers, some functions may
@@ -820,6 +830,29 @@ pathrs_error_t *pathrs_errorinfo(int err_id);
  * Free the pathrs_error_t object returned by pathrs_errorinfo().
  */
 void pathrs_errorinfo_free(pathrs_error_t *ptr);
+
+/**
+ * Return the version information of the libpathrs library at runtime.
+ *
+ * This API is designed to be extensible. The caller must pass a pointer to a
+ * contiguous buffer `dst` that is large enough to store `dst_size` bytes. This
+ * buffer is then filled with version information. If the library has less data
+ * than the given buffer size, the trailing bytes are zero-filled. If the
+ * library has more data than the given buffer size the data is truncated and
+ * (if the truncated data contained non-zero values), the return value
+ * indicates what buffer size is needed to contain all version data.
+ *
+ * # Return Value
+ *
+ * On success, this function returns `0` or (if the version data was truncated)
+ * a positive integer that is the size of the buffer needed to store all data.
+ *
+ * If an error occurs, this function will return a negative error code. To
+ * retrieve information about the error (such as a string describing the error,
+ * the system errno(7) value associated with the error, etc), use
+ * pathrs_errorinfo().
+ */
+int pathrs_version(pathrs_version_info_t *dst, size_t dst_size);
 
 #endif  /* LIBPATHRS_H */
 
