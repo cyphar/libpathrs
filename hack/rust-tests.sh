@@ -220,6 +220,14 @@ function nextest_run() {
 			#   error: error extracting archive `./pathrs.tar.zst`
 			#   destination `/home/cyphar/src/libpathrs/target/llvm-cov-target/target` already exists
 			rm -rf "$SRC_ROOT/target/llvm-cov-target/target"
+			# But the parent directory needs to exist, otherwise you now get a
+			# different error:
+			#   error: error extracting archive `nextest-pathrs-unpriv.tar.zst`
+			#   Caused by:
+			#     error canonicalizing destination directory `/home/runner/work/libpathrs/libpathrs/target/llvm-cov-target`
+			#   Caused by:
+			#     No such file or directory (os error 2)
+			mkdir -p "$SRC_ROOT/target/llvm-cov-target"
 		fi
 
 		$CARGO \
