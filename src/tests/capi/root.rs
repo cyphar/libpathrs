@@ -259,6 +259,7 @@ impl CapiRoot {
             capi::core::pathrs_inroot_rename(
                 root_fd.into(),
                 source.as_ptr(),
+                root_fd.into(),
                 destination.as_ptr(),
                 rflags.bits() as _,
             )

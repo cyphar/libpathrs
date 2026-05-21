@@ -305,7 +305,7 @@ class Root(WrappedFd):
         """
         # TODO: Should we have a separate Root.swap() operation?
         err = libpathrs_so.pathrs_inroot_rename(
-            self.fileno(), _cstr(src), _cstr(dst), flags
+            self.fileno(), _cstr(src), self.fileno(), _cstr(dst), flags
         )
         if _is_pathrs_err(err):
             raise PathrsError._fetch(err) or INTERNAL_ERROR

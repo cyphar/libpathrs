@@ -155,9 +155,9 @@ func (r *Root) Create(path string, flags int, mode os.FileMode) (*os.File, error
 
 // Rename two paths within a [Root]'s directory tree. The flags argument is
 // identical to the RENAME_* flags to the renameat2(2) system call.
-func (r *Root) Rename(src, dst string, flags uint) error {
+func (r *Root) Rename(src, dst string, flags uint64) error {
 	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
-		err := libpathrs.InRootRename(rootFd, src, dst, flags)
+		err := libpathrs.InRootRename(rootFd, src, rootFd, dst, flags)
 		return struct{}{}, err
 	})
 	return err

@@ -21,10 +21,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
     `new_root_fd`. At the moment, callers must pass *the same value* to both
     arguments (this means the same numeric file descriptor value, not just a
     reference to the same underlying file).
+* `pathrs_inroot_rename` also now accepts both an `old_root_fd` and
+  `new_root_fd`, with the same caveats as `pathrs_inroot_hardlink` above.
 * `RenameFlags` is now backed by a `u64` (instead of `libc::c_uint`) so that we
   can accommodate future extension bits beyond the kernel's current 32-bit ABI.
   Rust callers using `RenameFlags::bits()` or storing the raw value will need
   to adjust their types.
+  - As part of this, `pathrs_inroot_rename` now also takes a `uint64_t`, and
+    thus the the Go `(*Root).Rename` wrapper takes a `uint64` as well.
 
 ### Added ###
 - capi: We now have a new `pathrs_version` API that provides runtime version

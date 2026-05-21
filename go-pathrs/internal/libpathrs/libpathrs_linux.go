@@ -154,14 +154,14 @@ func InRootCreat(rootFd uintptr, path string, flags int, mode uint32) (uintptr, 
 }
 
 // InRootRename wraps pathrs_inroot_rename.
-func InRootRename(rootFd uintptr, src, dst string, flags uint) error {
-	cSrc := C.CString(src)
-	defer C.free(unsafe.Pointer(cSrc))
+func InRootRename(oldRootFd uintptr, oldPath string, newRootFd uintptr, newPath string, flags uint64) error {
+	cOldPath := C.CString(oldPath)
+	defer C.free(unsafe.Pointer(cOldPath))
 
-	cDst := C.CString(dst)
-	defer C.free(unsafe.Pointer(cDst))
+	cNewPath := C.CString(newPath)
+	defer C.free(unsafe.Pointer(cNewPath))
 
-	err := C.pathrs_inroot_rename(C.int(rootFd), cSrc, cDst, C.uint(flags))
+	err := C.pathrs_inroot_rename(C.int(oldRootFd), cOldPath, C.int(newRootFd), cNewPath, C.uint64_t(flags))
 	return fetchError(err)
 }
 

@@ -41,7 +41,7 @@ use crate::{
 use std::os::unix::{fs::MetadataExt, io::AsFd};
 
 use anyhow::{Context, Error};
-use pretty_assertions::assert_eq;
+use pretty_assertions::{assert_eq, assert_matches};
 
 #[test]
 fn hardlink_v1() -> Result<(), Error> {
@@ -144,6 +144,66 @@ fn symlink_v1() -> Result<(), Error> {
         root.readlink("abc").map_err(|err| err.kind()),
         Ok("b/c/file".into()),
         "__pathrs_inroot_symlink_v1 should produce a symlink to the target"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn rename_v1() -> Result<(), Error> {
+    let root_dir = tests_common::create_basic_tree()?;
+    let root = Root::open(root_dir.path())?;
+
+    assert_eq!(
+        // SAFETY: Called with valid C-like arguments.
+        capi_utils::call_capi(|| unsafe {
+            capi::core::__pathrs_inroot_rename_v1(
+                root.as_fd().into(),
+                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                capi_utils::path_to_cstring("abc").into_raw(),
+                0,
+            )
+        })
+        .map_err(|err| err.kind()),
+        Ok(0),
+        "__pathrs_inroot_symlink_v1 should work"
+    );
+
+    assert_matches!(
+        root.resolve_nofollow("abc"),
+        Ok(_),
+        "__pathrs_inroot_rename_v1 should rename the target file (target appears)"
+    );
+
+    assert_matches!(
+        root.resolve_nofollow("b/c/file").map_err(|err| err.kind()),
+        Err(ErrorKind::OsError(Some(libc::ENOENT))),
+        "__pathrs_inroot_rename_v1 should rename the target file (source disappears)"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn rename_v2() -> Result<(), Error> {
+    let root_dir = tests_common::create_basic_tree()?;
+    let root1 = Root::open(root_dir.path())?;
+    let root2 = Root::open(root_dir.path())?;
+
+    assert_eq!(
+        // SAFETY: Called with valid C-like arguments.
+        capi_utils::call_capi(|| unsafe {
+            capi::core::pathrs_inroot_rename(
+                root1.as_fd().into(),
+                capi_utils::path_to_cstring("abc").into_raw(),
+                root2.as_fd().into(),
+                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                0,
+            )
+        })
+        .map_err(|err| err.kind().errno()),
+        Err(ErrorKind::InvalidArgument.errno()),
+        "pathrs_inroot_rename@LIBPATHRS_0.2.5 should reject old_root_fd != new_root_fd"
     );
 
     Ok(())

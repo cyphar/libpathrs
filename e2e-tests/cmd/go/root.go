@@ -441,7 +441,7 @@ var rootRenameCmd = &cli.Command{
 		src := cmd.StringArg("source")
 		dst := cmd.StringArg("destination")
 
-		var renameArgs uint
+		var renameArgs uint64
 		if !cmd.Bool("clobber") {
 			renameArgs |= unix.RENAME_NOREPLACE
 		}
