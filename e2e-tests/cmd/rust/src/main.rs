@@ -21,10 +21,12 @@ use rustix::process::{self as rustix_process, DumpableBehavior};
 mod procfs;
 mod root;
 mod utils;
+mod version;
 
 fn cli() -> Command {
     Command::new("pathrs-cmd")
         .author("Aleksa Sarai <cyphar@cyphar.com>")
+        .subcommand(version::cli())
         .subcommand(root::cli())
         .subcommand(procfs::cli())
 }
@@ -86,6 +88,7 @@ fn main() -> ExitCode {
         let mut app = cli();
 
         match app.get_matches_mut().subcommand() {
+            Some(("version", sub_matches)) => version::subcommand(sub_matches),
             Some(("root", sub_matches)) => root::subcommand(sub_matches),
             Some(("procfs", sub_matches)) => procfs::subcommand(sub_matches),
             Some((subcommand, _)) => {

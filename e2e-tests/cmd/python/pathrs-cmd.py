@@ -21,6 +21,11 @@ from pathrs import procfs
 from pathrs.procfs import ProcfsHandle, ProcfsBase
 
 
+def version(args: argparse.Namespace):
+    version = pathrs.library_version()
+    print("VERSION", version.version_string)
+
+
 class FilenoFile(Protocol):
     def fileno(self) -> int: ...
 
@@ -273,6 +278,10 @@ def parse_args(
             required=required,
             help=f"{help or name} (comma- or |-separated)",
         )
+
+    version_parser = top_subparser.add_parser("version", help="version information")
+    version_parser.set_defaults(func=version)
+    del version_parser
 
     # root --root <root> ... commands
     root_parser = top_subparser.add_parser("root", help="Root::* operations")

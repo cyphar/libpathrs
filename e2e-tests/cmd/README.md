@@ -31,6 +31,21 @@ so tests should only ever test against the numerical `<errno code>`. Tests
 against `<error message>` are acceptable but should be used carefully as such
 tests could be brittle.
 
+### `version` ###
+
+```
+pathrs-cmd version
+```
+
+This is a top-level command that returns information about the `libpathrs.so`
+binary (corresponding to `pathrs_version()`).
+
+#### Output ####
+
+```
+VERSION <version string>
+```
+
 ### `Root` Operations ###
 
 All of the following operations are subcommands of the `root` subcommand.

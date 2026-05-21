@@ -11,6 +11,9 @@
 
 set -u
 
+E2ETEST_ROOT="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+SRC_ROOT="$(readlink -f "$E2ETEST_ROOT/../..")"
+
 function fail() {
 	echo "FAILURE:" "$@" >&2
 	false
@@ -112,4 +115,8 @@ function requires() {
 				;;
 		esac
 	done
+}
+
+function crate-version() {
+	sed -Ene '/^version\>/s/.*= "(.*)"$/\1/p' <"$SRC_ROOT/Cargo.toml"
 }

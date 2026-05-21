@@ -91,6 +91,13 @@
 // <https://github.com/rust-lang/rust/issues/84605>
 #![cfg_attr(coverage, feature(coverage_attribute))]
 
+/// The `CARGO_PKG_VERSION` of the pathrs crate.
+///
+/// This constant is mainly intended for our internal tests and should not be
+/// used by other users, as it may be removed or changed in the future.
+#[doc(hidden)]
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 // `Handle` implementation.
 mod handle;
 #[doc(inline)]
