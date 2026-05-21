@@ -319,7 +319,7 @@ pub unsafe extern "C" fn pathrs_inroot_rename(
         let src = unsafe { utils::parse_path(src) }?; // SAFETY: C caller guarantees path is safe.
         let dst = unsafe { utils::parse_path(dst) }?; // SAFETY: C caller guarantees path is safe.
 
-        let rflags = RenameFlags::from_bits_retain(flags);
+        let rflags = RenameFlags::from_bits_retain(flags.into());
         root.rename(src, dst, rflags)
     }()
     .into_c_return()

@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Breaking ###
+* `RenameFlags` is now backed by a `u64` (instead of `libc::c_uint`) so that we
+  can accommodate future extension bits beyond the kernel's current 32-bit ABI.
+  Rust callers using `RenameFlags::bits()` or storing the raw value will need
+  to adjust their types.
+
 ### Added ###
 - capi: We now have a new `pathrs_version` API that provides runtime version
   information, which loosely matches other libraries like `libseccomp`. The API

@@ -258,7 +258,7 @@ impl CapiRoot {
                 root_fd.into(),
                 source.as_ptr(),
                 destination.as_ptr(),
-                rflags.bits(),
+                rflags.bits() as _,
             )
         })
     }
