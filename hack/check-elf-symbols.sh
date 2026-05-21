@@ -93,7 +93,13 @@ unversioned="$(awk '!($(NF-1) ~ /^LIBPATHRS_|^\(LIBPATHRS_.*\)/)' <<<"$SYMBOL_OB
 [ -z "$unversioned" ] || {
 	echo "UNVERSIONED SYMBOLS ($(wc -l <<<"$unversioned") total):"
 	echo "$unversioned"
-	bail "$ELF_FILE contains unversioned symbols"
+	# FIXME: lld incorrectly keeps the compatibility shim functions visible and
+	# there doesn't appear to be a way to fix this. For a longer discussion of
+	# these problems, see the upstream discussion -- in particular:
+	# <https://internals.rust-lang.org/t/support-symbol-versioning-with-export-name/23626/10>.
+	if grep -Evwq "__pathrs_.*_v[[:digit:]]+" <<<"$unversioned"; then
+		bail "$ELF_FILE contains non-compat unversioned symbols"
+	fi
 }
 
 echo "++ ALL SYMBOLS ARE VERSIONED! ++"
