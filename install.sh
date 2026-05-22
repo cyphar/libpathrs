@@ -35,14 +35,28 @@ set -Eeuo pipefail
 src_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"
 pushd "$src_dir" >/dev/null
 
-get_crate_info() {
+function strjoin() {
+	local sep="$1"
+	shift
+
+	local str=
+	until [[ "$#" == 0 ]]; do
+		str+="${1:-}"
+		shift
+		[[ "$#" == 0 ]] && break
+		str+="$sep"
+	done
+	echo "$str"
+}
+
+function get_crate_info() {
 	# TODO: Should we use toml-cli if it's available?
 	field="$1"
 	sed -En '/^'"$field"'/ s/^.*=\s+"(.*)"/\1/ p' "$src_dir/Cargo.toml"
 }
 FULLVERSION="$(get_crate_info version)"
 
-get_so_version() {
+function get_so_version() {
 	# TODO: The soversion should probably be separated from the Crate version
 	# -- we only need to bump the soversion if we have to introduce a
 	# completely incompatible change to the C API (that can't be kept using
@@ -78,6 +92,8 @@ usage() {
 	  --includedir=[EPREFIX/include]
 	  --libdir=[EPREFIX/lib(64)]              (lib64 is used if available)
 	  --pkgconfigdir=[LIBDIR/pkgconfig]
+	  --{enable,disable}-static=[enable]
+	  --{enable,disable}-dynamic=[enable]
 
 	As with automake, if the DESTDIR= environment variable is set, this script
 	will install the files into DESTDIR as though it were the root of the
@@ -111,7 +127,8 @@ usage() {
 	[ "$#" -gt 0 ] && exit_code=1
 	exit "$exit_code"
 }
-GETOPT="$(getopt -o h --long help,prefix:,exec-prefix:,includedir:,libdir:,pkgconfigdir:,rust-target:,rust-buildmode: -- "$@")"
+longopts=(help prefix: exec-prefix: {include,lib,pkgconfig}dir: rust-{target,buildmode}: {enable,disable}-{static,dynamic})
+GETOPT="$(getopt -o h --long "$(strjoin , "${longopts[@]}")" -- "$@")"
 eval set -- "$GETOPT"
 
 DESTDIR="${DESTDIR:-}"
@@ -122,6 +139,8 @@ libdir=
 pkgconfigdir=
 rust_target="$TARGET"
 rust_buildmode=release
+install_static=1
+install_dynamic=1
 while true; do
 	case "$1" in
 		--prefix)			prefix="$2";			shift 2 ;;
@@ -131,6 +150,10 @@ while true; do
 		--pkgconfigdir)		pkgconfigdir="$2";		shift 2 ;;
 		--rust-target)		rust_target="$2";		shift 2 ;;
 		--rust-buildmode)	rust_buildmode="$2";	shift 2 ;;
+		--enable-static)	install_static=1;		shift ;;
+		--disable-static)	install_static=;		shift ;;
+		--enable-dynamic)	install_dynamic=1;		shift ;;
+		--disable-dynamic)	install_dynamic=;		shift ;;
 		--) shift; break ;;
 		-h | --help) usage ;;
 		*)           usage "unknown argument $1" ;;
@@ -222,8 +245,12 @@ set -x
 install -Dt "$DESTDIR/$pkgconfigdir/" -m 0644 pathrs.pc
 install -Dt "$DESTDIR/$includedir/"   -m 0644 include/pathrs.h
 # Static library.
-install -Dt "$DESTDIR/$libdir"        -m 0644 "$builddir/libpathrs.a"
+if [ -n "$install_static" ]; then
+	install -Dt "$DESTDIR/$libdir" -m 0644 "$builddir/libpathrs.a"
+fi
 # Shared library.
-install -DT -m 0755 "$builddir/libpathrs.so" "$DESTDIR/$libdir/$SONAME"
-ln -sf "$SONAME" "$DESTDIR/$libdir/libpathrs.so.$SOVERSION"
-ln -sf "$SONAME" "$DESTDIR/$libdir/libpathrs.so"
+if [ -n "$install_dynamic" ]; then
+	install -DT -m 0755 "$builddir/libpathrs.so" "$DESTDIR/$libdir/$SONAME"
+	ln -sf "$SONAME" "$DESTDIR/$libdir/libpathrs.so.$SOVERSION"
+	ln -sf "$SONAME" "$DESTDIR/$libdir/libpathrs.so"
+fi

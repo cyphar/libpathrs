@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   information, which loosely matches other libraries like `libseccomp`. The API
   is based on extensible structs, so we can add more information here in the
   future.
+- `install.sh` now supports `--disable-static` and `--disable-dynamic` to limit
+  what files are installed (their `--enable-*` inverses are also available for
+  completeness, but they both are enabled by default).
 
 ### Fixed ###
 - Containers often have `/proc/sys` overmounted with a read-only mount to avoid
