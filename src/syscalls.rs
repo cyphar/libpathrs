@@ -283,32 +283,41 @@ pub(crate) enum Error {
     },
 }
 
+macro_rules! match_source_errno {
+    ($self:expr) => {
+        match $self {
+            Error::InvalidFd { source, .. }
+            | Error::Accessat { source, .. }
+            | Error::Openat { source, .. }
+            | Error::Openat2 { source, .. }
+            | Error::Readlinkat { source, .. }
+            | Error::Mkdirat { source, .. }
+            | Error::Mknodat { source, .. }
+            | Error::Unlinkat { source, .. }
+            | Error::Linkat { source, .. }
+            | Error::Symlinkat { source, .. }
+            | Error::Renameat { source, .. }
+            | Error::Renameat2 { source, .. }
+            | Error::Fstatfs { source, .. }
+            | Error::Fstatat { source, .. }
+            | Error::Statx { source, .. }
+            | Error::Fsopen { source, .. }
+            | Error::FsconfigCreate { source, .. }
+            | Error::FsconfigSetString { source, .. }
+            | Error::Fsmount { source, .. }
+            | Error::OpenTree { source, .. }
+            | Error::PrctlGet { source, .. } => source,
+        }
+    };
+}
+
 impl Error {
     pub(crate) fn errno(&self) -> Errno {
-        // XXX: This should probably be a macro...
-        *match self {
-            Error::InvalidFd { source, .. } => source,
-            Error::Accessat { source, .. } => source,
-            Error::Openat { source, .. } => source,
-            Error::Openat2 { source, .. } => source,
-            Error::Readlinkat { source, .. } => source,
-            Error::Mkdirat { source, .. } => source,
-            Error::Mknodat { source, .. } => source,
-            Error::Unlinkat { source, .. } => source,
-            Error::Linkat { source, .. } => source,
-            Error::Symlinkat { source, .. } => source,
-            Error::Renameat { source, .. } => source,
-            Error::Renameat2 { source, .. } => source,
-            Error::Fstatfs { source, .. } => source,
-            Error::Fstatat { source, .. } => source,
-            Error::Statx { source, .. } => source,
-            Error::Fsopen { source, .. } => source,
-            Error::FsconfigCreate { source, .. } => source,
-            Error::FsconfigSetString { source, .. } => source,
-            Error::Fsmount { source, .. } => source,
-            Error::OpenTree { source, .. } => source,
-            Error::PrctlGet { source, .. } => source,
-        }
+        *match_source_errno!(self)
+    }
+
+    pub(crate) fn errno_mut(&mut self) -> &mut Errno {
+        match_source_errno!(self)
     }
 
     // TODO: Switch to returning &Errno.

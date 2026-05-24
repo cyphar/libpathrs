@@ -49,12 +49,22 @@ function teardown() {
 	grep -Fx 'LINK-TARGET ../../link-b' <<<"$output"
 }
 
-@test "root readlink [non-symlink]" {
+@test "root readlink [file einval]" {
 	ROOT="$(setup_tmpdir)"
 
 	echo "/some/random/path" >"$ROOT/file"
 
 	pathrs-cmd root --root "$ROOT" readlink file
-	check-errno ENOENT
+	check-errno EINVAL
+	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
+}
+
+@test "root readlink [dir einval]" {
+	ROOT="$(setup_tmpdir)"
+
+	mkdir -p "$ROOT/dir"
+
+	pathrs-cmd root --root "$ROOT" readlink dir
+	check-errno EINVAL
 	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
 }

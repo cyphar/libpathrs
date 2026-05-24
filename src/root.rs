@@ -870,7 +870,16 @@ impl RootRef<'_> {
         let link = self
             .resolve_nofollow(path)
             .wrap("resolve symlink O_NOFOLLOW for readlink")?;
-        syscalls::readlinkat(link, "").map_err(|err| {
+        syscalls::readlinkat(link, "").map_err(|mut err| {
+            // readlinkat(fd, "") returns ENOENT if the file descriptor is not a
+            // symlink, which is in stark contrast to the EINVAL you would
+            // normally get from readlinkat(dfd, path). As we know the target
+            // file exists at this point (because resolve_nofollow succeeded),
+            // we can just map ENOENT to EINVAL to reduce user confusion.
+            *err.errno_mut() = match err.errno() {
+                Errno::NOENT => Errno::INVAL,
+                errno => errno,
+            };
             ErrorImpl::RawOsError {
                 operation: "readlink resolve symlink".into(),
                 source: err,

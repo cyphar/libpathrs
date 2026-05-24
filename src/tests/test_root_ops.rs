@@ -246,6 +246,15 @@ macro_rules! root_op_tests {
         }
     };
 
+    ($(#[cfg($ignore_meta:meta)])* @impl readlink $test_name:ident ($path:expr) => $expected_result:expr) => {
+        root_op_tests! {
+            $(#[cfg_attr(not($ignore_meta), ignore)])*
+            fn $test_name(root) {
+                utils::check_root_readlink(&root, $path, $expected_result)
+            }
+        }
+    };
+
     ($(#[cfg($ignore_meta:meta)])* @impl remove_dir $test_name:ident ($path:expr) => $expected_result:expr) => {
         root_op_tests!{
             $(#[cfg_attr(not($ignore_meta), ignore)])*
@@ -584,6 +593,78 @@ root_op_tests! {
     root_slash: open_subpath("/", O_RDONLY) => Ok(".");
     root_dot: open_subpath(".", O_RDONLY) => Ok(".");
     root_dotdot: open_subpath("..", O_RDONLY) => Ok(".");
+
+    enoent: readlink("non-exist") => Err(ErrorKind::OsError(Some(libc::ENOENT)));
+    dir_einval: readlink("b/c") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    file_einval: readlink("b/c/file") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    abslink: readlink("e") => Ok("/b/c/d/e");
+    rellink: readlink("b-file") => Ok("b/c/file");
+    root: readlink("root-link1") => Ok("/");
+    root_dotdot1: readlink("root-link2") => Ok("/..");
+    root_dotdot2: readlink("root-link3") => Ok("/../../../../..");
+    escape1: readlink("escape-link1") => Ok("../../../../../../../../../../target");
+    escape2: readlink("escape-link2") => Ok("/../../../../../../../../../../target");
+    fake_rel: readlink("a-fake1") => Ok("a/fake");
+    fake_dotdot1: readlink("a-fake2") => Ok("a/fake/foo/bar/..");
+    fake_dotdot2: readlink("a-fake3") => Ok("a/fake/../../b");
+    fake_abs: readlink("c/a-fake1") => Ok("/a/fake");
+    fake_abs_dotdot1: readlink("c/a-fake2") => Ok("/a/fake/foo/bar/..");
+    fake_abs_dotdot2: readlink("c/a-fake3") => Ok("/a/fake/../../b");
+    nonlexical_level1_abs: readlink("link1/target_abs") => Ok("/target");
+    nonlexical_level1_rel: readlink("link1/target_rel") => Ok("../target");
+    nonlexical_level2_abs_abs: readlink("link2/link1_abs") => Ok("/link1");
+    nonlexical_level2_abs_rel: readlink("link2/link1_rel") => Ok("../link1");
+    nonlexical_level3_abs: readlink("link3/target_abs") => Ok("/link2/link1_rel/target_rel");
+    nonlexical_level3_rel: readlink("link3/target_rel") => Ok("../link2/link1_rel/target_rel");
+    dangling_tricky1: readlink("link3/deep_dangling1") => Ok("../link2/link1_rel/target_rel/nonexist");
+    dangling_tricky2: readlink("link3/deep_dangling2") => Ok("../link2/link1_abs/target_abs/nonexist");
+    deep_dangling1: readlink("dangling/a") => Ok("b/c");
+    deep_dangling2: readlink("dangling/b/c") => Ok("../c");
+    deep_dangling3: readlink("dangling/c") => Ok("d/e");
+    deep_dangling4: readlink("dangling/d/e") => Ok("../e");
+    deep_dangling5: readlink("dangling/e") => Ok("f/../g");
+    deep_dangling6: readlink("dangling/g") => Ok("h/i/j/nonexistent");
+    deep_dangling_fileasdir1: readlink("dangling-file/a") => Ok("b/c");
+    deep_dangling_fileasdir2: readlink("dangling-file/b/c") => Ok("../c");
+    deep_dangling_fileasdir3: readlink("dangling-file/c") => Ok("d/e");
+    deep_dangling_fileasdir4: readlink("dangling-file/d/e") => Ok("../e");
+    deep_dangling_fileasdir5: readlink("dangling-file/e") => Ok("f/../g");
+    deep_dangling_fileasdir6: readlink("dangling-file/g") => Ok("h/i/j/file/foo");
+    loop_basic1: readlink("loop/basic-loop1") => Ok("basic-loop1");
+    loop_basic2: readlink("loop/basic-loop2") => Ok("/loop/basic-loop2");
+    loop_basic3: readlink("loop/basic-loop3") => Ok("../loop/basic-loop3");
+    loop_inner_level1_rel: readlink("loop/a/link") => Ok("../b/link");
+    loop_inner_level1_abs1: readlink("loop/b/link") => Ok("/loop/c/link");
+    loop_inner_level1_abs2: readlink("loop/c/link") => Ok("/loop/d/link");
+    loop_inner_level2: readlink("loop/d") => Ok("e");
+    loop_inner_level3: readlink("loop/e/link") => Ok("../a/link");
+    loop_full: readlink("loop/link") => Ok("a/link");
+    // MS_NOSYMFOLLOW does not block readlink.
+    nosymfollow_good: readlink("nosymfollow/goodlink") => Ok("/");
+    nosymfollow_bad: readlink("nosymfollow/badlink") => Ok("/"); // MS_NOSYMFOLLOW
+    nosymfollow_dir_bad: readlink("nosymfollow/nosymdir/dir/badlink") => Ok("/"); // MS_NOSYMFOLLOW
+    nosymfollow_dir_good: readlink("nosymfollow/nosymdir/dir/goodlink") => Ok("/");
+    nosymfollow_nested_good: readlink("nosymfollow/nosymdir/dir/foo/yessymdir/bar/goodlink") => Ok("/");
+    // fs.protected_symlinks does not block readlink.
+    protected_symlinks_selfdir_selfsym: readlink("tmpfs-self/link-self") => Ok("file");
+    #[cfg(feature = "_test_as_root")]
+    protected_symlinks_selfdir_otheruidsym: readlink("tmpfs-self/link-otheruid") => Ok("file");
+    #[cfg(feature = "_test_as_root")]
+    protected_symlinks_selfdir_othergidsym: readlink("tmpfs-self/link-othergid") => Ok("file");
+    #[cfg(feature = "_test_as_root")]
+    protected_symlinks_selfdir_othersym: readlink("tmpfs-self/link-other") => Ok("file");
+    #[cfg(feature = "_test_as_root")]
+    protected_symlinks_otherdir_selfsym: readlink("tmpfs-other/link-self") => Ok("file");
+    #[cfg(feature = "_test_as_root")]
+    protected_symlinks_otherdir_selfuidsym: readlink("tmpfs-other/link-selfuid") => Ok("file");
+    #[cfg(feature = "_test_as_root")]
+    protected_symlinks_otherdir_ownersym: readlink("tmpfs-other/link-owner") => Ok("file");
+    #[cfg(feature = "_test_as_root")]
+    protected_symlinks_otherdir_otheruidsym: readlink("tmpfs-other/link-otheruid") => Ok("file");
+    #[cfg(feature = "_test_as_root")]
+    protected_symlinks_otherdir_othergidsym: readlink("tmpfs-other/link-othergid") => Ok("file");
+    #[cfg(feature = "_test_as_root")]
+    protected_symlinks_otherdir_othersym: readlink("tmpfs-other/link-other") => Ok("file");
 
     empty_dir: remove_dir("a") => Ok(());
     empty_dir: remove_file("a") => Err(ErrorKind::OsError(Some(libc::EISDIR)));
@@ -1033,6 +1114,32 @@ mod utils {
                 );
 
                 tests_common::check_oflags(&file, oflags)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn check_root_readlink<R: RootImpl>(
+        root: R,
+        path: impl AsRef<Path>,
+        expected_result: Result<&str, ErrorKind>,
+    ) -> Result<(), Error> {
+        let path = path.as_ref();
+        match root.readlink(path) {
+            Err(err) => {
+                tests_common::check_err(&Err::<(), _>(err), &expected_result)
+                    .with_context(|| format!("root readlink {path:?}"))?;
+            }
+            Ok(linkname) => {
+                let linkname = linkname
+                    .as_path()
+                    .to_str()
+                    .expect("linkname should be valid utf-8");
+                assert_eq!(
+                    Ok(linkname),
+                    expected_result,
+                    "readlink file had unexpected path {linkname:?}"
+                );
             }
         }
         Ok(())
