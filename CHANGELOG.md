@@ -15,7 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   - Rust users are not affected by this change.
   - For the Go and Python bindings, the wrappers have also had their argument
     orders swapped to match the C API and so will also need to be updated when
-    rebuilding.
+    rebuilding. **This is a very important point!** Users must ensure that they
+    use pre-`0.2.5` bindings with pre-`0.2.5` libpathrs library installs, and
+    post-`0.2.5` bindings with post-`0.2.5` library installs. Mixing and
+    matching them will cause bugs (most likely spurious `ENOENT` errors).
   - For the sake of future extensions (and to ease the migration),
     `pathrs_inroot_hardlink` now accepts both an `old_root_fd` and
     `new_root_fd`. At the moment, callers must pass *the same value* to both
