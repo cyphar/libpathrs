@@ -13,7 +13,7 @@ comment:
   require_changes: true
   behavior: once
   branches:
-    - master
+    - main
 
 component_management:
   default_rules:
@@ -50,6 +50,25 @@ component_management:
 
 coverage:
   range: 60..95
+  status:
+    project:
+      default:
+        target: auto
+      pathrs:
+        target: 80%
+        threshold: 0%
+        paths:
+          - "src/**"
+          - "!src/capi/**"
+      libpathrs.so:
+        target: 80%
+        threshold: 0%
+        paths:
+          - "src/capi/**"
+    patch:
+      default:
+        target: auto
+        informational: true
 
 github_checks:
   annotations: true
