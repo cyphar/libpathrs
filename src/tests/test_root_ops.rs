@@ -595,6 +595,8 @@ root_op_tests! {
     root_dotdot: open_subpath("..", O_RDONLY) => Ok(".");
 
     enoent: readlink("non-exist") => Err(ErrorKind::OsError(Some(libc::ENOENT)));
+    dir_einval: readlink("b/c") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    file_einval: readlink("b/c/file") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
     abslink: readlink("e") => Ok("/b/c/d/e");
     rellink: readlink("b-file") => Ok("b/c/file");
     root: readlink("root-link1") => Ok("/");
