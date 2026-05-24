@@ -37,6 +37,7 @@ use crate::{
 };
 
 use std::{
+    cmp,
     ffi::{CStr, CString, OsStr},
     fmt,
     os::unix::{
@@ -158,7 +159,7 @@ where
     Func: Fn(*mut libc::c_char, libc::size_t) -> libc::c_int,
 {
     // Get the actual size by passing NULL.
-    let mut actual_size = {
+    let actual_size = {
         // Try zero-size.
         let size1 = fetch_error(func(123 as *mut _, 0))? as usize;
         // Try NULL ptr.
@@ -167,24 +168,61 @@ where
         size1
     };
 
-    // Start with a smaller buffer so we can exercise the trimming logic.
-    // TODO: Use slice::assume_init_ref() once maybe_uninit_slice is stabilised.
-    let mut linkbuf: Vec<u8> = Vec::with_capacity(0);
-    actual_size /= 2;
-    while actual_size > linkbuf.capacity() {
-        linkbuf.reserve(actual_size);
-        actual_size = fetch_error(func(
+    // Wrapper around func() to allow for us to call it with different sizes.
+    let readlink_func = |size| -> Result<PathBuf, CapiError> {
+        let mut linkbuf: Vec<u8> = Vec::with_capacity(size);
+        let got_size = fetch_error(func(
             linkbuf.as_mut_ptr() as *mut libc::c_char,
             linkbuf.capacity(),
         ))? as usize;
-    }
-    // SAFETY: The C code guarantees that actual_size is how many bytes are filled.
-    unsafe { linkbuf.set_len(actual_size) };
-
-    Ok(PathBuf::from(OsStr::from_bytes(
+        // SAFETY: The C-API readlink methods return the number of bytes it
+        // would take to store the data. If this is >capacity then the entire
+        // array was filled (and data was truncated), otherwise it indicates how
+        // many bytes were filled.
+        unsafe { linkbuf.set_len(cmp::min(got_size, linkbuf.capacity())) };
         // readlink does *not* append a null terminator!
-        CString::new(linkbuf)
-            .expect("constructing a CString from the C API's copied CString should work")
-            .to_bytes(),
-    )))
+        Ok(OsStr::from_bytes(
+            CString::new(linkbuf)
+                .expect("constructing a CString from the C API's copied CString should work")
+                .to_bytes(),
+        )
+        .into())
+    };
+
+    // Get the actual link with the exactly correct buffer size.
+    let actual_linktarget = readlink_func(actual_size)?;
+
+    // Try to see different results and make sure they are actually truncated as
+    // expected.
+    // TODO: Maybe make this property-based? A bit ugly because this is being
+    // done deep within other tests... :/
+    for test_size in [
+        1,
+        2,
+        actual_size / 3,
+        actual_size / 2,
+        actual_size - 1, // actual_size must be > 0 -- symlinks cannot be empty
+        actual_size + 1,
+        actual_size + 2,
+        actual_size * 2,
+    ] {
+        let test_linktarget = readlink_func(test_size)?;
+
+        if test_size >= actual_size {
+            assert_eq!(
+                actual_linktarget,
+                test_linktarget,
+                "readlink(linkbuf_len={test_size} >= actual_size={actual_size}) should return the same link target string",
+            );
+        } else {
+            let actual_linktarget_truncated =
+                OsStr::from_bytes(&actual_linktarget.as_os_str().as_bytes()[..test_size]);
+            assert_eq!(
+                actual_linktarget_truncated,
+                test_linktarget.as_os_str(),
+                "readlink(linkbuf_len={test_size} < actual_size={actual_size}) should truncate link target string to {test_size} bytes",
+            );
+        }
+    }
+    Ok(actual_linktarget)
 }
