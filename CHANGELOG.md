@@ -24,8 +24,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
     `new_root_fd`. At the moment, callers must pass *the same value* to both
     arguments (this means the same numeric file descriptor value, not just a
     reference to the same underlying file).
+    - The Go and Python bindings for `pathrs_inroot_hardlink` have not had
+      their APIs changed, and so they still only permit operating within a
+      single root.
 * `pathrs_inroot_rename` also now accepts both an `old_root_fd` and
   `new_root_fd`, with the same caveats as `pathrs_inroot_hardlink` above.
+   - The Go and Python bindings for `pathrs_inroot_rename` have not had their
+     APIs changed, and so they still only permit operating within a single
+     root.
 * `RenameFlags` is now backed by a `u64` (instead of `libc::c_uint`) so that we
   can accommodate future extension bits beyond the kernel's current 32-bit ABI.
   Rust callers using `RenameFlags::bits()` or storing the raw value will need
