@@ -40,6 +40,13 @@ of this nature, and so we anticipate this list is much longer than given here.
 * [CVE-2026-33897](https://github.com/lxc/incus/security/advisories/GHSA-83xr-5xxr-mh92)
 * [CVE-2026-33945](https://github.com/lxc/incus/security/advisories/GHSA-q4q8-7f2j-9h9f)
 * [CVE-2026-39860](https://github.com/NixOS/nix/security/advisories/GHSA-g3g9-5vj6-r3gj)
+* [RedSun][] and [BlueHammer][] (2026) -- These vulnerabilities were in Windows
+  (which libpathrs does not yet support) and usage of libpathrs itself would
+  not have avoided the issue, but being forced to write file-handle-based code
+  (which libpathrs does) would've avoided it.
+
+[RedSun]: https://web.archive.org/web/20260521144507/https://github.com/Nightmare-Eclipse/RedSun
+[BlueHammer]: https://web.archive.org/web/20260406225410/https://github.com/Nightmare-Eclipse/BlueHammer
 
 ### [Strict Path Safety](./procfs-api.md) ###
 
