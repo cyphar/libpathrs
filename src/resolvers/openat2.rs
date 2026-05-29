@@ -56,7 +56,7 @@ pub(crate) fn open(
 ) -> Result<File, Error> {
     let rflags = libc::RESOLVE_IN_ROOT | libc::RESOLVE_NO_MAGICLINKS | rflags.bits();
     let how = OpenHow {
-        flags: oflags.bits() as u64,
+        flags: oflags,
         resolve: rflags,
         ..Default::default()
     };
@@ -87,7 +87,7 @@ pub(crate) fn resolve(
     let rflags = libc::RESOLVE_IN_ROOT | libc::RESOLVE_NO_MAGICLINKS | rflags.bits();
 
     let how = OpenHow {
-        flags: oflags.bits() as u64,
+        flags: oflags,
         resolve: rflags,
         ..Default::default()
     };

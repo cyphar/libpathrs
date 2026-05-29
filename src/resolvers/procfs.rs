@@ -140,8 +140,7 @@ fn openat2_resolve(
     oflags: OpenFlags,
     rflags: ResolverFlags,
 ) -> Result<OwnedFd, Error> {
-    // Copy the O_NOFOLLOW and RESOLVE_NO_SYMLINKS bits from rflags.
-    let oflags = oflags.bits() as u64;
+    // Copy the RESOLVE_NO_SYMLINKS bit from rflags.
     let rflags =
         libc::RESOLVE_BENEATH | libc::RESOLVE_NO_MAGICLINKS | libc::RESOLVE_NO_XDEV | rflags.bits();
 

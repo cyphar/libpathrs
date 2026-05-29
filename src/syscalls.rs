@@ -773,7 +773,7 @@ pub(crate) mod openat2 {
     #[derive(Copy, Clone, Debug, Default)]
     pub(crate) struct OpenHow {
         /// O_* flags (`-EINVAL` on unknown or incompatible flags).
-        pub flags: u64,
+        pub flags: OpenFlags,
         /// O_CREAT or O_TMPFILE file mode (must be zero otherwise).
         pub mode: u64,
         /// RESOLVE_* flags (`-EINVAL` on unknown flags).
@@ -784,8 +784,11 @@ pub(crate) mod openat2 {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{{ ")?;
             // self.flags
-            write!(f, "flags: {:?}, ", OpenFlags::from_bits_retain(self.flags))?;
-            if self.flags & (libc::O_CREAT | libc::O_TMPFILE) as u64 != 0 {
+            write!(f, "flags: {:?}, ", self.flags)?;
+            if self
+                .flags
+                .intersects(OpenFlags::O_CREAT | OpenFlags::O_TMPFILE)
+            {
                 write!(f, "mode: 0o{:o}, ", self.mode)?;
             }
             // self.resolve
@@ -821,9 +824,9 @@ pub(crate) mod openat2 {
         // Add O_CLOEXEC and O_NOCTTY explicitly (as we do for openat). However,
         // O_NOCTTY cannot be set if O_PATH is set (openat2 verifies flag
         // arguments).
-        how.flags |= libc::O_CLOEXEC as u64;
-        if how.flags & libc::O_PATH as u64 == 0 {
-            how.flags |= libc::O_NOCTTY as u64;
+        how.flags.insert(OpenFlags::O_CLOEXEC);
+        if !how.flags.contains(OpenFlags::O_PATH) {
+            how.flags.insert(OpenFlags::O_NOCTTY);
         }
 
         // openat2(2) can fail with -EAGAIN if there was a racing rename or
@@ -895,8 +898,7 @@ pub(crate) mod openat2 {
         path: impl AsRef<Path>,
         mut how: OpenHow,
     ) -> Result<OwnedFd, Error> {
-        how.flags |= libc::O_NOFOLLOW as u64;
-
+        how.flags.insert(OpenFlags::O_NOFOLLOW);
         openat2_follow(dirfd, path, how)
     }
 }
