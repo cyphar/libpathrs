@@ -38,13 +38,14 @@ use crate::{
     utils::FdExt,
 };
 
-use std::os::unix::io::AsFd;
+use std::os::unix::{fs::MetadataExt, io::AsFd};
 
 use anyhow::{Context, Error};
 use pretty_assertions::assert_eq;
 use rustix::{
-    fs::{self as rustix_fs, OFlags},
+    fs::{self as rustix_fs, Mode, OFlags},
     io::{self as rustix_io, FdFlags},
+    process::{self as rustix_process},
 };
 
 pub type LookupResult<'a> = (&'a str, libc::mode_t);
@@ -101,11 +102,42 @@ where
     }
 }
 
+pub(in crate::tests) fn check_mode(fd: impl AsFd, create_mode: u32) -> Result<(), Error> {
+    let fd = fd.as_fd();
+
+    // Get the umask.
+    let umask = {
+        let umask = rustix_process::umask(Mode::empty());
+        rustix_process::umask(umask);
+        umask.bits()
+    };
+
+    let got_mode = fd.metadata()?.mode()
+        // Strip type bits from mode if the caller didn't include them.
+        & !if create_mode & libc::S_IFMT == 0 {
+            libc::S_IFMT
+        } else {
+            0
+        };
+
+    assert_eq!(
+        create_mode & !umask,
+        got_mode,
+        "created fd {:?} should have mode {} ({create_mode} &^ {umask})",
+        fd.as_unsafe_path_unchecked()?,
+        create_mode & !umask
+    );
+
+    Ok(())
+}
+
 pub(in crate::tests) fn check_oflags(fd: impl AsFd, flags: OpenFlags) -> Result<(), Error> {
     let fd = fd.as_fd();
 
     // Convert to OFlags so we can compare them.
-    let mut wanted_flags = OFlags::from_bits_retain(flags.bits() as u32);
+    let mut wanted_flags: OFlags = flags
+        .try_into()
+        .expect("OpenFlags should be convertible to rustix OFlags");
     // O_CLOEXEC is always automatically enabled by libpathrs.
     wanted_flags.insert(OFlags::CLOEXEC);
 

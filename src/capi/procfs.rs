@@ -464,7 +464,7 @@ pub unsafe extern "C" fn pathrs_proc_openat(
     proc_rootfd: CBorrowedFd<'_>,
     base: CProcfsBase,
     path: *const c_char,
-    flags: c_int,
+    flags: u64,
 ) -> RawFd {
     || -> Result<_, Error> {
         let base = base.try_into()?;
@@ -482,7 +482,27 @@ pub unsafe extern "C" fn pathrs_proc_openat(
     .into_c_return()
 }
 utils::symver! {
-    fn pathrs_proc_openat <- (pathrs_proc_openat, version = "LIBPATHRS_0.2", default);
+    fn pathrs_proc_openat <- (pathrs_proc_openat, version = "LIBPATHRS_0.2.5", default);
+}
+
+/// A compatibility shim for `pathrs_proc_openat` to support 64-bit
+/// [`OpenFlags`].
+/// cbindgen:ignore
+#[doc(hidden)]
+#[no_mangle]
+pub unsafe extern "C" fn __pathrs_proc_openat_v1(
+    proc_rootfd: CBorrowedFd<'_>,
+    base: CProcfsBase,
+    path: *const c_char,
+    flags: libc::c_int,
+) -> RawFd {
+    // NOTE: i32 as u64 sign-extends so we need to cast to u32 first.
+    unsafe { pathrs_proc_openat(proc_rootfd, base, path, flags as u32 as u64) }
+}
+utils::symver! {
+    // In libpathrs 0.2.5, all of the flags-bearing arguments were expanded to
+    // u64. This shim translates the old i32 (libc::c_int) callers.
+    fn __pathrs_proc_openat_v1 <- (pathrs_proc_openat, version = "LIBPATHRS_0.2");
 }
 
 /// Safely open a path inside a `/proc` handle.
@@ -526,12 +546,30 @@ utils::symver! {
 pub unsafe extern "C" fn pathrs_proc_open(
     base: CProcfsBase,
     path: *const c_char,
-    flags: c_int,
+    flags: u64,
 ) -> RawFd {
     pathrs_proc_openat(PATHRS_PROC_DEFAULT_ROOTFD, base, path, flags)
 }
 utils::symver! {
     fn pathrs_proc_open <- (pathrs_proc_open, version = "LIBPATHRS_0.1", default);
+}
+
+/// A compatibility shim for `pathrs_proc_open` to support 64-bit [`OpenFlags`].
+/// cbindgen:ignore
+#[doc(hidden)]
+#[no_mangle]
+pub unsafe extern "C" fn __pathrs_proc_open_v1(
+    base: CProcfsBase,
+    path: *const c_char,
+    flags: libc::c_int,
+) -> RawFd {
+    // NOTE: i32 as u64 sign-extends so we need to cast to u32 first.
+    unsafe { pathrs_proc_open(base, path, flags as u32 as u64) }
+}
+utils::symver! {
+    // In libpathrs 0.2.5, all of the flags-bearing arguments were expanded to
+    // u64. This shim translates the old i32 (libc::c_int) callers.
+    fn __pathrs_proc_open_v1 <- (pathrs_proc_open, version = "LIBPATHRS_0.2");
 }
 
 /// `pathrs_proc_readlink` but with a caller-provided file descriptor for

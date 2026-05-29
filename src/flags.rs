@@ -37,6 +37,7 @@
 use crate::syscalls;
 
 use bitflags::bitflags;
+use rustix::fs as rustix_fs;
 
 bitflags! {
     /// Wrapper for the underlying `libc`'s `O_*` flags.
@@ -93,55 +94,70 @@ bitflags! {
     /// assert_eq!(OpenFlags::O_DIRECTORY.contains(OpenFlags::O_TMPFILE), false);
     /// ```
     #[derive(Default, PartialEq, Eq, Debug, Clone, Copy)]
-    pub struct OpenFlags: libc::c_int {
+    pub struct OpenFlags: u64 {
         // Access modes (including O_PATH).
-        const O_RDWR = libc::O_RDWR;
-        const O_RDONLY = libc::O_RDONLY;
-        const O_WRONLY = libc::O_WRONLY;
-        const O_PATH = libc::O_PATH;
+        const O_RDWR = libc::O_RDWR as _;
+        const O_RDONLY = libc::O_RDONLY as _;
+        const O_WRONLY = libc::O_WRONLY as _;
+        const O_PATH = libc::O_PATH as _;
 
         // Fd flags.
-        const O_CLOEXEC = libc::O_CLOEXEC;
+        const O_CLOEXEC = libc::O_CLOEXEC as _;
 
         // Control lookups.
-        const O_NOFOLLOW = libc::O_NOFOLLOW;
-        const O_DIRECTORY = libc::O_DIRECTORY;
-        const O_NOCTTY = libc::O_NOCTTY;
+        const O_NOFOLLOW = libc::O_NOFOLLOW as _;
+        const O_DIRECTORY = libc::O_DIRECTORY as _;
+        const O_NOCTTY = libc::O_NOCTTY as _;
 
         // NOTE: This flag contains O_DIRECTORY!
-        const O_TMPFILE = libc::O_TMPFILE;
+        const O_TMPFILE = libc::O_TMPFILE as _;
 
         // File creation.
-        const O_CREAT = libc::O_CREAT;
-        const O_EXCL = libc::O_EXCL;
-        const O_TRUNC = libc::O_TRUNC;
-        const O_APPEND = libc::O_APPEND;
+        const O_CREAT = libc::O_CREAT as _;
+        const O_EXCL = libc::O_EXCL as _;
+        const O_TRUNC = libc::O_TRUNC as _;
+        const O_APPEND = libc::O_APPEND as _;
 
         // Sync.
-        const O_SYNC = libc::O_SYNC;
-        const O_ASYNC = libc::O_ASYNC;
-        const O_DSYNC = libc::O_DSYNC;
+        const O_SYNC = libc::O_SYNC as _;
+        const O_ASYNC = libc::O_ASYNC as _;
+        const O_DSYNC = libc::O_DSYNC as _;
         #[cfg(not(target_env = "musl"))] // musl doesn't provide FSYNC
-        const O_FSYNC = libc::O_FSYNC;
-        const O_RSYNC = libc::O_RSYNC;
-        const O_DIRECT = libc::O_DIRECT;
-        const O_NDELAY = libc::O_NDELAY;
-        const O_NOATIME = libc::O_NOATIME;
-        const O_NONBLOCK = libc::O_NONBLOCK;
+        const O_FSYNC = libc::O_FSYNC as _;
+        const O_RSYNC = libc::O_RSYNC as _;
+        const O_DIRECT = libc::O_DIRECT as _;
+        const O_NDELAY = libc::O_NDELAY as _;
+        const O_NOATIME = libc::O_NOATIME as _;
+        const O_NONBLOCK = libc::O_NONBLOCK as _;
 
         // NOTE: This is effectively a kernel-internal flag (auto-set on systems
         //       with large offset support). glibc defines it as 0, and it is
         //       also architecture-specific.
-        //const O_LARGEFILE = libc::O_LARGEFILE;
+        //const O_LARGEFILE = libc::O_LARGEFILE as _;
 
         // Don't clobber unknown O_* bits.
         const _ = !0;
     }
 }
 
-impl From<OpenFlags> for rustix::fs::OFlags {
-    fn from(flags: OpenFlags) -> Self {
-        Self::from_bits_retain(flags.bits() as u32)
+/// Convert an [`OpenFlags`] set of flags to the [`openat`]-compatible
+/// [`OFlags`]. If the value cannot be converted then `Err(())` is returned.
+///
+/// [`OFlags`]: rustix::fs::OFlags
+// TODO: It might even make sense to make this do an explicit check for O_*
+// flags versus openat2(2)-only flags if we end up having any in the lower
+// bits...
+#[doc(hidden)]
+impl TryFrom<OpenFlags> for rustix_fs::OFlags {
+    // No need for an actual error type, if this fails the meaning is obvious.
+    type Error = ();
+
+    fn try_from(flags: OpenFlags) -> Result<Self, Self::Error> {
+        flags
+            .bits()
+            .try_into()
+            .map(Self::from_bits_retain)
+            .map_err(|_| ())
     }
 }
 
@@ -154,7 +170,14 @@ impl OpenFlags {
         if self.contains(OpenFlags::O_PATH) {
             None
         } else {
-            Some(self.bits() & libc::O_ACCMODE)
+            let acc_mode = self.bits() & (libc::O_ACCMODE as u64);
+            debug_assert!(
+                acc_mode <= 0b11,
+                "{:X} masked by O_ACCMODE ({:X}) mask should only set bottom two bits",
+                self.bits(),
+                libc::O_ACCMODE,
+            );
+            Some(acc_mode as _)
         }
     }
 
@@ -181,10 +204,8 @@ impl OpenFlags {
             Some(acc) => {
                 acc == libc::O_WRONLY
                     || acc == libc::O_RDWR
-                    || !self
-                        // O_CREAT and O_TRUNC are silently ignored with O_PATH.
-                        .intersection(OpenFlags::O_TRUNC | OpenFlags::O_CREAT)
-                        .is_empty()
+                    // O_CREAT and O_TRUNC are silently ignored with O_PATH.
+                    || self.intersects(OpenFlags::O_TRUNC | OpenFlags::O_CREAT)
             }
         }
     }
@@ -247,7 +268,7 @@ mod tests {
                     fn [<openflags_ $test_name _access_mode>]() {
                         let flags = $(OpenFlags::$flag)|*;
                         let accmode: Option<i32> = $accmode;
-                        assert_eq!(flags.access_mode(), accmode, "{flags:?} access mode should be {:?}", accmode.map(OpenFlags::from_bits_retain));
+                        assert_eq!(flags.access_mode(), accmode, "{flags:?} access mode should be {:?}", accmode.map(|flags| OpenFlags::from_bits_retain(flags as _)));
                     }
 
                     #[test]

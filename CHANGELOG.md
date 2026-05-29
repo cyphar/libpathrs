@@ -38,6 +38,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   to adjust their types.
   - As part of this, `pathrs_inroot_rename` now also takes a `uint64_t`, and
     thus the the Go `(*Root).Rename` wrapper takes a `uint64` as well.
+- `OpenFlags` is now bkaced by a `u64` (instead of `libc::c_int`), as recent
+  kernel changes such as `OPENAT2_REGULAR` will likely start to use some of the
+  upper flag bits available from `openat2(2)`. This has an impact on all C APIs
+  (and thus Go bindings) that accept `OpenFlags` arguments (we do provide old
+  symbol versions to ease the transition):
+  - `pathrs_reopen`
+  - `pathrs_inroot_open`
+  - `pathrs_inroot_creat`
+  - `pathrs_proc_open`
+  - `pathrs_proc_openat`
 
 ### Added ###
 - capi: We now have a new `pathrs_version` API that provides runtime version

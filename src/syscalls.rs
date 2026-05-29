@@ -392,14 +392,30 @@ pub(crate) fn openat_follow(
     // malicious file won't take control of our terminal.
     flags.insert(OpenFlags::O_CLOEXEC | OpenFlags::O_NOCTTY);
 
-    rustix_fs::openat(dirfd, path, flags.into(), Mode::from_raw_mode(mode)).map_err(|errno| {
-        Error::Openat {
+    rustix_fs::openat(
+        dirfd,
+        path,
+        // Emulate E2BIG if we are given a flag that cannot be represented with
+        // 32-bit openat(2) flags. openat(2) doesn't normally return E2BIG so
+        // this should avoid confusion with real syscall errors.
+        // TODO: It would be nice to make this a more descriptive error so that
+        // the fact this came from our wrapper and not the syscall itself would
+        // be more obvious?
+        flags.try_into().map_err(|_| Error::Openat {
             dirfd: dirfd.into(),
             path: path.into(),
             flags,
             mode,
-            source: errno,
-        }
+            source: Errno::TOOBIG, // E2BIG
+        })?,
+        Mode::from_raw_mode(mode),
+    )
+    .map_err(|errno| Error::Openat {
+        dirfd: dirfd.into(),
+        path: path.into(),
+        flags,
+        mode,
+        source: errno,
     })
 }
 
@@ -768,12 +784,7 @@ pub(crate) mod openat2 {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{{ ")?;
             // self.flags
-            if let Ok(oflags) = i32::try_from(self.flags) {
-                // If the flags can fit inside OpenFlags, pretty-print the flags.
-                write!(f, "flags: {:?}, ", OpenFlags::from_bits_retain(oflags))?;
-            } else {
-                write!(f, "flags: 0x{:x}, ", self.flags)?;
-            }
+            write!(f, "flags: {:?}, ", OpenFlags::from_bits_retain(self.flags))?;
             if self.flags & (libc::O_CREAT | libc::O_TMPFILE) as u64 != 0 {
                 write!(f, "mode: 0o{:o}, ", self.mode)?;
             }

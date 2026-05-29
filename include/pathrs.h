@@ -253,7 +253,7 @@ int pathrs_open_root(const char *path);
  * the system errno(7) value associated with the error, etc), use
  * pathrs_errorinfo().
  */
-int pathrs_reopen(int fd, int flags);
+int pathrs_reopen(int fd, uint64_t flags);
 
 /**
  * Resolve the given path within the rootfs referenced by root_fd. The path
@@ -319,7 +319,7 @@ int pathrs_inroot_resolve_nofollow(int root_fd, const char *path);
  * the system errno(7) value associated with the error, etc), use
  * pathrs_errorinfo().
  */
-int pathrs_inroot_open(int root_fd, const char *path, int flags);
+int pathrs_inroot_open(int root_fd, const char *path, uint64_t flags);
 
 /**
  * Get the target of a symlink within the rootfs referenced by root_fd.
@@ -472,7 +472,7 @@ int pathrs_inroot_remove_all(int root_fd, const char *path);
  */
 int pathrs_inroot_creat(int root_fd,
                         const char *path,
-                        int flags,
+                        uint64_t flags,
                         unsigned int mode);
 
 /**
@@ -693,7 +693,7 @@ int pathrs_procfs_open(const pathrs_procfs_open_how *args, size_t size);
 int pathrs_proc_openat(int proc_rootfd,
                        pathrs_proc_base_t base,
                        const char *path,
-                       int flags);
+                       uint64_t flags);
 
 /**
  * Safely open a path inside a `/proc` handle.
@@ -734,7 +734,7 @@ int pathrs_proc_openat(int proc_rootfd,
  * the system errno(7) value associated with the error, etc), use
  * pathrs_errorinfo().
  */
-int pathrs_proc_open(pathrs_proc_base_t base, const char *path, int flags);
+int pathrs_proc_open(pathrs_proc_base_t base, const char *path, uint64_t flags);
 
 /**
  * `pathrs_proc_readlink` but with a caller-provided file descriptor for
