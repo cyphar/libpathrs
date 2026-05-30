@@ -137,7 +137,11 @@
  *
  * Unknown values will result in an error being returned.
  */
-enum pathrs_proc_base_t {
+enum pathrs_proc_base_t
+#if __STDC_VERSION__ >= 202311L
+  : uint64_t
+#endif // __STDC_VERSION__ >= 202311L
+ {
     /**
      * Use /proc. Note that this mode may be more expensive because we have
      * to take steps to try to avoid leaking unmasked procfs handles, so you
@@ -159,7 +163,11 @@ enum pathrs_proc_base_t {
      */
     PATHRS_PROC_THREAD_SELF = 18446744066171166239ull,
 };
+#if __STDC_VERSION__ >= 202311L
+typedef enum pathrs_proc_base_t pathrs_proc_base_t;
+#else
 typedef uint64_t pathrs_proc_base_t;
+#endif // __STDC_VERSION__ >= 202311L
 
 typedef struct {
     uint64_t flags;
