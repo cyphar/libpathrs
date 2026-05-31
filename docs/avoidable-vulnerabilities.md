@@ -34,12 +34,15 @@ of this nature, and so we anticipate this list is much longer than given here.
 * [CVE-2024-0132](https://github.com/NVIDIA/libnvidia-container/security/advisories/GHSA-q2v4-jw5g-9xxj)
 * [CVE-2024-0133](https://github.com/NVIDIA/libnvidia-container/security/advisories/GHSA-xff4-h7r9-vrpf)
 * [CVE-2024-9676](https://github.com/advisories/GHSA-wq2p-5pc6-wpgf)
+* [CVE-2024-12086, CVE-2024-12087, and CVE-2024-12088](https://github.com/google/security-research/security/advisories/GHSA-p5pg-x43v-mvqj)
+* [CVE-2024-12747](https://kb.cert.org/vuls/id/952657)
 * [CVE-2025-31133](https://github.com/opencontainers/runc/security/advisories/GHSA-9493-h29p-rfm2)
 * [CVE-2025-52565](https://github.com/opencontainers/runc/security/advisories/GHSA-qw9x-cqr3-wc7r)
 * [CVE-2026-33711](https://github.com/lxc/incus/security/advisories/GHSA-q9vp-3wcg-8p4x)
 * [CVE-2026-33897](https://github.com/lxc/incus/security/advisories/GHSA-83xr-5xxr-mh92)
 * [CVE-2026-33945](https://github.com/lxc/incus/security/advisories/GHSA-q4q8-7f2j-9h9f)
 * [CVE-2026-39860](https://github.com/NixOS/nix/security/advisories/GHSA-g3g9-5vj6-r3gj)
+* [CVE-2026-29518 and CVE-2026-43619](https://github.com/RsyncProject/rsync/pull/895/changes/8471fdd1561049ef5f58df44a1811a50bd9a531d)
 * [RedSun][] and [BlueHammer][] (2026) -- These vulnerabilities were in Windows
   (which libpathrs does not yet support) and usage of libpathrs itself would
   not have avoided the issue, but being forced to write file-handle-based code
