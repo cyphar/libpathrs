@@ -109,7 +109,7 @@ utils::symver! {
 /// the system errno(7) value associated with the error, etc), use
 /// pathrs_errorinfo().
 #[no_mangle]
-pub extern "C" fn pathrs_reopen(fd: CBorrowedFd<'_>, flags: c_int) -> RawFd {
+pub extern "C" fn pathrs_reopen(fd: CBorrowedFd<'_>, flags: u64) -> RawFd {
     let flags = OpenFlags::from_bits_retain(flags);
 
     || -> Result<_, Error> {
@@ -119,7 +119,21 @@ pub extern "C" fn pathrs_reopen(fd: CBorrowedFd<'_>, flags: c_int) -> RawFd {
     .into_c_return()
 }
 utils::symver! {
-    fn pathrs_reopen <- (pathrs_reopen, version = "LIBPATHRS_0.1", default);
+    fn pathrs_reopen <- (pathrs_reopen, version = "LIBPATHRS_0.2.5", default);
+}
+
+/// A compatibility shim for `pathrs_reopen` to support 64-bit [`OpenFlags`].
+/// cbindgen:ignore
+#[doc(hidden)]
+#[no_mangle]
+pub extern "C" fn __pathrs_reopen_v1(fd: CBorrowedFd<'_>, flags: libc::c_int) -> RawFd {
+    // NOTE: i32 as u64 sign-extends so we need to cast to u32 first.
+    pathrs_reopen(fd, flags as u32 as u64)
+}
+utils::symver! {
+    // In libpathrs 0.2.5, all of the flags-bearing arguments were expanded to
+    // u64. This shim translates the old i32 (libc::c_int) callers.
+    fn __pathrs_reopen_v1 <- (pathrs_reopen, version = "LIBPATHRS_0.1");
 }
 
 /// Resolve the given path within the rootfs referenced by root_fd. The path
@@ -222,7 +236,7 @@ utils::symver! {
 pub unsafe extern "C" fn pathrs_inroot_open(
     root_fd: CBorrowedFd<'_>,
     path: *const c_char,
-    flags: c_int,
+    flags: u64,
 ) -> RawFd {
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
@@ -234,7 +248,26 @@ pub unsafe extern "C" fn pathrs_inroot_open(
     .into_c_return()
 }
 utils::symver! {
-    fn pathrs_inroot_open <- (pathrs_inroot_open, version = "LIBPATHRS_0.2", default);
+    fn pathrs_inroot_open <- (pathrs_inroot_open, version = "LIBPATHRS_0.2.5", default);
+}
+
+/// A compatibility shim for `pathrs_inroot_open` to support 64-bit
+/// [`OpenFlags`].
+/// cbindgen:ignore
+#[doc(hidden)]
+#[no_mangle]
+pub unsafe extern "C" fn __pathrs_inroot_open_v1(
+    fd: CBorrowedFd<'_>,
+    path: *const c_char,
+    flags: libc::c_int,
+) -> RawFd {
+    // NOTE: i32 as u64 sign-extends so we need to cast to u32 first.
+    unsafe { pathrs_inroot_open(fd, path, flags as u32 as u64) }
+}
+utils::symver! {
+    // In libpathrs 0.2.5, all of the flags-bearing arguments were expanded to
+    // u64. This shim translates the old i32 (libc::c_int) callers.
+    fn __pathrs_inroot_open_v1 <- (pathrs_inroot_open, version = "LIBPATHRS_0.2");
 }
 
 /// Get the target of a symlink within the rootfs referenced by root_fd.
@@ -351,6 +384,7 @@ utils::symver! {
 /// a single `root_fd` argument.
 ///
 /// cbindgen:ignore
+#[doc(hidden)]
 #[no_mangle]
 pub unsafe extern "C" fn __pathrs_inroot_rename_v1(
     root_fd: CBorrowedFd<'_>,
@@ -511,7 +545,7 @@ utils::symver! {
 pub unsafe extern "C" fn pathrs_inroot_creat(
     root_fd: CBorrowedFd<'_>,
     path: *const c_char,
-    flags: c_int,
+    flags: u64,
     mode: c_uint,
 ) -> RawFd {
     || -> Result<_, Error> {
@@ -525,11 +559,31 @@ pub unsafe extern "C" fn pathrs_inroot_creat(
     .into_c_return()
 }
 utils::symver! {
-    fn pathrs_inroot_creat <- (pathrs_inroot_creat, version = "LIBPATHRS_0.2", default);
+    fn pathrs_inroot_creat <- (pathrs_inroot_creat, version = "LIBPATHRS_0.2.5", default);
+}
+
+/// A compatibility shim for `pathrs_inroot_creat` to support 64-bit
+/// [`OpenFlags`].
+/// cbindgen:ignore
+#[doc(hidden)]
+#[no_mangle]
+pub unsafe extern "C" fn __pathrs_inroot_creat_v1(
+    fd: CBorrowedFd<'_>,
+    path: *const c_char,
+    flags: libc::c_int,
+    mode: c_uint,
+) -> RawFd {
+    // NOTE: i32 as u64 sign-extends so we need to cast to u32 first.
+    unsafe { pathrs_inroot_creat(fd, path, flags as u32 as u64, mode) }
+}
+utils::symver! {
+    // In libpathrs 0.2.5, all of the flags-bearing arguments were expanded to
+    // u64. This shim translates the old i32 (libc::c_int) callers.
+    fn __pathrs_inroot_creat_v1 <- (pathrs_inroot_creat, version = "LIBPATHRS_0.2");
     // This symbol was renamed in libpathrs 0.2. For backward compatibility with
     // pre-symbol-versioned builds of libpathrs, it needs to be a default so
     // that loaders will pick it when searching for the unversioned name.
-    fn pathrs_inroot_creat <- (pathrs_creat, version = "LIBPATHRS_0.1", default);
+    fn __pathrs_inroot_creat_v1 <- (pathrs_creat, version = "LIBPATHRS_0.1", default);
 }
 
 /// Create a new directory within the rootfs referenced by root_fd.
@@ -681,6 +735,7 @@ utils::symver! {
 /// arguments in the wrong order.
 ///
 /// cbindgen:ignore
+#[doc(hidden)]
 #[no_mangle]
 pub unsafe extern "C" fn __pathrs_inroot_symlink_v1(
     root_fd: CBorrowedFd<'_>,
@@ -757,6 +812,7 @@ utils::symver! {
 /// arguments in the wrong order.
 ///
 /// cbindgen:ignore
+#[doc(hidden)]
 #[no_mangle]
 pub unsafe extern "C" fn __pathrs_inroot_hardlink_v1(
     root_fd: CBorrowedFd<'_>,

@@ -20,7 +20,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var oflagValues = map[string]int{
+var oflagValues = map[string]uint64{
 	// Access modes (including O_PATH).
 	"O_RDWR":   unix.O_RDWR,
 	"O_RDONLY": unix.O_RDONLY,
@@ -51,12 +51,12 @@ var oflagValues = map[string]int{
 	"O_NONBLOCK": unix.O_NONBLOCK,
 }
 
-func parseOflags(flags string) (int, error) {
+func parseOflags(flags string) (uint64, error) {
 	oflagFieldsFunc := func(ch rune) bool {
 		return ch == '|' || ch == ','
 	}
 
-	var oflags int
+	var oflags uint64
 	for flag := range strings.FieldsFuncSeq(flags, oflagFieldsFunc) {
 		// Convert any flags to -> O_*.
 		flag = strings.ToUpper(flag)
@@ -70,6 +70,21 @@ func parseOflags(flags string) (int, error) {
 		oflags |= val
 	}
 	return oflags, nil
+}
+
+func ctxOflags(ctx context.Context, name string) (uint64, bool) {
+	if val := ctx.Value(name); val != nil {
+		switch val := val.(type) {
+		// TODO: Handle all integer types...?
+		case uint:
+			return uint64(val), true
+		case int:
+			return uint64(val), true
+		case uint64:
+			return uint64(val), true
+		}
+	}
+	return unix.O_RDONLY, false
 }
 
 func oflags(name, usage string, dfl any) uxOption {

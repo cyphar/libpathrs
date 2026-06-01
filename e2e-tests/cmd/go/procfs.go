@@ -93,10 +93,7 @@ var procfsOpenCmd = cmdWithOptions(&cli.Command{
 		follow := cmd.Bool("follow")
 		subpath := cmd.StringArg("subpath")
 
-		oflags := unix.O_RDONLY
-		if val := ctx.Value("oflags"); val != nil {
-			oflags = val.(int)
-		}
+		oflags, _ := ctxOflags(ctx, "oflags")
 		if !follow {
 			oflags |= unix.O_NOFOLLOW
 		}

@@ -392,14 +392,30 @@ pub(crate) fn openat_follow(
     // malicious file won't take control of our terminal.
     flags.insert(OpenFlags::O_CLOEXEC | OpenFlags::O_NOCTTY);
 
-    rustix_fs::openat(dirfd, path, flags.into(), Mode::from_raw_mode(mode)).map_err(|errno| {
-        Error::Openat {
+    rustix_fs::openat(
+        dirfd,
+        path,
+        // Emulate E2BIG if we are given a flag that cannot be represented with
+        // 32-bit openat(2) flags. openat(2) doesn't normally return E2BIG so
+        // this should avoid confusion with real syscall errors.
+        // TODO: It would be nice to make this a more descriptive error so that
+        // the fact this came from our wrapper and not the syscall itself would
+        // be more obvious?
+        flags.try_into().map_err(|_| Error::Openat {
             dirfd: dirfd.into(),
             path: path.into(),
             flags,
             mode,
-            source: errno,
-        }
+            source: Errno::TOOBIG, // E2BIG
+        })?,
+        Mode::from_raw_mode(mode),
+    )
+    .map_err(|errno| Error::Openat {
+        dirfd: dirfd.into(),
+        path: path.into(),
+        flags,
+        mode,
+        source: errno,
     })
 }
 
@@ -757,7 +773,7 @@ pub(crate) mod openat2 {
     #[derive(Copy, Clone, Debug, Default)]
     pub(crate) struct OpenHow {
         /// O_* flags (`-EINVAL` on unknown or incompatible flags).
-        pub flags: u64,
+        pub flags: OpenFlags,
         /// O_CREAT or O_TMPFILE file mode (must be zero otherwise).
         pub mode: u64,
         /// RESOLVE_* flags (`-EINVAL` on unknown flags).
@@ -768,13 +784,11 @@ pub(crate) mod openat2 {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{{ ")?;
             // self.flags
-            if let Ok(oflags) = i32::try_from(self.flags) {
-                // If the flags can fit inside OpenFlags, pretty-print the flags.
-                write!(f, "flags: {:?}, ", OpenFlags::from_bits_retain(oflags))?;
-            } else {
-                write!(f, "flags: 0x{:x}, ", self.flags)?;
-            }
-            if self.flags & (libc::O_CREAT | libc::O_TMPFILE) as u64 != 0 {
+            write!(f, "flags: {:?}, ", self.flags)?;
+            if self
+                .flags
+                .intersects(OpenFlags::O_CREAT | OpenFlags::O_TMPFILE)
+            {
                 write!(f, "mode: 0o{:o}, ", self.mode)?;
             }
             // self.resolve
@@ -810,9 +824,9 @@ pub(crate) mod openat2 {
         // Add O_CLOEXEC and O_NOCTTY explicitly (as we do for openat). However,
         // O_NOCTTY cannot be set if O_PATH is set (openat2 verifies flag
         // arguments).
-        how.flags |= libc::O_CLOEXEC as u64;
-        if how.flags & libc::O_PATH as u64 == 0 {
-            how.flags |= libc::O_NOCTTY as u64;
+        how.flags.insert(OpenFlags::O_CLOEXEC);
+        if !how.flags.contains(OpenFlags::O_PATH) {
+            how.flags.insert(OpenFlags::O_NOCTTY);
         }
 
         // openat2(2) can fail with -EAGAIN if there was a racing rename or
@@ -884,8 +898,7 @@ pub(crate) mod openat2 {
         path: impl AsRef<Path>,
         mut how: OpenHow,
     ) -> Result<OwnedFd, Error> {
-        how.flags |= libc::O_NOFOLLOW as u64;
-
+        how.flags.insert(OpenFlags::O_NOFOLLOW);
         openat2_follow(dirfd, path, how)
     }
 }

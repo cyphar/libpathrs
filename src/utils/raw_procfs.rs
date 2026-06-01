@@ -148,7 +148,7 @@ impl<'fd> RawProcfsRoot<'fd> {
             self.try_into_maybe_owned_fd()?.as_fd(),
             path,
             OpenHow {
-                flags: oflags.bits() as _,
+                flags: oflags,
                 mode: 0,
                 resolve: (ResolveFlags::RESOLVE_NO_MAGICLINKS
                     | ResolveFlags::RESOLVE_NO_XDEV

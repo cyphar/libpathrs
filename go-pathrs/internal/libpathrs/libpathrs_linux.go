@@ -60,8 +60,8 @@ func OpenRoot(path string) (uintptr, error) {
 }
 
 // Reopen wraps pathrs_reopen.
-func Reopen(fd uintptr, flags int) (uintptr, error) {
-	newFd := C.pathrs_reopen(C.int(fd), C.int(flags))
+func Reopen(fd uintptr, flags uint64) (uintptr, error) {
+	newFd := C.pathrs_reopen(C.int(fd), C.uint64_t(flags))
 	return uintptr(newFd), fetchError(newFd)
 }
 
@@ -84,11 +84,11 @@ func InRootResolveNoFollow(rootFd uintptr, path string) (uintptr, error) {
 }
 
 // InRootOpen wraps pathrs_inroot_open.
-func InRootOpen(rootFd uintptr, path string, flags int) (uintptr, error) {
+func InRootOpen(rootFd uintptr, path string, flags uint64) (uintptr, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
-	fd := C.pathrs_inroot_open(C.int(rootFd), cPath, C.int(flags))
+	fd := C.pathrs_inroot_open(C.int(rootFd), cPath, C.uint64_t(flags))
 	return uintptr(fd), fetchError(fd)
 }
 
@@ -145,11 +145,11 @@ func InRootRemoveAll(rootFd uintptr, path string) error {
 }
 
 // InRootCreat wraps pathrs_inroot_creat.
-func InRootCreat(rootFd uintptr, path string, flags int, mode uint32) (uintptr, error) {
+func InRootCreat(rootFd uintptr, path string, flags uint64, mode uint32) (uintptr, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
-	fd := C.pathrs_inroot_creat(C.int(rootFd), cPath, C.int(flags), C.uint(mode))
+	fd := C.pathrs_inroot_creat(C.int(rootFd), cPath, C.uint64_t(flags), C.uint(mode))
 	return uintptr(fd), fetchError(fd)
 }
 
@@ -277,13 +277,13 @@ func init() {
 func ProcPid(pid uint32) ProcBase { return ProcBaseTypePid | ProcBase(pid) }
 
 // ProcOpenat wraps pathrs_proc_openat.
-func ProcOpenat(procRootFd int, base ProcBase, path string, flags int) (uintptr, error) {
+func ProcOpenat(procRootFd int, base ProcBase, path string, flags uint64) (uintptr, error) {
 	cBase := C.pathrs_proc_base_t(base)
 
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
-	fd := C.pathrs_proc_openat(C.int(procRootFd), cBase, cPath, C.int(flags))
+	fd := C.pathrs_proc_openat(C.int(procRootFd), cBase, cPath, C.uint64_t(flags))
 	return uintptr(fd), fetchError(fd)
 }
 

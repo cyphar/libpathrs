@@ -33,28 +33,137 @@
 use crate::{
     capi,
     error::ErrorKind,
+    flags::OpenFlags,
+    procfs::ProcfsHandle,
     tests::{capi::utils as capi_utils, common as tests_common, traits::ErrorImpl},
     utils::FdExt,
     Root,
 };
 
-use std::os::unix::{fs::MetadataExt, io::AsFd};
+use std::{
+    fs::File,
+    os::unix::{
+        fs::MetadataExt,
+        io::{AsFd, AsRawFd, OwnedFd},
+    },
+};
 
 use anyhow::{Context, Error};
 use pretty_assertions::{assert_eq, assert_matches};
 
 #[test]
+fn reopen_v1() -> Result<(), Error> {
+    let file: OwnedFd = File::open(".")?.into();
+
+    let oflags = OpenFlags::O_DIRECTORY | OpenFlags::O_RDONLY | OpenFlags::O_NOATIME;
+    let reopened_fd = capi_utils::call_capi_fd(|| {
+        capi::core::__pathrs_reopen_v1(file.as_fd().into(), oflags.bits() as i32)
+    })?;
+
+    assert_ne!(
+        file.as_raw_fd(),
+        reopened_fd.as_raw_fd(),
+        "new and reopened fds should have different fd numbers"
+    );
+    assert_eq!(
+        file.as_unsafe_path_unchecked()?,
+        reopened_fd.as_unsafe_path_unchecked()?,
+        "new and reopened fds should have the same 'real' path",
+    );
+    tests_common::check_oflags(&reopened_fd, oflags)?;
+
+    Ok(())
+}
+
+#[test]
+fn inroot_open_v1() -> Result<(), Error> {
+    let root_dir = tests_common::create_basic_tree()?;
+    let root = Root::open(root_dir.path())?;
+
+    {
+        let path = capi_utils::path_to_cstring("b/c");
+        let oflags = OpenFlags::O_DIRECTORY | OpenFlags::O_RDONLY | OpenFlags::O_NOATIME;
+        // SAFETY: Called with valid C-like arguments.
+        let file = capi_utils::call_capi_fd(|| unsafe {
+            capi::core::__pathrs_inroot_open_v1(
+                root.as_fd().into(),
+                path.as_ptr(),
+                oflags.bits() as _,
+            )
+        })?;
+        tests_common::check_oflags(&file, oflags)?;
+    }
+
+    {
+        let path = capi_utils::path_to_cstring("b/c/file");
+        let oflags = OpenFlags::O_RDWR | OpenFlags::O_TRUNC | OpenFlags::O_DIRECT;
+        // SAFETY: Called with valid C-like arguments.
+        let file = capi_utils::call_capi_fd(|| unsafe {
+            capi::core::__pathrs_inroot_open_v1(
+                root.as_fd().into(),
+                path.as_ptr(),
+                oflags.bits() as _,
+            )
+        })?;
+        tests_common::check_oflags(&file, oflags)?;
+    }
+
+    {
+        let path = capi_utils::path_to_cstring("b-file");
+        let oflags = OpenFlags::O_NOFOLLOW | OpenFlags::O_PATH;
+        // SAFETY: Called with valid C-like arguments.
+        let file = capi_utils::call_capi_fd(|| unsafe {
+            capi::core::__pathrs_inroot_open_v1(
+                root.as_fd().into(),
+                path.as_ptr(),
+                oflags.bits() as _,
+            )
+        })?;
+        tests_common::check_oflags(&file, oflags)?;
+    }
+
+    Ok(())
+}
+
+#[test]
+fn inroot_creat_v1() -> Result<(), Error> {
+    let root_dir = tests_common::create_basic_tree()?;
+    let root = Root::open(root_dir.path())?;
+
+    {
+        let path = capi_utils::path_to_cstring("b/c/new-file");
+        let oflags = OpenFlags::O_RDWR | OpenFlags::O_NOATIME | OpenFlags::O_EXCL;
+        let mode = 0o644;
+        // SAFETY: Called with valid C-like arguments.
+        let file = capi_utils::call_capi_fd(|| unsafe {
+            capi::core::__pathrs_inroot_creat_v1(
+                root.as_fd().into(),
+                path.as_ptr(),
+                oflags.bits() as _,
+                mode,
+            )
+        })?;
+        tests_common::check_oflags(&file, oflags | OpenFlags::O_CREAT)?;
+        tests_common::check_mode(&file, libc::S_IFREG | mode)?;
+    }
+
+    Ok(())
+}
+
+#[test]
 fn hardlink_v1() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree()?;
     let root = Root::open(root_dir.path())?;
+    let path1 = capi_utils::path_to_cstring("abc");
+    let path2 = capi_utils::path_to_cstring("b/c/file");
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
         capi_utils::call_capi(|| unsafe {
             capi::core::__pathrs_inroot_hardlink_v1(
                 root.as_fd().into(),
-                capi_utils::path_to_cstring("abc").into_raw(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                path1.as_ptr(),
+                path2.as_ptr(),
             )
         })
         .map_err(|err| err.kind()),
@@ -85,15 +194,17 @@ fn hardlink_v2() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree()?;
     let root1 = Root::open(root_dir.path())?;
     let root2 = Root::open(root_dir.path())?;
+    let path1 = capi_utils::path_to_cstring("abc");
+    let path2 = capi_utils::path_to_cstring("b/c/file");
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
         capi_utils::call_capi(|| unsafe {
             capi::core::pathrs_inroot_hardlink(
                 root1.as_fd().into(),
-                capi_utils::path_to_cstring("abc").into_raw(),
+                path1.as_ptr(),
                 root2.as_fd().into(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                path2.as_ptr(),
                 0,
             )
         })
@@ -107,9 +218,9 @@ fn hardlink_v2() -> Result<(), Error> {
         capi_utils::call_capi(|| unsafe {
             capi::core::pathrs_inroot_hardlink(
                 root1.as_fd().into(),
-                capi_utils::path_to_cstring("abc").into_raw(),
-                root1.as_fd().into(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                path1.as_ptr(),
+                root1.as_fd().into(), // *not* root2!
+                path2.as_ptr(),
                 0xFFFF,
             )
         })
@@ -125,14 +236,16 @@ fn hardlink_v2() -> Result<(), Error> {
 fn symlink_v1() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree()?;
     let root = Root::open(root_dir.path())?;
+    let path1 = capi_utils::path_to_cstring("abc");
+    let path2 = capi_utils::path_to_cstring("b/c/file");
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
         capi_utils::call_capi(|| unsafe {
             capi::core::__pathrs_inroot_symlink_v1(
                 root.as_fd().into(),
-                capi_utils::path_to_cstring("abc").into_raw(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                path1.as_ptr(),
+                path2.as_ptr(),
             )
         })
         .map_err(|err| err.kind()),
@@ -153,14 +266,16 @@ fn symlink_v1() -> Result<(), Error> {
 fn rename_v1() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree()?;
     let root = Root::open(root_dir.path())?;
+    let path1 = capi_utils::path_to_cstring("b/c/file");
+    let path2 = capi_utils::path_to_cstring("abc");
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
         capi_utils::call_capi(|| unsafe {
             capi::core::__pathrs_inroot_rename_v1(
                 root.as_fd().into(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
-                capi_utils::path_to_cstring("abc").into_raw(),
+                path1.as_ptr(),
+                path2.as_ptr(),
                 0,
             )
         })
@@ -189,15 +304,17 @@ fn rename_v2() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree()?;
     let root1 = Root::open(root_dir.path())?;
     let root2 = Root::open(root_dir.path())?;
+    let path1 = capi_utils::path_to_cstring("b/c/file");
+    let path2 = capi_utils::path_to_cstring("abc");
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
         capi_utils::call_capi(|| unsafe {
             capi::core::pathrs_inroot_rename(
                 root1.as_fd().into(),
-                capi_utils::path_to_cstring("abc").into_raw(),
+                path1.as_ptr(),
                 root2.as_fd().into(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                path2.as_ptr(),
                 0,
             )
         })
@@ -205,6 +322,42 @@ fn rename_v2() -> Result<(), Error> {
         Err(ErrorKind::InvalidArgument.errno()),
         "pathrs_inroot_rename@LIBPATHRS_0.2.5 should reject old_root_fd != new_root_fd"
     );
+
+    Ok(())
+}
+
+#[test]
+fn procfs_open_v1() -> Result<(), Error> {
+    let path = capi_utils::path_to_cstring("stat");
+    let oflags = OpenFlags::O_RDONLY | OpenFlags::O_NOFOLLOW;
+    // SAFETY: Called with valid C-like arguments.
+    let file = capi_utils::call_capi_fd(|| unsafe {
+        capi::procfs::__pathrs_proc_open_v1(
+            capi::procfs::CProcfsBase::PATHRS_PROC_THREAD_SELF,
+            path.as_ptr(),
+            oflags.bits() as _,
+        )
+    })?;
+    tests_common::check_oflags(&file, oflags)?;
+
+    Ok(())
+}
+
+#[test]
+fn procfs_openat_v1() -> Result<(), Error> {
+    let proc_rootfd = ProcfsHandle::new()?;
+    let path = capi_utils::path_to_cstring("stat");
+    let oflags = OpenFlags::O_RDONLY | OpenFlags::O_NOFOLLOW;
+    // SAFETY: Called with valid C-like arguments.
+    let file = capi_utils::call_capi_fd(|| unsafe {
+        capi::procfs::__pathrs_proc_openat_v1(
+            proc_rootfd.as_fd().into(),
+            capi::procfs::CProcfsBase::PATHRS_PROC_THREAD_SELF,
+            path.as_ptr(),
+            oflags.bits() as _,
+        )
+    })?;
+    tests_common::check_oflags(&file, oflags)?;
 
     Ok(())
 }

@@ -109,8 +109,7 @@ var rootResolveCmd = cmdWithOptions(&cli.Command{
 
 		fmt.Println("HANDLE-PATH", handle.IntoFile().Name())
 
-		if val := ctx.Value("reopen"); val != nil {
-			oflags := val.(int)
+		if oflags, set := ctxOflags(ctx, "reopen"); set {
 			f, err := handle.OpenFile(oflags)
 			if err != nil {
 				return err
@@ -144,10 +143,7 @@ var rootOpenCmd = cmdWithOptions(&cli.Command{
 		follow := cmd.Bool("follow")
 		subpath := cmd.StringArg("subpath")
 
-		oflags := unix.O_RDONLY
-		if val := ctx.Value("oflags"); val != nil {
-			oflags = val.(int)
-		}
+		oflags, _ := ctxOflags(ctx, "oflags")
 		if !follow {
 			oflags |= unix.O_NOFOLLOW
 		}
@@ -184,7 +180,7 @@ var rootMkfileCmd = cmdWithOptions(&cli.Command{
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		root := ctx.Value("root").(*pathrs.Root)
 		subpath := cmd.StringArg("subpath")
-		oflags := ctx.Value("oflags").(int)
+		oflags, _ := ctxOflags(ctx, "oflags")
 		mode := ctx.Value("mode").(os.FileMode)
 
 		f, err := root.Create(subpath, oflags, mode)
