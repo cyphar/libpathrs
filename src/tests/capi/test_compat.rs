@@ -47,14 +47,16 @@ use pretty_assertions::{assert_eq, assert_matches};
 fn hardlink_v1() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree()?;
     let root = Root::open(root_dir.path())?;
+    let path1 = capi_utils::path_to_cstring("abc");
+    let path2 = capi_utils::path_to_cstring("b/c/file");
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
         capi_utils::call_capi(|| unsafe {
             capi::core::__pathrs_inroot_hardlink_v1(
                 root.as_fd().into(),
-                capi_utils::path_to_cstring("abc").into_raw(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                path1.as_ptr(),
+                path2.as_ptr(),
             )
         })
         .map_err(|err| err.kind()),
@@ -85,15 +87,17 @@ fn hardlink_v2() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree()?;
     let root1 = Root::open(root_dir.path())?;
     let root2 = Root::open(root_dir.path())?;
+    let path1 = capi_utils::path_to_cstring("abc");
+    let path2 = capi_utils::path_to_cstring("b/c/file");
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
         capi_utils::call_capi(|| unsafe {
             capi::core::pathrs_inroot_hardlink(
                 root1.as_fd().into(),
-                capi_utils::path_to_cstring("abc").into_raw(),
+                path1.as_ptr(),
                 root2.as_fd().into(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                path2.as_ptr(),
                 0,
             )
         })
@@ -107,9 +111,9 @@ fn hardlink_v2() -> Result<(), Error> {
         capi_utils::call_capi(|| unsafe {
             capi::core::pathrs_inroot_hardlink(
                 root1.as_fd().into(),
-                capi_utils::path_to_cstring("abc").into_raw(),
-                root1.as_fd().into(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                path1.as_ptr(),
+                root1.as_fd().into(), // *not* root2!
+                path2.as_ptr(),
                 0xFFFF,
             )
         })
@@ -125,14 +129,16 @@ fn hardlink_v2() -> Result<(), Error> {
 fn symlink_v1() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree()?;
     let root = Root::open(root_dir.path())?;
+    let path1 = capi_utils::path_to_cstring("abc");
+    let path2 = capi_utils::path_to_cstring("b/c/file");
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
         capi_utils::call_capi(|| unsafe {
             capi::core::__pathrs_inroot_symlink_v1(
                 root.as_fd().into(),
-                capi_utils::path_to_cstring("abc").into_raw(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                path1.as_ptr(),
+                path2.as_ptr(),
             )
         })
         .map_err(|err| err.kind()),
@@ -153,14 +159,16 @@ fn symlink_v1() -> Result<(), Error> {
 fn rename_v1() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree()?;
     let root = Root::open(root_dir.path())?;
+    let path1 = capi_utils::path_to_cstring("b/c/file");
+    let path2 = capi_utils::path_to_cstring("abc");
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
         capi_utils::call_capi(|| unsafe {
             capi::core::__pathrs_inroot_rename_v1(
                 root.as_fd().into(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
-                capi_utils::path_to_cstring("abc").into_raw(),
+                path1.as_ptr(),
+                path2.as_ptr(),
                 0,
             )
         })
@@ -189,15 +197,17 @@ fn rename_v2() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree()?;
     let root1 = Root::open(root_dir.path())?;
     let root2 = Root::open(root_dir.path())?;
+    let path1 = capi_utils::path_to_cstring("b/c/file");
+    let path2 = capi_utils::path_to_cstring("abc");
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
         capi_utils::call_capi(|| unsafe {
             capi::core::pathrs_inroot_rename(
                 root1.as_fd().into(),
-                capi_utils::path_to_cstring("abc").into_raw(),
+                path1.as_ptr(),
                 root2.as_fd().into(),
-                capi_utils::path_to_cstring("b/c/file").into_raw(),
+                path2.as_ptr(),
                 0,
             )
         })
