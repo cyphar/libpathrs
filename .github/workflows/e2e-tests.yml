@@ -73,7 +73,7 @@ jobs:
 
       # Build and install libpathrs.so.
       - if: ${{ matrix.lang != 'rust' }}
-        uses: dtolnay/rust-toolchain@stable
+        run: rustup toolchain install stable
       - if: ${{ matrix.lang != 'rust' }}
         name: build libpathrs
         run: make release

@@ -25,6 +25,10 @@ name: rust-ci
 env:
   RUST_MSRV: &RUST_MSRV "1.63"
   CBINDGEN_VERSION: "0.29.2"
+  NEXTEST_VERSION: "0.9.137"
+  CARGO_CARGO_LLVM_COV_VERSION: "0.8.7"
+  CARGO_CARGO_BINUTILS_VERSION: "0.4.0"
+  CARGO_HACK_VERSION: "0.6.45"
 
 jobs:
   codespell:
@@ -39,8 +43,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@cargo-hack
+      - run: rustup toolchain install stable
+      - run: cargo install --locked "cargo-hack@$CARGO_HACK_VERSION"
       - name: cargo check
         run: >-
           cargo hack --workspace --each-feature --keep-going \
@@ -51,10 +55,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: *RUST_MSRV
-      - uses: taiki-e/install-action@cargo-hack
+      - name: install Rust *RUST_MSRV toolchain
+        run: |-
+          rustup toolchain install "$RUST_MSRV"
+          rustup default "$RUST_MSRV"
+      - run: cargo install --locked "cargo-hack@$CARGO_HACK_VERSION"
       - name: cargo check
         run: >-
           cargo hack --each-feature --keep-going \
@@ -84,19 +89,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          # TODO: Should we use MSRV for this?
-          targets: ${{ matrix.target }}
-      - uses: taiki-e/install-action@cargo-hack
-      - name: cargo check --target=${{ matrix.target }}
+      - name: install Rust ${{ matrix.target }} toolchain
+        run: |-
+          rustup target add '${{ matrix.target }}'
+          rustup toolchain install stable
+      - run: cargo install --locked "cargo-hack@$CARGO_HACK_VERSION"
+      - name: cargo check --target='${{ matrix.target }}'
         run: >-
           cargo hack --each-feature --keep-going \
-            check --target=${{ matrix.target }} --all-targets
-      - name: cargo build --target=${{ matrix.target }}
+            check --target='${{ matrix.target }}' --all-targets
+      - name: cargo build --target='${{ matrix.target }}'
         run: >-
           cargo hack --each-feature --keep-going \
-            build --target=${{ matrix.target }} --release
+            build --target='${{ matrix.target }}' --release
 
   fmt:
     name: rustfmt
@@ -104,9 +109,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       # We need to use nightly Rust to check the formatting.
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: rustfmt
+      - name: install rustfmt nightly
+        run: |-
+          rustup toolchain instsall nightly
+          rustup default nightly
+          rustup component add rustfmt
       - run: cargo fmt --all -- --check
 
   clippy:
@@ -115,10 +122,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       # Pin the Rust version to avoid Rust updates breaking our clippy lints.
-      - uses: dtolnay/rust-toolchain@1.88
-        with:
-          components: clippy
-      - uses: taiki-e/install-action@cargo-hack
+      - name: install clippy (1.88)
+        run: |-
+          rustup toolchain install 1.88
+          rustup default 1.88
+          rustup component add clippy
+      - run: cargo install --locked "cargo-hack@$CARGO_HACK_VERSION"
       - name: cargo clippy
         run: >-
           cargo hack --workspace --each-feature --keep-going \
@@ -129,9 +138,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt,clippy
+      - name: install clippy and rustfmt
+        run: |-
+          rustup toolchain install stable
+          rustup component add rustfmt
+          rustup component add clippy
       - name: install cbindgen
         run: cargo install --force --locked cbindgen@${{ env.CBINDGEN_VERSION }}
       - name: make lint
@@ -141,8 +152,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - name: install cbindgen
+      - run: rustup toolchain install stable
+      - name: install cbindgen ${{ env.CBINDGEN_VERSION }}
         run: cargo install --force --locked cbindgen@${{ env.CBINDGEN_VERSION }}
       - run: make validate-cbindgen
 
@@ -160,9 +171,10 @@ jobs:
           - nightly
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust-version }}
+      - name: install Rust ${{ matrix.rust-version }}
+        run: |-
+          rustup toolchain install '${{ matrix.rust-version }}'
+          rustup default '${{ matrix.rust-version }}'
       - name: install lld
         run: sudo apt-get install -y lld
       - run: make validate-elf-symbols
@@ -177,7 +189,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install stable
       - run: make dist-release
       - name: check release artefacts
         run: |-
@@ -197,9 +209,10 @@ jobs:
           - nightly
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust-version }}
+      - name: install Rust ${{ matrix.rust-version }}
+        run: |-
+          rustup toolchain install '${{ matrix.rust-version }}'
+          rustup default '${{ matrix.rust-version }}'
       - name: install lld
         run: sudo apt-get install -y lld
       - run: make debug
@@ -210,7 +223,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install stable
       - run: cargo doc --document-private-items --workspace --all-features
       - name: upload docs
         uses: actions/upload-artifact@v7
@@ -234,19 +247,19 @@ jobs:
         ${{ matrix.run-as == 'root' && '_test_as_root' || '' }}
     steps:
       - uses: actions/checkout@v6
-      # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: taiki-e/install-action@nextest
+      - name: install Rust toolchain and llvm-tools
+        run: |-
+          rustup toolchain install stable
+          rustup component add llvm-tools
+      - run: cargo install --locked "cargo-llvm-cov@$CARGO_LLVM_COV_VERSION"
+      - run: cargo install --locked "nextest@$NEXTEST_VERSION"
       - name: cargo nextest archive
         run: >-
           cargo llvm-cov \
             nextest-archive \
               --workspace \
-              -F "${{ env.FEATURES }}" \
-              --archive-file nextest-pathrs-${{ matrix.run-as }}.tar.zst
+              -F "$FEATURES" \
+              --archive-file 'nextest-pathrs-${{ matrix.run-as }}.tar.zst'
       - name: upload nextest archive
         uses: actions/upload-artifact@v7
         with:
@@ -262,10 +275,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: install Rust toolchain and llvm-tools (nightly)
+        run: |-
+          rustup toolchain install nightly
+          rustup default nightly
+          rustup component add llvm-tools
+      - run: cargo install --locked "cargo-llvm-cov@$CARGO_LLVM_COV_VERSION"
       - run: make test-rust-doctest
       - name: upload rust coverage (artifact)
         uses: actions/upload-artifact@v7
@@ -333,15 +348,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: taiki-e/install-action@nextest
-      - name: install llvm-tools wrappers
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-binutils
+      - name: install Rust toolchain and llvm-tools (nightly)
+        run: |-
+          rustup toolchain install nightly
+          rustup default nightly
+          rustup component add llvm-tools
+      - run: cargo install --locked "cargo-llvm-cov@$CARGO_LLVM_COV_VERSION"
+      - run: cargo install --locked "nextest@$NEXTEST_VERSION"
+      - run: cargo install --locked "cargo-binutils@$CARGO_BINUTILS_VERSION"
 
       - name: pull nextest archive
         uses: actions/download-artifact@v8
@@ -405,15 +419,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - name: install llvm-tools wrappers
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-binutils
+      - name: install Rust toolchain and llvm-tools
+        run: |-
+          rustup toolchain install stable
+          rustup component add llvm-tools
+      - run: cargo install --locked "cargo-llvm-cov@$CARGO_LLVM_COV_VERSION"
+      - run: cargo install --locked "cargo-binutils@$CARGO_BINUTILS_VERSION"
 
       - name: pull rust coverage
         id: rust-coverage
@@ -466,7 +477,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install stable
       - run: cargo build --examples
       - run: make -C examples smoke-test-rust
 
@@ -482,7 +493,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install stable
       - run: make release
       - name: compute ${{ matrix.libtype }} file name
         run: |-
@@ -565,7 +576,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install stable
       - run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
