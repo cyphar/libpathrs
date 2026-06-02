@@ -24,6 +24,7 @@ name: e2e-tests
 
 env:
   BATS_VERSION: "1.11.1"
+  CI_IMAGE: cyphar/libpathrs:ci-latest
 
 jobs:
   e2e-test:
@@ -34,7 +35,7 @@ jobs:
           - go
           - rust
           - python
-        runas:
+        run-as:
           - ""
           - "root"
         lang-desc: [""]
@@ -60,7 +61,7 @@ jobs:
       ${{
         format('({0}{1})',
           matrix.lang-desc || matrix.lang,
-          matrix.runas && format(', {0}', matrix.runas) || '',
+          matrix.run-as && format(', {0}', matrix.run-as) || '',
         )
       }}
     runs-on: ubuntu-latest
@@ -114,11 +115,81 @@ jobs:
       - name: make -C e2e-tests test-${{ matrix.lang }}
         run: |-
           export BATS=$(which bats)
-          make -C e2e-tests RUN_AS=${{ matrix.runas }} test-${{ matrix.lang }}
+          make -C e2e-tests RUN_AS=${{ matrix.run-as }} test-${{ matrix.lang }}
+
+  ctr-ci-image:
+    runs-on: ubuntu-latest
+    name: build ci docker image
+    steps:
+      - uses: actions/checkout@v6
+      - name: setup docker buildx
+        uses: docker/setup-buildx-action@v4
+      - name: build and cache ci image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          tags: ${{ env.CI_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  ctr-e2e-test:
+    runs-on: ubuntu-latest
+    needs:
+      - ctr-ci-image
+    strategy:
+      fail-fast: false
+      matrix:
+        lang:
+          - python
+          - go
+          - rust
+        runtime:
+          - docker
+        run-as:
+          - unpriv
+          - CAP_SYS_ADMIN
+    env:
+      CONTAINER_RUNTIME: ${{ matrix.runtime }}
+      # NOTE: For the root tests we need to disable AppArmor because it blocks
+      # mount operations, even in child mount namespaces.
+      CONTAINER_RUN_ARGS: >-
+        ${{ matrix.run-as == 'CAP_SYS_ADMIN' && '--cap-add sys_admin --security-opt=apparmor=unconfined' || '' }}
+        ${{ matrix.run-as == 'unpriv' && '--user 1000:1000' || '' }}
+      E2E_LANG: ${{ matrix.lang }}
+    name: >-
+      (${{ matrix.runtime }})
+      run e2e-tests
+      (${{ matrix.lang }}, ${{ matrix.run-as }})
+    steps:
+      - uses: actions/checkout@v6
+      # Pull the image from the cache by triggering a "new build".
+      - name: setup docker buildx
+        uses: docker/setup-buildx-action@v4
+      # TODO: Ideally we would be able to pull the image from the cache without
+      # needing to trigger another build. In the worst case we could just
+      # upload the CI image in the ctr-ci-image job and load it here.
+      - name: build and cache ci image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          tags: ${{ env.CI_IMAGE }}
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # Run the tests.
+      - run: >-
+          mkdir -p ./target && chmod a+rwx ./target
+      - name: ${{ matrix.runtime }} run ${{ matrix.lang }} e2e-tests (run as ${{ matrix.run-as }})
+        run: >-
+          "$CONTAINER_RUNTIME" run --rm $CONTAINER_RUN_ARGS \
+            -v $PWD/target:/usr/src/libpathrs/target \
+            "$CI_IMAGE" \
+              make -C e2e-tests "test-$E2E_LANG"
 
   e2e-complete:
     needs:
       - e2e-test
+      - ctr-e2e-test
     runs-on: ubuntu-latest
     steps:
       - run: echo "End-to-end test CI jobs completed successfully."
