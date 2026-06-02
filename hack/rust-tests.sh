@@ -211,6 +211,8 @@ function nextest_run() {
 		# This CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER magic lets us run
 		# Rust tests as root without needing to run the build step as root.
 		export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="sudo -E "
+	elif [ "$(id -u)" -eq 0 ]; then
+		features+=("_test_as_root")
 	fi
 
 	build_args=()
