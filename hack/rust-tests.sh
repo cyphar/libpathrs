@@ -66,7 +66,7 @@ function strjoin() {
 	echo "$str"
 }
 
-TEMP="$(getopt -o h,sc:p:S: --long help,sudo,cargo:,partition:,enosys:,archive-file: -- "$@")"
+TEMP="$(getopt -o h,sc:p:S: --long help,sudo,cargo:,partition:,enosys:,archive-file:,report-output-path: -- "$@")"
 eval set -- "$TEMP"
 
 function usage() {
@@ -75,6 +75,7 @@ function usage() {
 Usage: $0  [--sudo] [--cargo=<$CARGO>]
            [--partition=<nextest-partition-spec>]
            [--archive-file=<nextest-archive.tar.zstd>]
+		   [--report-output-path=<path>]
            [--enosys=<syscalls>,...]
            [TESTS_TO_RUN]...
 EOF
@@ -86,6 +87,7 @@ sudo=
 partition=
 enosys_syscalls=()
 nextest_archive=
+report_output_path=
 CARGO="${CARGO_NIGHTLY:-cargo +nightly}"
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -107,6 +109,10 @@ while [ "$#" -gt 0 ]; do
 			;;
 		-S|--enosys)
 			[ -n "$2" ] && enosys_syscalls+=("$2")
+			shift 2
+			;;
+		--report-output-path)
+			report_output_path="$2"
 			shift 2
 			;;
 		-h|--help)
@@ -165,6 +171,7 @@ function llvm-profdata() {
 
 function merge_llvmcov_profdata() {
 	local llvmcov_targetdir=target/llvm-cov-target
+	local report_output_path="${1:-$llvmcov_targetdir/libpathrs-combined.profraw}"
 
 	# Get a list of *.profraw files for merging.
 	local profraw_list
@@ -182,7 +189,7 @@ function merge_llvmcov_profdata() {
 	# Remove the old profiling data and replace it with the merged version. As
 	# long as the file has a ".profraw" suffix, cargo-llvm-cov will use it.
 	find "$llvmcov_targetdir" -name '*.profraw' -type f -delete
-	mv "$combined_profraw" "$llvmcov_targetdir/libpathrs-combined.profraw"
+	mv "$combined_profraw" "$report_output_path"
 }
 
 function nextest_run() {
@@ -294,4 +301,9 @@ else
 	# be resolved and nextest will make it easier to do this.
 	nextest_run --no-fail-fast -E "not test(#tests::test_race_*)"
 	nextest_run --no-fail-fast -E "test(#tests::test_race_*)"
+fi
+
+# Output the final report to the requested file.
+if [ -n "$report_output_path" ]; then
+	merge_llvmcov_profdata "$report_output_path"
 fi
