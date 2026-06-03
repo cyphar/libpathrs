@@ -149,7 +149,7 @@ macro_rules! create_tree {
     // }
     ($($subpath:expr => $(#[$meta:meta])* ($($inner:tt)*));+ $(;)*) => {
         {
-            let root = TempDir::new()?;
+            let root = TempDir::new().context("create temporary dir for test tree")?;
             $(
                 $(#[$meta])*
                 {

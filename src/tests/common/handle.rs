@@ -112,7 +112,7 @@ pub(in crate::tests) fn check_mode(fd: impl AsFd, create_mode: u32) -> Result<()
         umask.bits()
     };
 
-    let got_mode = fd.metadata()?.mode()
+    let got_mode = fd.metadata().context("fstat fd to check mode")?.mode()
         // Strip type bits from mode if the caller didn't include them.
         & !if create_mode & libc::S_IFMT == 0 {
             libc::S_IFMT
@@ -124,7 +124,7 @@ pub(in crate::tests) fn check_mode(fd: impl AsFd, create_mode: u32) -> Result<()
         create_mode & !umask,
         got_mode,
         "created fd {:?} should have mode {} ({create_mode} &^ {umask})",
-        fd.as_unsafe_path_unchecked()?,
+        fd.as_unsafe_path_unchecked().expect("get real path of fd"),
         create_mode & !umask
     );
 
@@ -194,7 +194,9 @@ pub(in crate::tests) fn check_reopen<H: HandleImpl>(
         (Ok(f), Ok(_)) => f,
         (result, expected) => {
             let result = match result {
-                Ok(file) => Ok(file.as_unsafe_path_unchecked()?),
+                Ok(file) => Ok(file
+                    .as_unsafe_path_unchecked()
+                    .context("get real path of reopened file")?),
                 Err(err) => Err(err),
             };
 
@@ -209,16 +211,22 @@ pub(in crate::tests) fn check_reopen<H: HandleImpl>(
         }
     };
 
-    let real_handle_path = handle.as_unsafe_path_unchecked()?;
-    let real_reopen_path = file.as_unsafe_path_unchecked()?;
+    let real_handle_path = handle
+        .as_unsafe_path_unchecked()
+        .context("get real path of handle")?;
+    let real_reopen_path = file
+        .as_unsafe_path_unchecked()
+        .context("get real path of reopened file")?;
 
     assert_eq!(
         real_handle_path, real_reopen_path,
         "reopened handle should be equivalent to old handle",
     );
 
-    let clone_handle = handle.try_clone()?;
-    let clone_handle_path = clone_handle.as_unsafe_path_unchecked()?;
+    let clone_handle = handle.try_clone().context("clone handle")?;
+    let clone_handle_path = clone_handle
+        .as_unsafe_path_unchecked()
+        .context("get real path of cloned handle")?;
 
     assert_eq!(
         real_handle_path, clone_handle_path,
@@ -229,7 +237,8 @@ pub(in crate::tests) fn check_reopen<H: HandleImpl>(
         &file,
         // NOTE: Handle::reopen() drops O_NOFOLLOW, so we shouldn't see it.
         flags.difference(OpenFlags::O_NOFOLLOW),
-    )?;
+    )
+    .context("check reopened file flags")?;
 
     Ok(())
 }
