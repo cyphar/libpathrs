@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       # Build and install libpathrs.so.
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install stable
       - name: build libpathrs
         run: make release
       - name: install libpathrs
@@ -112,7 +112,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       # Build and install libpathrs.so.
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install stable
       - name: build libpathrs
         run: make release
       - name: install libpathrs
