@@ -43,7 +43,7 @@ use crate::{
 
 use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 
 macro_rules! root_op_tests {
     ($(#[$meta:meta])* fn $test_name:ident ($root_var:ident) $body:block) => {
@@ -51,8 +51,8 @@ macro_rules! root_op_tests {
             #[test]
             $(#[$meta])*
             fn [<root_ $test_name>]() -> Result<(), Error> {
-                let root_dir = tests_common::create_basic_tree()?;
-                let $root_var = Root::open(&root_dir)?;
+                let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
+                let $root_var = Root::open(&root_dir).context("Root::open basic tree")?;
 
                 $body
             }
@@ -60,8 +60,8 @@ macro_rules! root_op_tests {
             #[test]
             $(#[$meta])*
             fn [<rootref_ $test_name>]() -> Result<(), Error> {
-                let root_dir = tests_common::create_basic_tree()?;
-                let root = Root::open(&root_dir)?;
+                let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
+                let root = Root::open(&root_dir).context("Root::open basic tree")?;
                 let $root_var = root.as_ref();
 
                 $body
@@ -70,8 +70,9 @@ macro_rules! root_op_tests {
             #[test]
             $(#[$meta])*
             fn [<root_ $test_name _openat2>]() -> Result<(), Error> {
-                let root_dir = tests_common::create_basic_tree()?;
-                let $root_var = Root::open(&root_dir)?
+                let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
+                let $root_var = Root::open(&root_dir)
+                    .context("Root::open basic tree")?
                     .with_resolver_backend(ResolverBackend::KernelOpenat2);
                 if !$root_var.resolver_backend().supported() {
                     // Skip if not supported.
@@ -84,8 +85,8 @@ macro_rules! root_op_tests {
             #[test]
             $(#[$meta])*
             fn [<rootref_ $test_name _openat2>]() -> Result<(), Error> {
-                let root_dir = tests_common::create_basic_tree()?;
-                let root = Root::open(&root_dir)?;
+                let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
+                let root = Root::open(&root_dir).context("Root::open basic tree")?;
                 let $root_var = root
                     .as_ref()
                     .with_resolver_backend(ResolverBackend::KernelOpenat2);
@@ -109,8 +110,9 @@ macro_rules! root_op_tests {
                     return Ok(());
                 }
 
-                let root_dir = tests_common::create_basic_tree()?;
-                let $root_var = Root::open(&root_dir)?
+                let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
+                let $root_var = Root::open(&root_dir)
+                    .context("Root::open basic tree")?
                     .with_resolver_backend(ResolverBackend::EmulatedOpath);
                 // EmulatedOpath is always supported.
                 assert!(
@@ -133,8 +135,8 @@ macro_rules! root_op_tests {
                     return Ok(());
                 }
 
-                let root_dir = tests_common::create_basic_tree()?;
-                let root = Root::open(&root_dir)?;
+                let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
+                let root = Root::open(&root_dir).context("Root::open basic tree")?;
                 let $root_var = root
                     .as_ref()
                     .with_resolver_backend(ResolverBackend::EmulatedOpath);
@@ -151,8 +153,8 @@ macro_rules! root_op_tests {
             #[cfg(feature = "capi")]
             $(#[$meta])*
             fn [<capi_root_ $test_name>]() -> Result<(), Error> {
-                let root_dir = tests_common::create_basic_tree()?;
-                let $root_var = capi::CapiRoot::open(&root_dir)?;
+                let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
+                let $root_var = capi::CapiRoot::open(&root_dir).context("CapiRoot::open basic tree")?;
 
                 $body
             }
@@ -500,42 +502,78 @@ root_op_tests! {
     root_dotdot: mkfifo("..", 0o755) => Err(ErrorKind::InvalidArgument);
     root_dotdot_trailing_slash: mkfifo("../", 0o755) => Err(ErrorKind::InvalidArgument);
 
+    #[cfg(feature = "_test_can_mknod")]
     plain: mkblk("abc", 0o001, 123, 456) => Ok(("abc", libc::S_IFBLK | 0o001));
+    #[cfg(feature = "_test_can_mknod")]
     exist_file: mkblk("b/c/file", 0o444, 123, 456) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
+    #[cfg(feature = "_test_can_mknod")]
     exist_dir: mkblk("a", 0o444, 123, 456) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
+    #[cfg(feature = "_test_can_mknod")]
     exist_symlink: mkblk("b-file", 0o444, 123, 456) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
+    #[cfg(feature = "_test_can_mknod")]
     exist_dangling_symlink: mkblk("a-fake1", 0o444, 123, 456) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
+    #[cfg(feature = "_test_can_mknod")]
     parentdir_trailing_slash: mkblk("b/c//foobar", 0o123, 123, 456) => Ok(("b/c/foobar", libc::S_IFBLK | 0o123));
+    #[cfg(feature = "_test_can_mknod")]
     parentdir_trailing_dot: mkblk("b/c/./foobar", 0o456, 123, 456) => Ok(("b/c/foobar", libc::S_IFBLK | 0o456));
+    #[cfg(feature = "_test_can_mknod")]
     parentdir_trailing_dotdot: mkblk("b/c/../foobar", 0o321, 123, 456) => Ok(("b/foobar", libc::S_IFBLK | 0o321));
+    #[cfg(feature = "_test_can_mknod")]
     trailing_slash1: mkblk("foobar/", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     trailing_slash2: mkblk("foobar///", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     trailing_dot: mkblk("foobar/.", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     trailing_dotdot: mkblk("foobar/..", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_slash: mkblk("/", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_slash2: mkblk("//", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_dot: mkblk(".", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_dot_trailing_slash: mkblk("./", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_dotdot: mkblk("..", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_dotdot_trailing_slash: mkblk("../", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
 
+    #[cfg(feature = "_test_can_mknod")]
     plain: mkchar("abc", 0o010, 111, 222) => Ok(("abc", libc::S_IFCHR | 0o010));
+    #[cfg(feature = "_test_can_mknod")]
     exist_file: mkchar("b/c/file", 0o444, 123, 456) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
+    #[cfg(feature = "_test_can_mknod")]
     exist_dir: mkchar("a", 0o444, 123, 456) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
+    #[cfg(feature = "_test_can_mknod")]
     exist_symlink: mkchar("b-file", 0o444, 123, 456) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
+    #[cfg(feature = "_test_can_mknod")]
     exist_dangling_symlink: mkchar("a-fake1", 0o444, 123, 456) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
+    #[cfg(feature = "_test_can_mknod")]
     parentdir_trailing_slash: mkchar("b/c//foobar", 0o123, 123, 456) => Ok(("b/c/foobar", libc::S_IFCHR | 0o123));
+    #[cfg(feature = "_test_can_mknod")]
     parentdir_trailing_dot: mkchar("b/c/./foobar", 0o456, 123, 456) => Ok(("b/c/foobar", libc::S_IFCHR | 0o456));
+    #[cfg(feature = "_test_can_mknod")]
     parentdir_trailing_dotdot: mkchar("b/c/../foobar", 0o321, 123, 456) => Ok(("b/foobar", libc::S_IFCHR | 0o321));
+    #[cfg(feature = "_test_can_mknod")]
     trailing_slash1: mkchar("foobar/", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     trailing_slash2: mkchar("foobar///", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     trailing_dot: mkchar("foobar/.", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     trailing_dotdot: mkchar("foobar/..", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_slash: mkchar("/", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_slash2: mkchar("//", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_dot: mkchar(".", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_dot_trailing_slash: mkchar("./", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_dotdot: mkchar("..", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
+    #[cfg(feature = "_test_can_mknod")]
     root_dotdot_trailing_slash: mkchar("../", 0o755, 123, 456) => Err(ErrorKind::InvalidArgument);
 
     plain: create_file("abc", O_RDONLY, 0o100) => Ok("abc");
@@ -783,7 +821,9 @@ root_op_tests! {
     noreplace_symlink: rename("a", "b-file", RenameFlags::RENAME_NOREPLACE) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
     noreplace_dangling_symlink: rename("a", "a-fake1", RenameFlags::RENAME_NOREPLACE) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
     noreplace_eexist: rename("a", "e", RenameFlags::RENAME_NOREPLACE) => Err(ErrorKind::OsError(Some(libc::EEXIST)));
+    #[cfg(feature = "_test_can_mknod")]
     whiteout_dir: rename("a", "aa", RenameFlags::RENAME_WHITEOUT) => Ok(());
+    #[cfg(feature = "_test_can_mknod")]
     whiteout_file: rename("b/c/file", "b/c/newfile", RenameFlags::RENAME_WHITEOUT) => Ok(());
     exchange_dir: rename("a", "b", RenameFlags::RENAME_EXCHANGE) => Ok(());
     exchange_dir_trailing_slash_from: rename("a/", "b", RenameFlags::RENAME_EXCHANGE) => Ok(());
@@ -920,7 +960,7 @@ mod utils {
     };
 
     fn root_roundtrip<R: RootImpl>(root: R) -> Result<R::Cloned, Error> {
-        let root_clone = root.try_clone()?;
+        let root_clone = root.try_clone().context("clone root")?;
         assert_eq!(
             root.resolver(),
             root_clone.resolver(),
@@ -943,7 +983,10 @@ mod utils {
         let _ = rustix_process::umask(Mode::empty());
 
         // Update the expected path to have the rootdir as a prefix.
-        let root_dir = root.as_fd().as_unsafe_path_unchecked()?;
+        let root_dir = root
+            .as_fd()
+            .as_unsafe_path_unchecked()
+            .context("get real path of root")?;
         let expected_result = expected_result.map(|(path, mode)| (root_dir.join(path), mode));
 
         match root.create(path, &inode_type) {
@@ -953,10 +996,15 @@ mod utils {
             }
             Ok(_) => {
                 let root = root_roundtrip(root)?;
-                let created = root.resolve_nofollow(path)?;
-                let meta = created.metadata()?;
+                let created = root
+                    .resolve_nofollow(path)
+                    .with_context(|| format!("resolve created {path:?}"))?;
+                let meta = created.metadata().context("fstat created inode")?;
 
-                let actual_path = created.as_fd().as_unsafe_path_unchecked()?;
+                let actual_path = created
+                    .as_fd()
+                    .as_unsafe_path_unchecked()
+                    .context("get real path of created inode")?;
                 let actual_mode = meta.mode();
                 assert_eq!(
                     Ok((actual_path.clone(), actual_mode)),
@@ -973,7 +1021,12 @@ mod utils {
                     }
                     // Check hardlink is the same inode.
                     InodeType::Hardlink(target) => {
-                        let target_meta = root.resolve_nofollow(target)?.as_fd().metadata()?;
+                        let target_meta = root
+                            .resolve_nofollow(&target)
+                            .with_context(|| format!("resolve hardlink target {target:?}"))?
+                            .as_fd()
+                            .metadata()
+                            .context("fstat hardlink target")?;
                         assert_eq!(
                             meta.ino(),
                             target_meta.ino(),
@@ -983,13 +1036,16 @@ mod utils {
                     // Check symlink is correct.
                     InodeType::Symlink(target) => {
                         // Check using the a resolved handle.
-                        let actual_target = syscalls::readlinkat(&created, "")?;
+                        let actual_target = syscalls::readlinkat(&created, "")
+                            .context("readlink created symlink")?;
                         assert_eq!(
                             target, actual_target,
                             "readlinkat(handle) link target mismatch"
                         );
                         // Double-check with Root::readlink.
-                        let actual_target = root.readlink(path)?;
+                        let actual_target = root
+                            .readlink(path)
+                            .with_context(|| format!("root readlink {path:?}"))?;
                         assert_eq!(
                             target, actual_target,
                             "root.readlink(path) link target mismatch"
@@ -1017,7 +1073,10 @@ mod utils {
         let pre_create_handle = root.resolve_nofollow(path); // do not unwrap
 
         // Update the expected path to have the rootdir as a prefix.
-        let root_dir = root.as_fd().as_unsafe_path_unchecked()?;
+        let root_dir = root
+            .as_fd()
+            .as_unsafe_path_unchecked()
+            .context("get real path of root")?;
         let expected_result = expected_result.map(|path| root_dir.join(path));
 
         match root.create_file(path, oflags, perm) {
@@ -1026,7 +1085,10 @@ mod utils {
                     .with_context(|| format!("root create file {path:?}"))?;
             }
             Ok(file) => {
-                let actual_path = file.as_fd().as_unsafe_path_unchecked()?;
+                let actual_path = file
+                    .as_fd()
+                    .as_unsafe_path_unchecked()
+                    .context("get real path of created file")?;
                 assert_eq!(
                     Ok(actual_path.clone()),
                     expected_result,
@@ -1039,18 +1101,27 @@ mod utils {
                     .wrap("re-open created file using original path")?;
 
                 assert_eq!(
-                    new_lookup.as_fd().as_unsafe_path_unchecked()?,
-                    file.as_fd().as_unsafe_path_unchecked()?,
+                    new_lookup
+                        .as_fd()
+                        .as_unsafe_path_unchecked()
+                        .expect("get real path of re-opened file"),
+                    file.as_fd()
+                        .as_unsafe_path_unchecked()
+                        .expect("get real path of created file"),
                     "expected real path of {path:?} handles to be the same",
                 );
 
                 let expect_mode = if let Ok(handle) = pre_create_handle {
-                    handle.as_fd().metadata()?.mode()
+                    handle
+                        .as_fd()
+                        .metadata()
+                        .context("fstat pre-existing file")?
+                        .mode()
                 } else {
                     libc::S_IFREG | perm.mode()
                 };
 
-                let orig_meta = file.as_fd().metadata()?;
+                let orig_meta = file.as_fd().metadata().context("fstat created file")?;
                 assert_eq!(
                     orig_meta.mode(),
                     expect_mode,
@@ -1058,7 +1129,10 @@ mod utils {
                     orig_meta.mode(),
                 );
 
-                let new_meta = new_lookup.as_fd().metadata()?;
+                let new_meta = new_lookup
+                    .as_fd()
+                    .metadata()
+                    .context("fstat re-opened file")?;
                 assert_eq!(
                     orig_meta.ino(),
                     new_meta.ino(),
@@ -1068,7 +1142,8 @@ mod utils {
                 // Note that create_file is always implemented as a two-step
                 // process (open the parent, create the file) with O_NOFOLLOW
                 // always being applied to the created handle (to avoid races).
-                tests_common::check_oflags(&file, oflags | OpenFlags::O_NOFOLLOW)?;
+                tests_common::check_oflags(&file, oflags | OpenFlags::O_NOFOLLOW)
+                    .context("check created file flags")?;
             }
         }
         Ok(())
@@ -1083,7 +1158,10 @@ mod utils {
         let path = path.as_ref();
 
         // Update the expected path to have the rootdir as a prefix.
-        let root_dir = root.as_fd().as_unsafe_path_unchecked()?;
+        let root_dir = root
+            .as_fd()
+            .as_unsafe_path_unchecked()
+            .context("get real path of root")?;
         let expected_result = expected_result.map(|path| root_dir.join(path));
 
         match root.open_subpath(path, oflags) {
@@ -1092,7 +1170,10 @@ mod utils {
                     .with_context(|| format!("root open subpath {path:?}"))?;
             }
             Ok(file) => {
-                let actual_path = file.as_fd().as_unsafe_path_unchecked()?;
+                let actual_path = file
+                    .as_fd()
+                    .as_unsafe_path_unchecked()
+                    .context("get real path of opened subpath")?;
                 assert_eq!(
                     Ok(actual_path.clone()),
                     expected_result,
@@ -1108,12 +1189,17 @@ mod utils {
                 .wrap("re-open created file using original path")?;
 
                 assert_eq!(
-                    new_lookup.as_fd().as_unsafe_path_unchecked()?,
-                    file.as_fd().as_unsafe_path_unchecked()?,
+                    new_lookup
+                        .as_fd()
+                        .as_unsafe_path_unchecked()
+                        .expect("get real path of re-opened file"),
+                    file.as_fd()
+                        .as_unsafe_path_unchecked()
+                        .expect("get real path of opened subpath"),
                     "expected real path of {path:?} handles to be the same",
                 );
 
-                tests_common::check_oflags(&file, oflags)?;
+                tests_common::check_oflags(&file, oflags).context("check opened subpath flags")?;
             }
         }
         Ok(())
@@ -1166,7 +1252,7 @@ mod utils {
             // It's possible that the path didn't exist for remove_all, but if
             // it did check that it was unlinked.
             if let Ok(handle) = handle {
-                let meta = handle.as_fd().metadata()?;
+                let meta = handle.as_fd().metadata().context("fstat removed inode")?;
                 assert_eq!(meta.nlink(), 0, "deleted file should have a 0 nlink");
             }
 
@@ -1244,12 +1330,22 @@ mod utils {
 
         // Keep track of the original paths, pre-rename.
         let src_real_path = if let Ok(ref handle) = src_handle {
-            Some(handle.as_fd().as_unsafe_path_unchecked()?)
+            Some(
+                handle
+                    .as_fd()
+                    .as_unsafe_path_unchecked()
+                    .context("get real path of rename source")?,
+            )
         } else {
             None
         };
         let dst_real_path = if let Ok(ref handle) = dst_handle {
-            Some(handle.as_fd().as_unsafe_path_unchecked()?)
+            Some(
+                handle
+                    .as_fd()
+                    .as_unsafe_path_unchecked()
+                    .context("get real path of rename destination")?,
+            )
         } else {
             None
         };
@@ -1265,7 +1361,10 @@ mod utils {
             let src_real_path = src_real_path.unwrap();
 
             // Confirm that the handle was moved.
-            let moved_src_real_path = src_handle.as_fd().as_unsafe_path_unchecked()?;
+            let moved_src_real_path = src_handle
+                .as_fd()
+                .as_unsafe_path_unchecked()
+                .context("get real path of moved source")?;
             assert_ne!(
                 src_real_path, moved_src_real_path,
                 "expected real path of handle to move after rename"
@@ -1285,7 +1384,10 @@ mod utils {
                     );
 
                     // Confirm that the destination was also moved.
-                    let moved_dst_real_path = dst_handle.as_fd().as_unsafe_path_unchecked()?;
+                    let moved_dst_real_path = dst_handle
+                        .as_fd()
+                        .as_unsafe_path_unchecked()
+                        .context("get real path of moved destination")?;
                     assert_eq!(
                         src_real_path, moved_dst_real_path,
                         "expected real path of destination to move to source with RENAME_EXCHANGE"
@@ -1298,7 +1400,10 @@ mod utils {
                         .resolve_nofollow(src_path)
                         .wrap("expected source to exist with RENAME_WHITEOUT")?;
 
-                    let meta = new_lookup.as_fd().metadata()?;
+                    let meta = new_lookup
+                        .as_fd()
+                        .metadata()
+                        .context("fstat whiteout entry")?;
                     assert_eq!(
                         syscalls::devmajorminor(meta.rdev()),
                         (0, 0),
@@ -1317,7 +1422,10 @@ mod utils {
             let src_real_path = src_real_path.unwrap();
 
             // Confirm the handle was not moved.
-            let nonmoved_src_real_path = src_handle.as_fd().as_unsafe_path_unchecked()?;
+            let nonmoved_src_real_path = src_handle
+                .as_fd()
+                .as_unsafe_path_unchecked()
+                .context("get real path of unmoved source")?;
             assert_eq!(
                 src_real_path, nonmoved_src_real_path,
                 "expected real path of handle to not change after failed rename"
@@ -1337,7 +1445,10 @@ mod utils {
 
         // Before trying to create the directory tree, figure out what
         // components don't exist yet so we can check them later.
-        let before_partial_lookup = root.resolver().resolve_partial(root, unsafe_path, false)?;
+        let before_partial_lookup = root
+            .resolver()
+            .resolve_partial(root, unsafe_path, false)
+            .with_context(|| format!("resolve_partial {unsafe_path:?} before mkdir_all"))?;
 
         let expected_subdir_state: Option<((_, _), _)> = match expected_result {
             Err(_) => None,
@@ -1350,7 +1461,7 @@ mod utils {
                 let mut expected_mode = libc::S_IFDIR | (perm.mode() & !0o022);
 
                 let handle: &Handle = before_partial_lookup.as_ref();
-                let dir_meta = handle.metadata()?;
+                let dir_meta = handle.metadata().context("fstat partial lookup handle")?;
                 if dir_meta.mode() & libc::S_ISGID == libc::S_ISGID {
                     expected_gid = dir_meta.gid();
                     expected_mode |= libc::S_ISGID;
@@ -1433,7 +1544,8 @@ mod utils {
             let mut limit = rustix_process::getrlimit(Resource::Nofile);
             limit.current = limit.maximum;
             limit
-        })?;
+        })
+        .context("raise NOFILE rlimit")?;
 
         // Do lots of runs to try to catch any possible races.
         let num_retries = 100 + 1_000 / (1 + (num_threads >> 5));
@@ -1471,7 +1583,8 @@ mod utils {
             let mut limit = rustix_process::getrlimit(Resource::Nofile);
             limit.current = limit.maximum;
             limit
-        })?;
+        })
+        .context("raise NOFILE rlimit")?;
 
         // Do lots of runs to try to catch any possible races.
         let num_retries = 100 + 1_000 / (1 + (num_threads >> 5));

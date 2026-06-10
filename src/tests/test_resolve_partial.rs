@@ -740,8 +740,8 @@ mod utils {
     where
         F: FnOnce(Root) -> Result<(), Error>,
     {
-        let root_dir = tests_common::create_basic_tree()?;
-        let root = Root::open(&root_dir)?;
+        let root_dir = tests_common::create_basic_tree().context("create_basic_tree")?;
+        let root = Root::open(&root_dir).context("Root::open")?;
 
         let res = func(root);
 
@@ -754,10 +754,11 @@ mod utils {
         F: FnOnce(Root) -> Result<(), Error>,
     {
         tests_common::in_mnt_ns(|| {
-            let root_dir = tests_common::create_basic_tree()?;
-            let root = Root::open(&root_dir)?;
+            let root_dir = tests_common::create_basic_tree().context("create_basic_tree")?;
+            let root = Root::open(&root_dir).context("Root::open")?;
 
-            tests_common::mask_nosymfollow(root_dir.path())?;
+            tests_common::mask_nosymfollow(root_dir.path())
+                .with_context(|| format!("could not mask {root_dir:?} with MS_NOSYMFOLLOW"))?;
 
             let res = func(root);
 
@@ -772,7 +773,9 @@ mod utils {
         no_follow_trailing: bool,
         expected: Result<PartialLookup<LookupResult, ErrorKind>, ErrorKind>,
     ) -> Result<(), Error> {
-        let root_dir = root.as_unsafe_path_unchecked()?;
+        let root_dir = root
+            .as_unsafe_path_unchecked()
+            .context("get real path of root")?;
         let unsafe_path = unsafe_path.as_ref();
 
         let result = root

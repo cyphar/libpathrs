@@ -78,7 +78,8 @@ pub(in crate::tests) fn mount(dst: impl AsRef<Path>, ty: MountType) -> Result<()
         dst,
         OpenFlags::O_NOFOLLOW | OpenFlags::O_PATH,
         0,
-    )?;
+    )
+    .with_context(|| format!("open mount destination {dst:?}"))?;
     let dst_path = format!("/proc/self/fd/{}", dst_file.as_raw_fd());
 
     match ty {
@@ -94,10 +95,11 @@ pub(in crate::tests) fn mount(dst: impl AsRef<Path>, ty: MountType) -> Result<()
         MountType::Bind { src } => {
             let src_file = syscalls::openat(
                 syscalls::AT_FDCWD,
-                src,
+                &src,
                 OpenFlags::O_NOFOLLOW | OpenFlags::O_PATH,
                 0,
-            )?;
+            )
+            .with_context(|| format!("open bind-mount source {src:?}"))?;
             let src_path = format!("/proc/self/fd/{}", src_file.as_raw_fd());
             rustix_mount::mount_bind(&src_path, &dst_path).with_context(|| {
                 format!(
@@ -135,7 +137,8 @@ pub(in crate::tests) fn mount(dst: impl AsRef<Path>, ty: MountType) -> Result<()
                 dst,
                 OpenFlags::O_NOFOLLOW | OpenFlags::O_PATH,
                 0,
-            )?;
+            )
+            .with_context(|| format!("re-open mount destination {dst:?} for remount"))?;
             let dst_path = format!("/proc/self/fd/{}", dst_file.as_raw_fd());
 
             // Then apply our mount flags.
@@ -157,7 +160,7 @@ pub(in crate::tests) fn in_mnt_ns<F, T>(func: F) -> Result<T, Error>
 where
     F: FnOnce() -> Result<T, Error>,
 {
-    let old_ns = File::open("/proc/self/ns/mnt")?;
+    let old_ns = File::open("/proc/self/ns/mnt").context("open current mount namespace")?;
 
     // TODO: Run this in a subprocess.
 
@@ -171,7 +174,8 @@ where
     rustix_mount::mount_change(
         "/",
         MountPropagationFlags::DOWNSTREAM | MountPropagationFlags::REC,
-    )?;
+    )
+    .context("mark / as MS_SLAVE")?;
 
     let ret = func();
 
