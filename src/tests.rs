@@ -42,6 +42,9 @@ pub(crate) mod common {
 
     mod error;
     pub(in crate::tests) use error::*;
+
+    mod skip;
+    pub(crate) use skip::*;
 }
 
 #[cfg(feature = "capi")]
