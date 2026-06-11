@@ -15,6 +15,8 @@ use std::{os::unix::process::CommandExt, process::Command as StdCmd};
 
 use anyhow::{anyhow, Context, Error};
 use clap::{Arg, ArgAction, Command};
+#[cfg(test)]
+use libtest_mimic_collect::test;
 use rustix::{process as rustix_process, thread as rustix_thread};
 use syscalls::Sysno;
 

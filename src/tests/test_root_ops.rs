@@ -44,6 +44,7 @@ use crate::{
 use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 
 use anyhow::{Context, Error};
+use libtest_mimic_collect::test;
 
 macro_rules! root_op_tests {
     ($(#[$meta:meta])* fn $test_name:ident ($root_var:ident) $body:block) => {

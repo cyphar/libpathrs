@@ -37,6 +37,7 @@ use crate::{error::ErrorKind, flags::ResolverFlags, resolvers::ResolverBackend, 
 use std::path::Path;
 
 use anyhow::{Context, Error};
+use libtest_mimic_collect::test;
 
 macro_rules! resolve_tests {
     // resolve_tests! {

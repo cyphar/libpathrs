@@ -38,6 +38,7 @@ use crate::{
 };
 
 use anyhow::Error;
+use libtest_mimic_collect::test;
 
 macro_rules! resolve_tests {
     // resolve_tests! {

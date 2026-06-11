@@ -132,6 +132,7 @@ mod tests {
     use std::{mem, ptr};
 
     use bytemuck::TransparentWrapper;
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
 
     #[test]

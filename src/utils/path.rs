@@ -290,6 +290,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use anyhow::{Context, Error};
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
 
     // TODO: Add propcheck tests?

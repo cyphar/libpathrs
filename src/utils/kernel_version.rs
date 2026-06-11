@@ -197,6 +197,7 @@ mod tests {
     use super::*;
     use crate::syscalls;
 
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
 
     macro_rules! kver {

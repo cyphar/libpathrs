@@ -49,6 +49,7 @@ use std::{
 };
 
 use anyhow::{Context, Error};
+use libtest_mimic_collect::test;
 use pretty_assertions::{assert_eq, assert_matches};
 
 #[test]

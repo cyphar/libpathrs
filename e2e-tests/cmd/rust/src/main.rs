@@ -16,6 +16,8 @@ use std::{env, process::ExitCode};
 use anyhow::{anyhow, Context, Error};
 use clap::Command;
 use errno::Errno;
+#[cfg(test)]
+use libtest_mimic_collect::test;
 use rustix::process::{self as rustix_process, DumpableBehavior};
 
 mod procfs;

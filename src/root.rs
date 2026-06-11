@@ -1452,6 +1452,7 @@ mod tests {
     use std::os::unix::io::{AsFd, AsRawFd, OwnedFd};
 
     use anyhow::Error;
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
 
     impl Root {

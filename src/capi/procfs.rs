@@ -687,6 +687,7 @@ mod tests {
         os::unix::io::{FromRawFd, OwnedFd},
     };
 
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
 
     #[test]

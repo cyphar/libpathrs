@@ -62,6 +62,7 @@ mod test {
         seccomp::SeccompReturn,
         vm::{self, BpfVM},
     };
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
     use syscalls::Sysno;
 

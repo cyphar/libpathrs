@@ -1034,6 +1034,7 @@ mod tests {
         os::unix::io::{AsRawFd, BorrowedFd},
     };
 
+    use libtest_mimic_collect::test;
     use pretty_assertions::{assert_eq, assert_matches};
     use tempfile::NamedTempFile;
 

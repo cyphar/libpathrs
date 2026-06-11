@@ -572,6 +572,7 @@ mod tests {
     };
 
     use anyhow::{Context, Error};
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
     use rustix::process::{self as rustix_process, DumpableBehavior};
     use tempfile::TempDir;

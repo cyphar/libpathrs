@@ -126,3 +126,16 @@ mod utils;
 // Library tests.
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+pub fn main() {
+    use libtest_mimic_collect::{
+        libtest_mimic::{self, Arguments},
+        TestCollection,
+    };
+
+    let args = Arguments::from_args();
+    let tests = TestCollection::collect_tests();
+
+    libtest_mimic::run(&args, tests).exit();
+}

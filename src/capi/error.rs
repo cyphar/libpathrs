@@ -222,6 +222,7 @@ mod tests {
 
     use std::io::Error as IOError;
 
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
 
     #[test]

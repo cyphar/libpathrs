@@ -206,6 +206,7 @@ mod tests {
         rc::Rc,
     };
 
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
 
     // Use strings rather than actual files for the symlink stack tests.

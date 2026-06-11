@@ -386,6 +386,7 @@ mod tests {
     use crate::error::ErrorKind;
 
     use bytemuck::{Pod, Zeroable};
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
 
     #[derive(PartialEq, Eq, Default, Debug, Clone, Copy, Pod, Zeroable)]

@@ -42,6 +42,7 @@ use crate::{
 use utils::ExpectedResult;
 
 use anyhow::Error;
+use libtest_mimic_collect::test;
 use rustix::mount::OpenTreeFlags;
 
 macro_rules! procfs_tests {

@@ -289,6 +289,7 @@ mod tests {
     use super::*;
     use crate::error::ErrorKind;
 
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_matches;
 
     #[test]

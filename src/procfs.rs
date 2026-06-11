@@ -1044,6 +1044,7 @@ mod tests {
 
     use std::{fs::File, os::unix::io::AsRawFd};
 
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
 
     #[test]

@@ -42,6 +42,7 @@ use crate::{
 use std::{os::unix::io::AsFd, sync::mpsc, thread};
 
 use anyhow::{Context, Error};
+use libtest_mimic_collect::test;
 
 macro_rules! resolve_race_tests {
     // resolve_race_tests! {

@@ -485,6 +485,7 @@ mod tests {
     };
 
     use anyhow::{Context, Error};
+    use libtest_mimic_collect::test;
     use pretty_assertions::{assert_eq, assert_matches};
     use rustix::io as rustix_io;
 

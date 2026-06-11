@@ -187,6 +187,7 @@ mod tests {
     use std::{os::unix::io::OwnedFd, path::Path};
 
     use anyhow::Error;
+    use libtest_mimic_collect::test;
     use pretty_assertions::assert_eq;
 
     #[test]

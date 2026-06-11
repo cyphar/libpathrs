@@ -49,6 +49,12 @@ maintenance = { status = "experimental" }
 
 [lib]
 crate-type = ["rlib"]
+test = false
+
+[[test]]
+name = "pathrs"
+harness = false
+path = "src/lib.rs"
 
 [features]
 default = []
@@ -85,6 +91,7 @@ static_assertions = "1.1"
 anyhow = "1"
 clap = { version = "3", features = ["cargo"] }
 errno = "0.3"
+libtest-mimic-collect = "0.4"
 indoc = "2"
 tempfile = "3"
 paste = "1"

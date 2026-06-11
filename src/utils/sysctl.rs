@@ -84,6 +84,7 @@ mod tests {
         procfs::ProcfsHandle,
     };
 
+    use libtest_mimic_collect::test;
     use once_cell::sync::Lazy;
     use pretty_assertions::assert_eq;
 

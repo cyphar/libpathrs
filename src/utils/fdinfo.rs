@@ -199,6 +199,7 @@ mod tests {
 
     use anyhow::{bail, Context, Error};
     use indoc::{formatdoc, indoc};
+    use libtest_mimic_collect::test;
     use pretty_assertions::{assert_matches, Comparison};
 
     impl From<AddrParseError> for ErrorImpl {

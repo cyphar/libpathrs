@@ -260,6 +260,8 @@ mod tests {
         syscalls,
     };
 
+    use libtest_mimic_collect::test;
+
     macro_rules! openflags_tests {
         ($($test_name:ident ( $($flag:ident)|+ ) == {accmode: $accmode:expr, read: $wants_read:expr, write: $wants_write:expr} );+ $(;)?) => {
             $(
