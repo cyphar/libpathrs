@@ -34,8 +34,12 @@ set -Eeuo pipefail
 
 SRC_ROOT="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/..")"
 
+function error() {
+	echo "[err]" "$@" >&2
+}
+
 function bail() {
-	echo "rust tests: $*" >&2
+	error "rust tests:" "$*"
 	exit 1
 }
 
@@ -62,13 +66,28 @@ function strjoin() {
 	echo "$str"
 }
 
-TEMP="$(getopt -o sc:p:S: --long sudo,cargo:,partition:,enosys:,archive-file: -- "$@")"
+TEMP="$(getopt -o h,sc:p:S: --long help,sudo,cargo:,partition:,enosys:,archive-file:,report-output-path: -- "$@")"
 eval set -- "$TEMP"
+
+function usage() {
+	[ "$#" -gt 0 ] && error "$@"
+	cat <<EOF
+Usage: $0  [--sudo] [--cargo=<$CARGO>]
+           [--partition=<nextest-partition-spec>]
+           [--archive-file=<nextest-archive.tar.zstd>]
+		   [--report-output-path=<path>]
+           [--enosys=<syscalls>,...]
+           [TESTS_TO_RUN]...
+EOF
+	# shellcheck disable=SC2048 # We want to only expand to nothing or 1.
+	exit ${*:+1}
+}
 
 sudo=
 partition=
 enosys_syscalls=()
 nextest_archive=
+report_output_path=
 CARGO="${CARGO_NIGHTLY:-cargo +nightly}"
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -92,12 +111,19 @@ while [ "$#" -gt 0 ]; do
 			[ -n "$2" ] && enosys_syscalls+=("$2")
 			shift 2
 			;;
+		--report-output-path)
+			report_output_path="$2"
+			shift 2
+			;;
+		-h|--help)
+			usage
+			;;
 		--)
 			shift
 			break
 			;;
 		*)
-			bail "unknown option $1"
+			usage "unknown option $1"
 	esac
 done
 tests_to_run=("$@")
@@ -145,6 +171,7 @@ function llvm-profdata() {
 
 function merge_llvmcov_profdata() {
 	local llvmcov_targetdir=target/llvm-cov-target
+	local report_output_path="${1:-$llvmcov_targetdir/libpathrs-combined.profraw}"
 
 	# Get a list of *.profraw files for merging.
 	local profraw_list
@@ -162,7 +189,7 @@ function merge_llvmcov_profdata() {
 	# Remove the old profiling data and replace it with the merged version. As
 	# long as the file has a ".profraw" suffix, cargo-llvm-cov will use it.
 	find "$llvmcov_targetdir" -name '*.profraw' -type f -delete
-	mv "$combined_profraw" "$llvmcov_targetdir/libpathrs-combined.profraw"
+	mv "$combined_profraw" "$report_output_path"
 }
 
 function nextest_run() {
@@ -191,6 +218,8 @@ function nextest_run() {
 		# This CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER magic lets us run
 		# Rust tests as root without needing to run the build step as root.
 		export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="sudo -E "
+	elif [ "$(id -u)" -eq 0 ]; then
+		features+=("_test_as_root")
 	fi
 
 	build_args=()
@@ -272,4 +301,9 @@ else
 	# be resolved and nextest will make it easier to do this.
 	nextest_run --no-fail-fast -E "not test(#tests::test_race_*)"
 	nextest_run --no-fail-fast -E "test(#tests::test_race_*)"
+fi
+
+# Output the final report to the requested file.
+if [ -n "$report_output_path" ]; then
+	merge_llvmcov_profdata "$report_output_path"
 fi

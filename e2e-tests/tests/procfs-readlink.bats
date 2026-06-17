@@ -116,7 +116,11 @@ function teardown() {
 	check-errno ENOENT
 	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
 
-	pathrs-cmd procfs --base root readlink sys/fs/overflowuid
+	pathrs-cmd procfs --base root readlink tty/drivers
+	check-errno ENOENT
+	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
+
+	pathrs-cmd procfs --base root readlink self/fdinfo/0
 	check-errno ENOENT
 	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
 

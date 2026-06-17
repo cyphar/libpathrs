@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0 OR LGPL-3.0-or-later
 /*
  * libpathrs: safe path resolution on Linux
- * Copyright (C) 2019-2025 SUSE LLC
  * Copyright (C) 2026 Aleksa Sarai <cyphar@cyphar.com>
  *
  * == MPL-2.0 ==
@@ -30,60 +29,35 @@
  *  along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-pub(crate) mod common {
-    mod root;
-    pub(crate) use root::*;
+use crate::{
+    syscalls,
+    utils::{self, RawProcfsRoot},
+};
 
-    mod procfs;
-    pub(crate) use procfs::*;
+// Awful hack to detect the /proc/sys overmount case in containers.
+pub(crate) fn has_proc_sys_overmounts() -> bool {
+    let proc_root_mnt_id =
+        utils::fetch_mnt_id(RawProcfsRoot::UnsafeGlobal, syscalls::BADFD, "/proc")
+            .expect("get mount id of /proc");
+    let proc_sys_mnt_id =
+        utils::fetch_mnt_id(RawProcfsRoot::UnsafeGlobal, syscalls::BADFD, "/proc/sys")
+            .expect("get mount id of /proc/sys");
 
-    mod mntns;
-    pub(in crate::tests) use mntns::*;
-
-    mod handle;
-    pub(in crate::tests) use handle::*;
-
-    mod error;
-    pub(in crate::tests) use error::*;
+    proc_root_mnt_id != proc_sys_mnt_id
 }
 
-#[cfg(feature = "capi")]
-#[allow(unsafe_code)]
-pub(in crate::tests) mod capi {
-    mod utils;
-
-    mod root;
-    pub(in crate::tests) use root::*;
-
-    mod handle;
-    pub(in crate::tests) use handle::*;
-
-    mod procfs;
-    pub(in crate::tests) use procfs::*;
-
-    mod test_compat;
+// FIXME(libtest skip): Replace with this a panic-based runtime test skipping
+// harness, as this hotfix only works if the top-level #[test] function calls
+// this.
+macro_rules! hotfix_skip_if_proc_sys_overmounts {
+    (return $ret:expr) => {
+        if $crate::tests::common::has_proc_sys_overmounts() {
+            ::std::eprintln!("/proc/sys has overmounts -- skipping this test.");
+            return $ret;
+        }
+    };
+    () => {
+        $crate::tests::common::hotfix_skip_if_proc_sys_overmounts!(return Ok(()));
+    };
 }
-
-pub(in crate::tests) mod traits {
-    // TODO: Unless we can figure out a way to get Deref working, we might want
-    // to have these traits be included in the actual library...
-
-    mod root;
-    pub(in crate::tests) use root::*;
-
-    mod handle;
-    pub(in crate::tests) use handle::*;
-
-    mod procfs;
-    pub(in crate::tests) use procfs::*;
-
-    mod error;
-    pub(in crate::tests) use error::*;
-}
-
-mod test_procfs;
-mod test_resolve;
-mod test_resolve_partial;
-mod test_root_ops;
-
-mod test_race_resolve_partial;
+pub(crate) use hotfix_skip_if_proc_sys_overmounts;

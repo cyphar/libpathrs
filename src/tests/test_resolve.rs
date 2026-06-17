@@ -36,7 +36,7 @@ use crate::{error::ErrorKind, flags::ResolverFlags, resolvers::ResolverBackend, 
 
 use std::path::Path;
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 
 macro_rules! resolve_tests {
     // resolve_tests! {
@@ -51,7 +51,7 @@ macro_rules! resolve_tests {
             $(#[cfg_attr(not($ignore_meta), ignore)])*
             fn [<root_ $test_name _default>]() -> Result<(), Error> {
                 utils::$with_root_fn(|root_dir: &Path| {
-                    let mut $root_var = Root::open(root_dir)?;
+                    let mut $root_var = Root::open(root_dir).context("Root::open")?;
                     assert_eq!(
                         $root_var.resolver_backend(),
                         ResolverBackend::default(),
@@ -70,7 +70,7 @@ macro_rules! resolve_tests {
             $(#[cfg_attr(not($ignore_meta), ignore)])*
             fn [<rootref_ $test_name _default>]() -> Result<(), Error> {
                 utils::$with_root_fn(|root_dir: &Path| {
-                    let root = Root::open(root_dir)?;
+                    let root = Root::open(root_dir).context("Root::open")?;
                     let mut $root_var = root.as_ref();
                     assert_eq!(
                         $root_var.resolver_backend(),
@@ -90,7 +90,7 @@ macro_rules! resolve_tests {
             $(#[cfg_attr(not($ignore_meta), ignore)])*
             fn [<root_ $test_name _openat2>]() -> Result<(), Error> {
                 utils::$with_root_fn(|root_dir: &Path| {
-                    let mut $root_var = Root::open(root_dir)?;
+                    let mut $root_var = Root::open(root_dir).context("Root::open")?;
                     $root_var.set_resolver_backend(ResolverBackend::KernelOpenat2);
                     assert_eq!(
                         $root_var.resolver_backend(),
@@ -113,7 +113,7 @@ macro_rules! resolve_tests {
             $(#[cfg_attr(not($ignore_meta), ignore)])*
             fn [<rootref_ $test_name _openat2>]() -> Result<(), Error> {
                 utils::$with_root_fn(|root_dir: &Path| {
-                    let root = Root::open(root_dir)?;
+                    let root = Root::open(root_dir).context("Root::open")?;
                     let mut $root_var = root.as_ref();
                     $root_var.set_resolver_backend(ResolverBackend::KernelOpenat2);
                     assert_eq!(
@@ -145,7 +145,7 @@ macro_rules! resolve_tests {
                 }
 
                 utils::$with_root_fn(|root_dir: &Path| {
-                    let mut $root_var = Root::open(root_dir)?;
+                    let mut $root_var = Root::open(root_dir).context("Root::open")?;
                     $root_var.set_resolver_backend(ResolverBackend::EmulatedOpath);
                     assert_eq!(
                         $root_var.resolver_backend(),
@@ -177,7 +177,7 @@ macro_rules! resolve_tests {
                 }
 
                 utils::$with_root_fn(|root_dir: &Path| {
-                    let root = Root::open(root_dir)?;
+                    let root = Root::open(root_dir).context("Root::open")?;
                     let mut $root_var = root
                         .as_ref();
                     $root_var.set_resolver_backend(ResolverBackend::EmulatedOpath);
@@ -209,7 +209,7 @@ macro_rules! resolve_tests {
             $(#[cfg_attr(not($ignore_meta), ignore)])*
             fn [<capi_root_ $test_name>]() -> Result<(), Error> {
                 utils::$with_root_fn(|root_dir: &Path| {
-                    let $root_var = CapiRoot::open(root_dir)?;
+                    let $root_var = CapiRoot::open(root_dir).context("CapiRoot::open")?;
 
                     { $body }
 
@@ -548,7 +548,7 @@ mod utils {
     where
         F: FnOnce(&Path) -> Result<(), Error>,
     {
-        let root_dir = tests_common::create_basic_tree()?;
+        let root_dir = tests_common::create_basic_tree().context("create_basic_tree")?;
 
         let res = func(root_dir.path());
 
@@ -568,9 +568,10 @@ mod utils {
         F: FnOnce(&Path) -> Result<(), Error>,
     {
         tests_common::in_mnt_ns(|| {
-            let root_dir = tests_common::create_basic_tree()?;
+            let root_dir = tests_common::create_basic_tree().context("create_basic_tree")?;
 
-            tests_common::mask_nosymfollow(root_dir.path())?;
+            tests_common::mask_nosymfollow(root_dir.path())
+                .with_context(|| format!("could not mask {root_dir:?} with MS_NOSYMFOLLOW"))?;
 
             let res = func(root_dir.path());
 
@@ -590,7 +591,9 @@ mod utils {
         R: RootImpl<Handle = H>,
         for<'a> &'a R::Handle: HandleImpl,
     {
-        let root_dir = root.as_unsafe_path_unchecked()?;
+        let root_dir = root
+            .as_unsafe_path_unchecked()
+            .context("get real path of root")?;
         let unsafe_path = unsafe_path.as_ref();
 
         let result = if no_follow_trailing {
@@ -607,7 +610,9 @@ mod utils {
             ),
             (result, expected) => {
                 let result = match result {
-                    Ok(handle) => Ok(handle.as_unsafe_path_unchecked()?),
+                    Ok(handle) => Ok(handle
+                        .as_unsafe_path_unchecked()
+                        .context("get real path of resolved handle")?),
                     Err(err) => Err(err),
                 };
 
@@ -623,14 +628,16 @@ mod utils {
         };
 
         let expected_path = expected_path.trim_start_matches('/');
-        let real_handle_path = handle.as_unsafe_path_unchecked()?;
+        let real_handle_path = handle
+            .as_unsafe_path_unchecked()
+            .context("get real path of resolved handle")?;
         assert_eq!(
             real_handle_path,
             root_dir.join(expected_path),
             "resolve({unsafe_path:?}, {no_follow_trailing}) path mismatch",
         );
 
-        let meta = handle.metadata()?;
+        let meta = handle.metadata().context("fstat resolved handle")?;
         let real_file_type = meta.mode() & libc::S_IFMT;
         assert_eq!(real_file_type, expected_file_type, "file type mismatch",);
 

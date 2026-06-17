@@ -41,7 +41,7 @@ use crate::{
 
 use std::{os::unix::io::AsFd, sync::mpsc, thread};
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 
 macro_rules! resolve_race_tests {
     // resolve_race_tests! {
@@ -54,7 +54,7 @@ macro_rules! resolve_race_tests {
             #[cfg_attr(not(feature = "_test_race"), ignore)]
             fn [<root_ $test_name _default>]() -> Result<(), Error> {
                 let (tmpdir, root_dir) = $root_dir;
-                let mut $root_var = Root::open(&root_dir)?;
+                let mut $root_var = Root::open(&root_dir).context("Root::open")?;
                 assert_eq!(
                     $root_var.resolver_backend(),
                     ResolverBackend::default(),
@@ -74,7 +74,7 @@ macro_rules! resolve_race_tests {
             #[cfg_attr(not(feature = "_test_race"), ignore)]
             fn [<root_ $test_name _openat2>]() -> Result<(), Error> {
                 let (tmpdir, root_dir) = $root_dir;
-                let mut $root_var = Root::open(&root_dir)?;
+                let mut $root_var = Root::open(&root_dir).context("Root::open")?;
                 $root_var.set_resolver_backend(ResolverBackend::KernelOpenat2);
                 assert_eq!(
                     $root_var.resolver_backend(),
@@ -107,7 +107,7 @@ macro_rules! resolve_race_tests {
                 }
 
                 let (tmpdir, root_dir) = $root_dir;
-                let mut $root_var = Root::open(&root_dir)?;
+                let mut $root_var = Root::open(&root_dir).context("Root::open")?;
                 $root_var.set_resolver_backend(ResolverBackend::EmulatedOpath);
                 assert_eq!(
                     $root_var.resolver_backend(),
@@ -133,7 +133,7 @@ macro_rules! resolve_race_tests {
     (@impl [$rename_a:literal <=> $rename_b:literal] $test_name:ident $op_name:ident ($path:expr, $rflags:expr, $no_follow_trailing:expr) => { $($expected:tt)* }) => {
         paste::paste! {
             resolve_race_tests! {
-                [tests_common::create_race_tree()?]
+                [tests_common::create_race_tree().context("create race tree")?]
                 fn [<$op_name _ $test_name>](mut root: Root) {
                     root.set_resolver_flags($rflags);
 
@@ -822,7 +822,7 @@ mod utils {
         sync::mpsc::{Receiver, RecvError, SyncSender, TryRecvError},
     };
 
-    use anyhow::Error;
+    use anyhow::{Context, Error};
     use path_clean::PathClean;
 
     pub(super) enum RenameStateMsg {
@@ -904,7 +904,9 @@ mod utils {
             .send(RenameStateMsg::Pause)
             .expect("should be able to pause rename attack");
 
-        let root_dir = root.as_unsafe_path_unchecked()?;
+        let root_dir = root
+            .as_unsafe_path_unchecked()
+            .context("get real path of root")?;
 
         // Convert the handle to something useful for our tests.
         let result = result.map(|lookup_result| {

@@ -38,6 +38,7 @@ use crate::{
     procfs::{ProcfsBase, ProcfsHandle, ProcfsHandleBuilder},
     resolvers::procfs::ProcfsResolver,
     syscalls,
+    tests::common as tests_common,
 };
 use utils::ExpectedResult;
 
@@ -51,6 +52,9 @@ macro_rules! procfs_tests {
             #[test]
             $(#[$meta])*
             fn [<procfs_overmounts_ $func_prefix $test_name>]() -> Result<(), Error> {
+                // FIXME(libtest skip): use proper runtime skipping in the test.
+                tests_common::hotfix_skip_if_proc_sys_overmounts!();
+
                 utils::[<check_proc_ $procfs_op>](
                     || $procfs_inst,
                     $($args,)*
@@ -62,6 +66,9 @@ macro_rules! procfs_tests {
             #[test]
             $(#[$meta])*
             fn [<procfs_overmounts_ $func_prefix openat2_ $test_name>]() -> Result<(), Error> {
+                // FIXME(libtest skip): use proper runtime skipping in the test.
+                tests_common::hotfix_skip_if_proc_sys_overmounts!();
+
                 utils::[<check_proc_ $procfs_op>](
                     || {
                         let mut proc = $procfs_inst ?;
@@ -78,6 +85,9 @@ macro_rules! procfs_tests {
             #[test]
             $(#[$meta])*
             fn [<procfs_overmounts_ $func_prefix opath_ $test_name>]() -> Result<(), Error> {
+                // FIXME(libtest skip): use proper runtime skipping in the test.
+                tests_common::hotfix_skip_if_proc_sys_overmounts!();
+
                 // This test only makes sense if openat2 is supported (i.e., the
                 // default resolver is openat2 -- otherwise the default test
                 // already tested this case).
@@ -109,6 +119,9 @@ macro_rules! procfs_tests {
             #[cfg(feature = "capi")]
             $(#[$meta])*
             fn [<procfs_overmounts_ $func_prefix $test_name>]() -> Result<(), Error> {
+                // FIXME(libtest skip): use proper runtime skipping in the test.
+                tests_common::hotfix_skip_if_proc_sys_overmounts!();
+
                 utils::[<check_proc_ $procfs_op>](
                     || $procfs_inst,
                     $($args,)*
