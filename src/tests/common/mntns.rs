@@ -40,6 +40,7 @@ use std::{
 
 use anyhow::{bail, Context, Error};
 use rustix::{
+    io::Errno,
     mount::{self as rustix_mount, MountFlags, MountPropagationFlags},
     thread::{self as rustix_thread, LinkNameSpaceType, UnshareFlags},
 };
@@ -158,6 +159,7 @@ pub(in crate::tests) fn mount(dst: impl AsRef<Path>, ty: MountType) -> Result<()
 
 pub(in crate::tests) fn in_mnt_ns<F, T>(func: F) -> Result<T, Error>
 where
+    T: Default,
     F: FnOnce() -> Result<T, Error>,
 {
     let old_ns = File::open("/proc/self/ns/mnt").context("open current mount namespace")?;
@@ -167,20 +169,39 @@ where
     // SAFETY: CLONE_FS | CLONE_NEWNS do not impact the IO safety of file
     // descriptors, and we do not send file descriptors from the test to other
     // threads anyway.
-    unsafe { rustix_thread::unshare_unsafe(UnshareFlags::FS | UnshareFlags::NEWNS) }
-        .expect("unable to create a mount namespace");
+    match unsafe { rustix_thread::unshare_unsafe(UnshareFlags::FS | UnshareFlags::NEWNS) } {
+        // If we hit an EACCES or EPERM then we are either missing CAP_SYS_ADMIN
+        // or some LSM policy is blocking us from unsharing the namespace.
+        Err(Errno::ACCESS) | Err(Errno::PERM) => {
+            // FIXME(libtest skip): Use test-if to skip this at runtime.
+            eprintln!("cannot create a mount namespace");
+            return Ok(T::default());
+        }
+        res => res,
+    }
+    .context("unable to create a mount namespace")?;
+
+    let _mntns_guard = scopeguard::guard(old_ns, |old_ns| {
+        rustix_thread::move_into_link_name_space(old_ns.as_fd(), Some(LinkNameSpaceType::Mount))
+            .expect("unable to rejoin old namespace");
+    });
 
     // Mark / as MS_SLAVE ("DOWNSTREAM" in rustix) to avoid DoSing the host.
-    rustix_mount::mount_change(
+    match rustix_mount::mount_change(
         "/",
         MountPropagationFlags::DOWNSTREAM | MountPropagationFlags::REC,
-    )
+    ) {
+        // If we hit an EACCES or EPERM then we are either missing CAP_SYS_ADMIN
+        // or some LSM policy (likely AppArmor for container runners) is
+        // blocking us from doing any mount operations.
+        Err(Errno::ACCESS) | Err(Errno::PERM) => {
+            // FIXME(libtest skip): Use test-if to skip this at runtime.
+            eprintln!("cannot create a mount namespace");
+            return Ok(T::default());
+        }
+        res => res,
+    }
     .context("mark / as MS_SLAVE")?;
 
-    let ret = func();
-
-    rustix_thread::move_into_link_name_space(old_ns.as_fd(), Some(LinkNameSpaceType::Mount))
-        .expect("unable to rejoin old namespace");
-
-    ret
+    func()
 }
