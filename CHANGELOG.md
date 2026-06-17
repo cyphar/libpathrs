@@ -65,12 +65,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
     `/proc/sys/fs/protected_symlinks` would fail. We now conservatively assume
     that `fs.protected_symlinks` is enabled if we cannot access the file for
     any reason.
-- `Root::readlink` would previously return `ENOENT` if the target path existed
-  but was not a symlink. This occurred because of a peculiar asymmetry in the
-  kernel APIs for `readlinkat(2)`, but users found it confusing and so we now
-  remap the error in that case to `EINVAL` (as you would get from `readlink(2)`
-  with a path). This will make it easier to distinguish the "target path does
-  not exist" and "target path is not a symlink" cases.
+- `Root::readlink` and `ProcfsHandle::readlink` would previously return
+  `ENOENT` if the target path existed but was not a symlink. This occurred
+  because of a peculiar asymmetry in the kernel APIs for `readlinkat(2)`, but
+  users found it confusing and so we now remap the error in that case to
+  `EINVAL` (as you would get from `readlink(2)` with a path). This will make it
+  easier to distinguish the "target path does not exist" and "target path is
+  not a symlink" cases.
 
 ## [0.2.4] - 2026-03-03 ##
 
