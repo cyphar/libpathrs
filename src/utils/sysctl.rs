@@ -95,7 +95,10 @@ mod tests {
     #[test]
     fn bad_sysctl_file_noexist() {
         // FIXME(libtest skip): use proper runtime skipping in the test.
-        tests_common::hotfix_skip_if_proc_sys_overmounts!(return ());
+        #[allow(clippy::unused_unit)]
+        {
+            tests_common::hotfix_skip_if_proc_sys_overmounts!(return ());
+        }
 
         assert_eq!(
             sysctl_read_parse::<String>(&TEST_PROCFS_HANDLE, "nonexistent.dummy.sysctl.path")
@@ -116,7 +119,10 @@ mod tests {
     #[test]
     fn bad_sysctl_file_noread() {
         // FIXME(libtest skip): use proper runtime skipping in the test.
-        tests_common::hotfix_skip_if_proc_sys_overmounts!(return ());
+        #[allow(clippy::unused_unit)]
+        {
+            tests_common::hotfix_skip_if_proc_sys_overmounts!(return ());
+        }
 
         assert_eq!(
             sysctl_read_parse::<String>(&TEST_PROCFS_HANDLE, "vm.drop_caches")
@@ -137,7 +143,10 @@ mod tests {
     #[test]
     fn bad_sysctl_parse_invalid_multinumber() {
         // FIXME(libtest skip): use proper runtime skipping in the test.
-        tests_common::hotfix_skip_if_proc_sys_overmounts!(return ());
+        #[allow(clippy::unused_unit)]
+        {
+            tests_common::hotfix_skip_if_proc_sys_overmounts!(return ());
+        }
 
         assert!(sysctl_read_parse::<String>(&TEST_PROCFS_HANDLE, "kernel.printk").is_ok());
         assert_eq!(
@@ -152,7 +161,10 @@ mod tests {
     #[test]
     fn bad_sysctl_parse_invalid_nonnumber() {
         // FIXME(libtest skip): use proper runtime skipping in the test.
-        tests_common::hotfix_skip_if_proc_sys_overmounts!(return ());
+        #[allow(clippy::unused_unit)]
+        {
+            tests_common::hotfix_skip_if_proc_sys_overmounts!(return ());
+        }
 
         assert!(sysctl_read_parse::<String>(&TEST_PROCFS_HANDLE, "kernel.random.uuid").is_ok());
         assert_eq!(
@@ -167,7 +179,10 @@ mod tests {
     #[test]
     fn sysctl_parse_int() {
         // FIXME(libtest skip): use proper runtime skipping in the test.
-        tests_common::hotfix_skip_if_proc_sys_overmounts!(return ());
+        #[allow(clippy::unused_unit)]
+        {
+            tests_common::hotfix_skip_if_proc_sys_overmounts!(return ());
+        }
 
         assert!(sysctl_read_parse::<String>(&TEST_PROCFS_HANDLE, "kernel.pid_max").is_ok());
         assert!(sysctl_read_parse::<u64>(&TEST_PROCFS_HANDLE, "kernel.pid_max").is_ok());

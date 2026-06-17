@@ -49,7 +49,6 @@ pub(crate) fn has_proc_sys_overmounts() -> bool {
 // FIXME(libtest skip): Replace with this a panic-based runtime test skipping
 // harness, as this hotfix only works if the top-level #[test] function calls
 // this.
-#[allow(clippy::unused_unit)]
 macro_rules! hotfix_skip_if_proc_sys_overmounts {
     (return $ret:expr) => {
         if $crate::tests::common::has_proc_sys_overmounts() {
