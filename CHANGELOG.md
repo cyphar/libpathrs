@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+## [0.2.5] - 2026-06-17 ##
+
+> Or, to save on postage, I'll just poison him with this!
+
 > [!IMPORTANT]
 > Due to the rising tide of supply chain attacks, we have stopped using
 > "Trusted" Publishing for our crates.io and PyPi releases. Their
@@ -77,11 +81,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed ###
 - Containers often have `/proc/sys` overmounted with a read-only mount to avoid
-  container escapes, this caused:
-  - The `O_PATH` resolver to panic because the hardened procfs lookup for
-    `/proc/sys/fs/protected_symlinks` would fail. We now conservatively assume
-    that `fs.protected_symlinks` is enabled if we cannot access the file for
-    any reason.
+  container escapes, this caused the `O_PATH` resolver to panic because the
+  hardened procfs lookup for `/proc/sys/fs/protected_symlinks` would fail. We
+  now conservatively assume that `fs.protected_symlinks` is enabled if we
+  cannot access the file for any reason.
+
+  This also causes attempts to access `/proc/sys` files using `ProcfsHandle` to
+  also fail (by design). In the future we plan to provide some quality-of-life
+  improvements to permit access in those cases, but at the moment users need to
+  be aware that those kinds of accesses can fail.
+
 - `Root::readlink` and `ProcfsHandle::readlink` would previously return
   `ENOENT` if the target path existed but was not a symlink. This occurred
   because of a peculiar asymmetry in the kernel APIs for `readlinkat(2)`, but
@@ -768,7 +777,8 @@ Initial release.
   - C FFI.
   - Python bindings.
 
-[Unreleased]: https://github.com/cyphar/libpathrs/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/cyphar/libpathrs/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/cyphar/libpathrs/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/cyphar/libpathrs/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/cyphar/libpathrs/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/cyphar/libpathrs/compare/v0.2.1...v0.2.2
