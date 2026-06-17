@@ -97,42 +97,55 @@ function teardown() {
 
 # Make sure that thread-self and self are actually handled differently.
 @test "procfs readlink [self != thread-self]" {
-	# This is a little ugly, but if we get ENOENT from trying to *resolve*
-	# $base/task then we know we are in thread-self. Unfortunately, readlinkat
-	# also returns ENOENT if the target is not a symlink so we need to check
-	# whether the error is coming from readlinkat as well.
-
+	# EINVAL => Non-symlink.
 	pathrs-cmd procfs --base self readlink task
-	check-errno ENOENT
+	check-errno EINVAL
 	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
 
+	# ENOENT => No such path.
 	pathrs-cmd procfs --base thread-self readlink task
 	check-errno ENOENT
 	[[ "$output" != *"error:"*"readlinkat"* ]] # Make sure the error is NOT from readlinkat(2).
 }
 
-@test "procfs readlink [non-symlink]" {
-	pathrs-cmd procfs readlink uptime
+@test "procfs readlink [enoent]" {
+	pathrs-cmd procfs readlink non-exist
 	check-errno ENOENT
+	[[ "$output" != *"error:"*"readlinkat"* ]] # Make sure the error is NOT from readlinkat(2).
+}
+
+@test "procfs readlink [file einval]" {
+	pathrs-cmd procfs readlink uptime
+	check-errno EINVAL
 	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
 
 	pathrs-cmd procfs --base root readlink tty/drivers
-	check-errno ENOENT
+	check-errno EINVAL
 	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
 
 	pathrs-cmd procfs --base root readlink self/fdinfo/0
-	check-errno ENOENT
+	check-errno EINVAL
 	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
 
 	pathrs-cmd procfs --base pid=1 readlink stat
-	check-errno ENOENT
+	check-errno EINVAL
 	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
 
 	pathrs-cmd procfs --base self readlink status
-	check-errno ENOENT
+	check-errno EINVAL
 	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
 
 	pathrs-cmd procfs --base thread-self readlink stack
-	check-errno ENOENT
+	check-errno EINVAL
+	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
+}
+
+@test "procfs readlink [dir einval]" {
+	pathrs-cmd procfs readlink tty
+	check-errno EINVAL
+	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
+
+	pathrs-cmd procfs --base root readlink self/fdinfo
+	check-errno EINVAL
 	[[ "$output" == *"error:"*"readlinkat"* ]] # Make sure the error is from readlinkat(2).
 }

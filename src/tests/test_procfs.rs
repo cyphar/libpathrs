@@ -307,6 +307,10 @@ procfs_tests! {
     symlink_overmount: readlink(ProcfsBase::ProcRoot, "net") => (error: Ok);
     symlink_parentdir_overmount: open(ProcfsBase::ProcRoot, "net/unix", O_RDONLY) => (error: ErrOvermount("/proc/self/net", ErrorKind::OsError(Some(libc::EXDEV))));
     symlink_parentdir_overmount: open_follow(ProcfsBase::ProcRoot, "net/unix", O_RDONLY) => (error: ErrOvermount("/proc/self/net", ErrorKind::OsError(Some(libc::EXDEV))));
+    // Readlink with non-symlinks.
+    enoent: readlink(ProcfsBase::ProcRoot, "non-exist") => (error: Err(ErrorKind::OsError(Some(libc::ENOENT))));
+    dir_einval: readlink(ProcfsBase::ProcRoot, "self/fdinfo") => (error: Err(ErrorKind::OsError(Some(libc::EINVAL))));
+    file_einval: readlink(ProcfsBase::ProcRoot, "tty/drivers") => (error: Err(ErrorKind::OsError(Some(libc::EINVAL))));
     // Magic-links with no overmount.
     magiclink_nomount: open(self, "cwd", O_PATH) => (error: Ok);
     magiclink_nomount: open_follow(self, "cwd", O_RDONLY) => (error: Ok);

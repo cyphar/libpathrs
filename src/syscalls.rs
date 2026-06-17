@@ -316,10 +316,6 @@ impl Error {
         *match_source_errno!(self)
     }
 
-    pub(crate) fn errno_mut(&mut self) -> &mut Errno {
-        match_source_errno!(self)
-    }
-
     // TODO: Switch to returning &Errno.
     pub(crate) fn root_cause(&self) -> IOError {
         IOError::from_raw_os_error(self.errno().raw_os_error())
@@ -454,7 +450,16 @@ pub(crate) fn readlinkat(dirfd: impl AsFd, path: impl AsRef<Path>) -> Result<Pat
             Error::Readlinkat {
                 dirfd: dirfd.into(),
                 path: path.into(),
-                source: errno,
+                source: match errno {
+                    // readlinkat(fd, "") returns ENOENT if the file descriptor
+                    // is not a symlink, which is in stark contrast to the
+                    // EINVAL you would normally get from readlinkat(dfd, path).
+                    // As we know the target file exists at this point (because
+                    // resolve_nofollow succeeded), we can just map ENOENT to
+                    // EINVAL to reduce user confusion.
+                    Errno::NOENT if path.as_os_str().is_empty() => Errno::INVAL,
+                    errno => errno,
+                },
             }
         })?;
 
