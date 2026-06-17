@@ -25,6 +25,7 @@ name: rust-ci
 env:
   RUST_MSRV: &RUST_MSRV "1.63"
   CBINDGEN_VERSION: "0.29.2"
+  CI_IMAGE: cyphar/libpathrs:ci-latest
 
 jobs:
   codespell:
@@ -296,6 +297,7 @@ jobs:
           echo "data=$(jq -ScM 'map("\(.)")' <<<"$partitions")" >>"$GITHUB_OUTPUT"
 
   nextest:
+    runs-on: ubuntu-latest
     needs:
       - compute-test-partitions
       - nextest-archive
@@ -329,7 +331,6 @@ jobs:
             matrix.enosys && format(', {0}=enosys', matrix.enosys) || '',
           )
       }}
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       # Nightly rust is required for llvm-cov --doc.
@@ -385,6 +386,106 @@ jobs:
           slug: cyphar/libpathrs
           files: ${{ steps.codecov-coverage.outputs.file }}
 
+  ctr-ci-image:
+    runs-on: ubuntu-latest
+    name: build ci docker image
+    steps:
+      - uses: actions/checkout@v6
+      - name: setup docker buildx
+        uses: docker/setup-buildx-action@v4
+      - name: build and cache ci image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          tags: ${{ env.CI_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  ctr-nextest:
+    runs-on: ubuntu-latest
+    needs:
+      - ctr-ci-image
+      - compute-test-partitions
+    strategy:
+      fail-fast: false
+      matrix:
+        tests: ${{ fromJSON(needs.compute-test-partitions.outputs.tests) }}
+        runtime:
+          - docker
+        run-as:
+          - unpriv
+          - CAP_SYS_ADMIN
+    env:
+      NEXTEST_PATTERN_SPEC: ${{ fromJSON(matrix.tests).pattern }}
+      CONTAINER_RUNTIME: ${{ matrix.runtime }}
+      # NOTE: For the root tests we need to disable AppArmor because it blocks
+      # mount operations, even in child mount namespaces.
+      CONTAINER_RUN_ARGS: >-
+        ${{ matrix.run-as == 'CAP_SYS_ADMIN' && '--cap-add sys_admin --security-opt=apparmor=unconfined' || '' }}
+        ${{ matrix.run-as == 'unpriv' && '--user 1000:1000' || '' }}
+    name: >-
+      (${{ matrix.runtime }})
+      cargo nextest
+      (${{ fromJSON(matrix.tests).name }}, ${{ matrix.run-as }})
+    steps:
+      - uses: actions/checkout@v6
+      # Nightly rust is required for llvm-cov --doc.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@nextest
+      - name: install llvm-tools wrappers
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-binutils
+      # Pull the image from the cache by triggering a "new build".
+      - name: setup docker buildx
+        uses: docker/setup-buildx-action@v4
+      # TODO: Ideally we would be able to pull the image from the cache without
+      # needing to trigger another build. In the worst case we could just
+      # upload the CI image in the ctr-ci-image job and load it here.
+      - name: build and cache ci image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          tags: ${{ env.CI_IMAGE }}
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # Run the tests.
+      - run: >-
+          mkdir -p ./target && chmod a+rwx ./target
+      - name: ${{ matrix.runtime }} run ./hack/rust-tests.sh (run as ${{ matrix.run-as }})
+        run: >-
+          "$CONTAINER_RUNTIME" run --rm $CONTAINER_RUN_ARGS \
+            -v $PWD/target:/usr/src/libpathrs/target \
+            "$CI_IMAGE" \
+              ./hack/rust-tests.sh "$NEXTEST_PATTERN_SPEC"
+      - run: >-
+          sudo chown -R "$UID" ./target
+
+      # Upload to CodeCov.
+      - name: generate codecov-friendly coverage
+        id: codecov-coverage
+        run: |-
+          CODECOV_FILE="$(mktemp coverage-codecov.lcov.txt.XXXXXX)"
+          cargo llvm-cov report --lcov --output-path="$CODECOV_FILE"
+          echo "file=$CODECOV_FILE" >>"$GITHUB_OUTPUT"
+      - name: upload rust coverage (codecov)
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: cyphar/libpathrs
+          files: ${{ steps.codecov-coverage.outputs.file }}
+
+      - name: upload rust coverage (artifact)
+        uses: actions/upload-artifact@v7
+        with:
+          name: profraw-${{ github.job }}-${{ strategy.job-index }}
+          path: "target/llvm-cov-target/*.profraw"
+          retention-days: 7 # no need to waste disk space
+
   # Smoke-test for our %check section in the libpathrs RPM.
   # <https://github.com/cyphar/libpathrs/issues/299>
   # TODO: I guess we should run this as root too...
@@ -401,6 +502,7 @@ jobs:
     needs:
       - doctest
       - nextest
+      - ctr-nextest
     name: compute coverage
     runs-on: ubuntu-latest
     steps:
@@ -545,6 +647,7 @@ jobs:
       - rustdoc
       - doctest
       - nextest
+      - ctr-nextest
       - cargo-test
       - coverage
       - examples
