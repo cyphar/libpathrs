@@ -231,7 +231,7 @@ jobs:
       FEATURES: >-
         capi
         _test_race
-        ${{ matrix.run-as == 'root' && '_test_as_root' || '' }}
+        ${{ matrix.run-as == 'root' && '_test_as_root _test_can_mknod' || '' }}
     steps:
       - uses: actions/checkout@v6
       # Nightly rust is required for llvm-cov --doc.
