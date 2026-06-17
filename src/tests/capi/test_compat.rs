@@ -55,7 +55,7 @@ use pretty_assertions::{assert_eq, assert_matches};
 fn reopen_v1() -> Result<(), Error> {
     let file: OwnedFd = File::open(".").context("open dummy file")?.into();
 
-    let oflags = OpenFlags::O_DIRECTORY | OpenFlags::O_RDONLY | OpenFlags::O_NOATIME;
+    let oflags = OpenFlags::O_DIRECTORY | OpenFlags::O_RDONLY | OpenFlags::O_NOCTTY;
     let reopened_fd = capi_utils::call_capi_fd(|| {
         capi::core::__pathrs_reopen_v1(file.as_fd().into(), oflags.bits() as i32)
     })
@@ -86,7 +86,7 @@ fn inroot_open_v1() -> Result<(), Error> {
 
     {
         let path = capi_utils::path_to_cstring("b/c");
-        let oflags = OpenFlags::O_DIRECTORY | OpenFlags::O_RDONLY | OpenFlags::O_NOATIME;
+        let oflags = OpenFlags::O_DIRECTORY | OpenFlags::O_RDONLY | OpenFlags::O_NOCTTY;
         // SAFETY: Called with valid C-like arguments.
         let file = capi_utils::call_capi_fd(|| unsafe {
             capi::core::__pathrs_inroot_open_v1(
@@ -142,7 +142,7 @@ fn inroot_creat_v1() -> Result<(), Error> {
 
     {
         let path = capi_utils::path_to_cstring("b/c/new-file");
-        let oflags = OpenFlags::O_RDWR | OpenFlags::O_NOATIME | OpenFlags::O_EXCL;
+        let oflags = OpenFlags::O_RDWR | OpenFlags::O_NOCTTY | OpenFlags::O_EXCL;
         let mode = 0o644;
         // SAFETY: Called with valid C-like arguments.
         let file = capi_utils::call_capi_fd(|| unsafe {
