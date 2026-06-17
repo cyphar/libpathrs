@@ -34,8 +34,12 @@ set -Eeuo pipefail
 
 SRC_ROOT="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/..")"
 
+function error() {
+	echo "[err]" "$@" >&2
+}
+
 function bail() {
-	echo "rust tests: $*" >&2
+	error "rust tests:" "$*"
 	exit 1
 }
 
@@ -62,8 +66,21 @@ function strjoin() {
 	echo "$str"
 }
 
-TEMP="$(getopt -o sc:p:S: --long sudo,cargo:,partition:,enosys:,archive-file: -- "$@")"
+TEMP="$(getopt -o h,sc:p:S: --long help,sudo,cargo:,partition:,enosys:,archive-file: -- "$@")"
 eval set -- "$TEMP"
+
+function usage() {
+	[ "$#" -gt 0 ] && error "$@"
+	cat <<EOF
+Usage: $0  [--sudo] [--cargo=<$CARGO>]
+           [--partition=<nextest-partition-spec>]
+           [--archive-file=<nextest-archive.tar.zstd>]
+           [--enosys=<syscalls>,...]
+           [TESTS_TO_RUN]...
+EOF
+	# shellcheck disable=SC2048 # We want to only expand to nothing or 1.
+	exit ${*:+1}
+}
 
 sudo=
 partition=
@@ -92,12 +109,15 @@ while [ "$#" -gt 0 ]; do
 			[ -n "$2" ] && enosys_syscalls+=("$2")
 			shift 2
 			;;
+		-h|--help)
+			usage
+			;;
 		--)
 			shift
 			break
 			;;
 		*)
-			bail "unknown option $1"
+			usage "unknown option $1"
 	esac
 done
 tests_to_run=("$@")
