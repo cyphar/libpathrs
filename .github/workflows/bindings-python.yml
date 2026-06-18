@@ -145,7 +145,7 @@ jobs:
 
   # TODO: Should we move this to a separate workflow?
   release-pypi:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: false && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs:
       - build-pyproject
       - python-complete
