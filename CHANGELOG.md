@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+### Fixed ###
+- The new `--{enable,disable}-*` arguments for `install.sh` to control shared
+  library installation were incorrectly called `--disable-dynamic` rather than
+  autoconf's `--disable-shared`. We have added new `--{enable,disable}-shared`
+  flags and the old ones are kept for compatibility.
+
 ## [0.2.5] - 2026-06-17 ##
 
 > Or, to save on postage, I'll just poison him with this!

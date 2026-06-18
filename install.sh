@@ -93,7 +93,7 @@ usage() {
 	  --libdir=[EPREFIX/lib(64)]              (lib64 is used if available)
 	  --pkgconfigdir=[LIBDIR/pkgconfig]
 	  --{enable,disable}-static=[enable]
-	  --{enable,disable}-dynamic=[enable]
+	  --{enable,disable}-shared=[enable]
 
 	As with automake, if the DESTDIR= environment variable is set, this script
 	will install the files into DESTDIR as though it were the root of the
@@ -127,7 +127,7 @@ usage() {
 	[ "$#" -gt 0 ] && exit_code=1
 	exit "$exit_code"
 }
-longopts=(help prefix: exec-prefix: {include,lib,pkgconfig}dir: rust-{target,buildmode}: {enable,disable}-{static,dynamic})
+longopts=(help prefix: exec-prefix: {include,lib,pkgconfig}dir: rust-{target,buildmode}: {enable,disable}-{static,dynamic,shared})
 GETOPT="$(getopt -o h --long "$(strjoin , "${longopts[@]}")" -- "$@")"
 eval set -- "$GETOPT"
 
@@ -140,7 +140,7 @@ pkgconfigdir=
 rust_target="$TARGET"
 rust_buildmode=release
 install_static=1
-install_dynamic=1
+install_shared=1
 while true; do
 	case "$1" in
 		--prefix)			prefix="$2";			shift 2 ;;
@@ -152,8 +152,11 @@ while true; do
 		--rust-buildmode)	rust_buildmode="$2";	shift 2 ;;
 		--enable-static)	install_static=1;		shift ;;
 		--disable-static)	install_static=;		shift ;;
-		--enable-dynamic)	install_dynamic=1;		shift ;;
-		--disable-dynamic)	install_dynamic=;		shift ;;
+		--enable-shared)	install_shared=1;		shift ;;
+		--disable-shared)	install_shared=;		shift ;;
+		# v0.2.5 added these with the wrong names, keep as compatibility shims.
+		--enable-dynamic)	install_shared=1;		shift ;;
+		--disable-dynamic)	install_shared=;		shift ;;
 		--) shift; break ;;
 		-h | --help) usage ;;
 		*)           usage "unknown argument $1" ;;
@@ -249,7 +252,7 @@ if [ -n "$install_static" ]; then
 	install -Dt "$DESTDIR/$libdir" -m 0644 "$builddir/libpathrs.a"
 fi
 # Shared library.
-if [ -n "$install_dynamic" ]; then
+if [ -n "$install_shared" ]; then
 	install -DT -m 0755 "$builddir/libpathrs.so" "$DESTDIR/$libdir/$SONAME"
 	ln -sf "$SONAME" "$DESTDIR/$libdir/libpathrs.so.$SOVERSION"
 	ln -sf "$SONAME" "$DESTDIR/$libdir/libpathrs.so"
