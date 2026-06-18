@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] ##
 
+> [!IMPORTANT]
+> Due to the rising tide of supply chain attacks, we have stopped using
+> "Trusted" Publishing for our crates.io and PyPi releases. Their
+> UIs imply that such releases are "more trusted" but as the recent attacks
+> have shown, they actually grant your code forge's *entire infrastructure* the
+> right to release things on your behalf.
+>
+> It would be nice if `crates.io` and PyPI supported a proper signing model
+> where developers control their keys, but that is sadly not the case today.
+> For PyPI, [detached PGP keys in PyPI are basically security
+> theatre][pypi-sigs-2023] and [PEP 480][PEP-480] has stalled; for `crates.io`
+> there appears to be *no* mechanism for signing your releases with a key you
+> control directly!
+
+[pypi-sigs-2023]: https://blog.yossarian.net/2023/05/21/PGP-signatures-on-PyPI-worse-than-useless
+[PEP-480]: https://peps.python.org/pep-0480/
+
 ### Breaking ###
 * `pathrs_inroot_hardlink` and `pathrs_inroot_symlink` have been switched to
   using the standard argument order from their respective system calls
