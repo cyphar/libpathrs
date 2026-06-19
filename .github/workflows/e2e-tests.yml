@@ -66,7 +66,7 @@ jobs:
       }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: install package
         run: |-
           sudo apt-get update -y
@@ -121,7 +121,7 @@ jobs:
     runs-on: ubuntu-latest
     name: build ci docker image
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: setup docker buildx
         uses: docker/setup-buildx-action@v4
       - name: build and cache ci image
@@ -161,7 +161,7 @@ jobs:
       run e2e-tests
       (${{ matrix.lang }}, ${{ matrix.run-as }})
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # Pull the image from the cache by triggering a "new build".
       - name: setup docker buildx
         uses: docker/setup-buildx-action@v4
