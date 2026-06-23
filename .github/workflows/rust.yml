@@ -99,6 +99,19 @@ jobs:
           cargo hack --each-feature --keep-going \
             build --target=${{ matrix.target }} --release
 
+  check-release-script:
+    name: check release script
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: compute libpathrs crate version
+        run: |-
+          CRATE_VERSION="$(cargo metadata --no-deps --format-version=1 | jq -rM '.packages[] | select(.name == "pathrs") | .version')"
+          echo "CRATE_VERSION=$CRATE_VERSION" >>"$GITHUB_ENV"
+      - run: ./hack/release.sh
+      - run: tar tvf ./release/${CRATE_VERSION}/libpathrs-${CRATE_VERSION}.tar.xz
+      - run: tar tvf ./release/${CRATE_VERSION}/libpathrs.vendor.tar.zst
+
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest
@@ -636,6 +649,7 @@ jobs:
       - check
       - check-msrv
       - check-cross
+      - check-release-script
       - fmt
       - clippy
       - check-lint-nohack
