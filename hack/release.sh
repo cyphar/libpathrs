@@ -138,7 +138,8 @@ rm -rf "$outputdir" && mkdir -p "$outputdir"
 #done
 
 # Generate vendor.tar.zst.
-generate_vendor - | zstd -11 >"$outputdir/$project.vendor.tar.zst"
+generate_vendor "$outputdir/$project.vendor.tar"
+zstd -11 --rm "$outputdir/$project.vendor.tar" -o "$outputdir/$project.vendor.tar.zst"
 
 # Generate new archive.
 git archive --format=tar --prefix="$project-$version/" "$commit" | xz > "$outputdir/$project-$version.tar.xz"
