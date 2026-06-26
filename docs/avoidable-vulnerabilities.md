@@ -47,6 +47,10 @@ of this nature, and so we anticipate this list is much longer than given here.
   (which libpathrs does not yet support) and usage of libpathrs itself would
   not have avoided the issue, but being forced to write file-handle-based code
   (which libpathrs does) would've avoided it.
+* [CVE-2026-48749](https://github.com/lxc/incus/security/advisories/GHSA-2q3f-q5pq-g8wv)
+* [CVE-2026-48750](https://github.com/lxc/incus/security/advisories/GHSA-73hr-m85f-64v9)
+* [CVE-2026-48752](https://github.com/lxc/incus/security/advisories/GHSA-vxp5-584q-c479)
+* [CVE-2026-48769](https://github.com/lxc/incus/security/advisories/GHSA-f6m5-xw2g-xc4x)
 
 [RedSun]: https://web.archive.org/web/20260521144507/https://github.com/Nightmare-Eclipse/RedSun
 [BlueHammer]: https://web.archive.org/web/20260406225410/https://github.com/Nightmare-Eclipse/BlueHammer
