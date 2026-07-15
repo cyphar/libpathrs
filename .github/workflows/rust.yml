@@ -23,16 +23,27 @@ on:
 
 name: rust-ci
 
+permissions:
+  contents: read
+
 env:
   RUST_MSRV: &RUST_MSRV "1.63"
   CBINDGEN_VERSION: "0.29.2"
+  CARGO_HACK_VERSION: "0.6.45"
+  CARGO_LLVM_COV_VERSION: "0.8.7"
+  CARGO_NEXTEST_VERSION: "0.9.140"
+  CARGO_BINUTILS_VERSION: "0.4.0"
+  BUILDX_VERSION: "v0.38.0"
+  CODECOV_CLI_VERSION: "v11.3.1"
   CI_IMAGE: cyphar/libpathrs:ci-latest
 
 jobs:
   codespell:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - run: pip install codespell==v2.4.3
       - run: codespell -L crate
 
@@ -40,9 +51,15 @@ jobs:
     name: cargo check (stable)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@cargo-hack
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo check
         run: >-
           cargo hack --workspace --each-feature --keep-going \
@@ -52,11 +69,15 @@ jobs:
     name: cargo check (msrv)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
         with:
           toolchain: *RUST_MSRV
-      - uses: taiki-e/install-action@cargo-hack
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo check
         run: >-
           cargo hack --each-feature --keep-going \
@@ -107,18 +128,24 @@ jobs:
       # Only set for the targets where we need to build libstd ourselves.
       BUILD_STD_FLAGS: ${{ matrix.build-std && '-Zbuild-std' || '' }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
         if: ${{ !matrix.build-std }}
         with:
+          toolchain: stable
           # TODO: Should we use MSRV for this?
           targets: ${{ matrix.target }}
       # -Zbuild-std requires nightly Rust (and the libstd sources).
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
         if: ${{ matrix.build-std }}
         with:
+          toolchain: nightly
           components: rust-src
-      - uses: taiki-e/install-action@cargo-hack
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo check --target=${{ matrix.target }}
         run: >-
           cargo hack --each-feature --keep-going \
@@ -134,7 +161,9 @@ jobs:
     name: check release script
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: compute libpathrs crate version
         run: |-
           CRATE_VERSION="$(cargo metadata --no-deps --format-version=1 | jq -rM '.packages[] | select(.name == "pathrs") | .version')"
@@ -147,10 +176,13 @@ jobs:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      # We need to use nightly Rust to check the formatting.
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          persist-credentials: false
+      # We need to use nightly Rust to check the formatting.
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: nightly
           components: rustfmt
       - run: cargo fmt --all -- --check
 
@@ -158,12 +190,17 @@ jobs:
     name: clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      # Pin the Rust version to avoid Rust updates breaking our clippy lints.
-      - uses: dtolnay/rust-toolchain@1.98
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          persist-credentials: false
+      # Pin the Rust version to avoid Rust updates breaking our clippy lints.
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: "1.98"
           components: clippy
-      - uses: taiki-e/install-action@cargo-hack
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo clippy
         run: >-
           cargo hack --workspace --each-feature --keep-going \
@@ -173,9 +210,12 @@ jobs:
     name: make lint (no cargo-hack)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
           components: rustfmt,clippy
       - name: install cbindgen
         run: cargo install --force --locked cbindgen@${{ env.CBINDGEN_VERSION }}
@@ -185,8 +225,12 @@ jobs:
   validate-cbindgen:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - name: install cbindgen
         run: cargo install --force --locked cbindgen@${{ env.CBINDGEN_VERSION }}
       - run: make validate-cbindgen
@@ -204,8 +248,10 @@ jobs:
           - stable
           - nightly
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
         with:
           toolchain: ${{ matrix.rust-version }}
       - name: install lld
@@ -215,14 +261,20 @@ jobs:
   validate-keyring:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - run: make validate-keyring
 
   validate-dist-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - run: make dist-release
       - name: check release artefacts
         run: |-
@@ -241,8 +293,10 @@ jobs:
           - stable
           - nightly
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
         with:
           toolchain: ${{ matrix.rust-version }}
       - name: install lld
@@ -260,11 +314,15 @@ jobs:
     name: cargo doc
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - run: cargo doc --document-private-items --workspace --all-features
       - name: upload docs
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rustdoc
           path: target/doc
@@ -284,22 +342,29 @@ jobs:
         _test_race
         ${{ matrix.run-as == 'root' && '_test_as_root _test_can_mknod' || '' }}
     steps:
-      - uses: actions/checkout@v7
-      # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          persist-credentials: false
+      # Nightly rust is required for llvm-cov --doc.
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: nightly
           components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: nextest@${{ env.CARGO_NEXTEST_VERSION }}
       - name: cargo nextest archive
         run: >-
           cargo llvm-cov \
             nextest-archive \
               --workspace \
-              -F "${{ env.FEATURES }}" \
+              -F "$FEATURES" \
               --archive-file nextest-pathrs-${{ matrix.run-as }}.tar.zst
       - name: upload nextest archive
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: nextest-archive-${{ matrix.run-as }}
           path: nextest-pathrs-${{ matrix.run-as }}.tar.zst
@@ -311,15 +376,20 @@ jobs:
     env:
       CARGO_NIGHTLY: cargo
     steps:
-      - uses: actions/checkout@v7
-      # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          persist-credentials: false
+      # Nightly rust is required for llvm-cov --doc.
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: nightly
           components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
       - run: make test-rust-doctest
       - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
@@ -335,7 +405,9 @@ jobs:
     outputs:
       tests: ${{ steps.test-partitions.outputs.data }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: compute test partitions
         id: test-partitions
         run: |-
@@ -382,20 +454,27 @@ jobs:
           )
       }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
         with:
+          toolchain: nightly
           components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: taiki-e/install-action@nextest
-      - name: install llvm-tools wrappers
-        uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
-          tool: cargo-binutils
+          tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: nextest@${{ env.CARGO_NEXTEST_VERSION }}
+      - name: install llvm-tools wrappers
+        uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-binutils@${{ env.CARGO_BINUTILS_VERSION }}
 
       - name: pull nextest archive
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: nextest-archive-${{ matrix.run-as }}
           path: .
@@ -407,10 +486,10 @@ jobs:
             ${{ matrix.run-as == 'root' && '--sudo' || '' }} \
             --enosys="${{ matrix.enosys }}" \
             --archive-file="nextest-pathrs-${{ matrix.run-as }}.tar.zst" \
-            "${{ env.NEXTEST_PATTERN_SPEC }}"
+            "$NEXTEST_PATTERN_SPEC"
 
       - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
@@ -439,8 +518,9 @@ jobs:
           cargo llvm-cov report --lcov --output-path="$CODECOV_FILE"
           echo "file=$CODECOV_FILE" >>"$GITHUB_OUTPUT"
       - name: upload rust coverage (codecov)
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
+          version: ${{ env.CODECOV_CLI_VERSION }}
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: cyphar/libpathrs
           files: ${{ steps.codecov-coverage.outputs.file }}
@@ -449,11 +529,17 @@ jobs:
     runs-on: ubuntu-latest
     name: build ci docker image
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: setup docker buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          version: ${{ env.BUILDX_VERSION }}
+          # Avoid GHA cache poisoning of the buildx binary.
+          cache-binary: false
       - name: build and cache ci image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           tags: ${{ env.CI_IMAGE }}
@@ -487,25 +573,36 @@ jobs:
       cargo nextest
       (${{ fromJSON(matrix.tests).name }}, ${{ matrix.run-as }})
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
         with:
+          toolchain: nightly
           components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: taiki-e/install-action@nextest
-      - name: install llvm-tools wrappers
-        uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
-          tool: cargo-binutils
+          tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: nextest@${{ env.CARGO_NEXTEST_VERSION }}
+      - name: install llvm-tools wrappers
+        uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-binutils@${{ env.CARGO_BINUTILS_VERSION }}
       # Pull the image from the cache by triggering a "new build".
       - name: setup docker buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          version: ${{ env.BUILDX_VERSION }}
+          # Avoid GHA cache poisoning of the buildx binary.
+          cache-binary: false
       # TODO: Ideally we would be able to pull the image from the cache without
       # needing to trigger another build. In the worst case we could just
       # upload the CI image in the ctr-ci-image job and load it here.
       - name: build and cache ci image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           tags: ${{ env.CI_IMAGE }}
@@ -532,14 +629,15 @@ jobs:
           cargo llvm-cov report --lcov --output-path="$CODECOV_FILE"
           echo "file=$CODECOV_FILE" >>"$GITHUB_OUTPUT"
       - name: upload rust coverage (codecov)
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
+          version: ${{ env.CODECOV_CLI_VERSION }}
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: cyphar/libpathrs
           files: ${{ steps.codecov-coverage.outputs.file }}
 
       - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
@@ -552,8 +650,12 @@ jobs:
     name: cargo test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - name: cargo test
         run: cargo test --features capi
 
@@ -565,31 +667,38 @@ jobs:
     name: compute coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
         with:
+          toolchain: nightly
           components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - name: install llvm-tools wrappers
-        uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
-          tool: cargo-binutils
+          tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
+      - name: install llvm-tools wrappers
+        uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-binutils@${{ env.CARGO_BINUTILS_VERSION }}
 
       - name: pull rust coverage
         id: rust-coverage
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: "profraw-*"
           path: profraw
       - name: merge coverage
+        env:
+          PROFRAW_DOWNLOAD_PATH: ${{ steps.rust-coverage.outputs.download-path }}
         run: |-
           mkdir -p target/llvm-cov-target
           profraw_list="$(mktemp --tmpdir libpathrs-profraw.XXXXXXXX)"
-          find "${{ steps.rust-coverage.outputs.download-path }}" -name '*.profraw' -type f >"$profraw_list"
+          find "$PROFRAW_DOWNLOAD_PATH" -name '*.profraw' -type f >"$profraw_list"
           rust-profdata merge --sparse -f "$profraw_list" -o ./target/llvm-cov-target/libpathrs-combined.profraw
       - name: upload merged rust coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: libpathrs-combined-profraw
           path: target/llvm-cov-target/libpathrs-combined.profraw
@@ -600,7 +709,7 @@ jobs:
       # the "root" and "unpriv" binaries are different and so the coverage data
       # is a little off. See <https://github.com/cyphar/libpathrs/issues/282>.
       - name: pull nextest archive
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: nextest-archive-root
           path: .
@@ -626,7 +735,7 @@ jobs:
       - name: generate coverage html
         run: cargo llvm-cov report --html
       - name: upload coverage html
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
           path: target/llvm-cov/html
@@ -635,8 +744,12 @@ jobs:
     name: smoke-test examples
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - run: cargo build --examples
       - run: make -C examples smoke-test-rust
 
@@ -651,8 +764,12 @@ jobs:
     name: check ${{ matrix.libtype }} size
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - run: make release
       - name: compute ${{ matrix.libtype }} file name
         run: |-
@@ -687,7 +804,7 @@ jobs:
       # repos) -- we probably need to switch to status checks?
       - if: github.event_name == 'push'
         name: update commit status
-        uses: octokit/request-action@v2.x
+        uses: octokit/request-action@dad4362715b7fb2ddedf9772c8670824af564f0d # v2.4.0
         with:
           route: POST /repos/{owner_repo}/statuses/{sha}
           owner_repo: ${{ github.repository }}
@@ -734,10 +851,15 @@ jobs:
       name: release-crate
       url: "https://crates.io/crates/pathrs"
     permissions:
+      contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

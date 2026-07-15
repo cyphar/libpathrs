@@ -16,11 +16,15 @@ updates:
       # MSRV(1.65)
       - dependency-name: "once_cell"
         versions: [ ">=1.21.0" ]
+    cooldown:
+      default-days: 7
   # Dependencies listed in .github/workflows/*.yml
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
   # Dependencies listed in e2e-tests/cmd/go/go.{mod,sum}.
   # NOTE: We do not auto-bump go-pathrs or examples/go because we want to
   # continue to support Go 1.18 for as long as reasonable.
@@ -28,3 +32,5 @@ updates:
     directory: "/e2e-tests/cmd/go"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
