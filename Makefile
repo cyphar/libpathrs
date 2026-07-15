@@ -31,6 +31,7 @@
 
 CARGO ?= cargo
 CARGO_NIGHTLY ?= cargo +nightly
+ZIZMOR ?= zizmor
 
 # Unfortunately --all-features needs to be put after the subcommand, but
 # cargo-hack needs to be put before the subcommand. So make a function to make
@@ -109,6 +110,10 @@ lint-rust:
 	$(CARGO_NIGHTLY) fmt --all -- --check
 	$(CARGO_CLIPPY) --all-targets
 	$(CARGO_CHECK) $(CARGO_FLAGS) --all-targets
+
+.PHONY: lint-gha
+lint-gha:
+	$(ZIZMOR) .github/
 
 .PHONY: validate-cbindgen
 validate-cbindgen:

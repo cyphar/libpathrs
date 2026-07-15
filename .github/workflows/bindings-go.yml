@@ -23,6 +23,9 @@ on:
 
 name: bindings-go
 
+permissions:
+  contents: read
+
 env:
   GO_VERSION: 1.27.x
 
@@ -34,35 +37,43 @@ jobs:
       checks: write # to allow the action to annotate code in the pr.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Build and install libpathrs.so.
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - name: build libpathrs
         run: make release
       - name: install libpathrs
         run: sudo ./install.sh --libdir=/usr/lib
       # Run golangci-lint.
-      - uses: golangci/golangci-lint-action@v9
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.13
+          version: v2.13.2
           working-directory: go-pathrs
 
   go-fix:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 2
+          persist-credentials: false
       # Build and install libpathrs.so.
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - name: build libpathrs
         run: make release
       - name: install libpathrs
         run: sudo ./install.sh --libdir=/usr/lib
       # Run go-fix.
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "${{ env.GO_VERSION }}"
+          cache: false
       - name: run go fix
         run: |
           cd go-pathrs
@@ -84,19 +95,24 @@ jobs:
           - clang
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Build and install libpathrs.so.
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - name: build libpathrs
         run: make release
       - name: install libpathrs
         run: sudo ./install.sh --libdir=/usr/lib
       # Setup go.
       - name: install go ${{ matrix.go-version }}
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go-version }}
           check-latest: true
+          cache: false
       # Run smoke-tests.
       # NOTE: CC is only set here (and not for the whole job) so that we don't
       #       affect how libpathrs itself is built.

@@ -26,12 +26,17 @@ env:
 
 name: bindings-python
 
+permissions:
+  contents: read
+
 jobs:
   ruff:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/ruff-action@v3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/ruff-action@4919ec5cf1f49eff0871dbcea0da843445b837e6 # v3.6.1
         with:
           version: "0.16.10"
           args: "--version"
@@ -45,13 +50,15 @@ jobs:
       checks: write # allow the action to annotate code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Set up python venv.
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       - name: install mypy
         run: >-
-          python3 -m pip install --user mypy
-      - uses: tsuyoshicho/action-mypy@v5
+          python3 -m pip install --user mypy==2.4.0
+      - uses: tsuyoshicho/action-mypy@c3615998c006f1dee3b5c6f7ec99edace2575687 # v5.1.2
         with:
           github_token: ${{ secrets.github_token }}
           reporter: github-check
@@ -65,20 +72,24 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.x"]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Build and install libpathrs.so.
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - name: build libpathrs
         run: make release
       - name: install libpathrs
         run: sudo ./install.sh --libdir=/usr/lib
       # Set up python venv.
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
       - name: install pypa/build
         run: >-
-          python3 -m pip install --user build twine
+          python3 -m pip install --user build==1.6.1 twine==7.0.0
       # Build and install our bindings.
       - name: build python-pathrs bindings
         run: make -C contrib/bindings/python dist
@@ -98,7 +109,7 @@ jobs:
           [[ "$CRATE_VERSION" == "$PY_VERSION" ]] || exit 1
       # Include the dist/ in our artefacts.
       - name: upload python-pathrs bindings dist/
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: python-${{ matrix.python-version }}-pathrs-dist
           path: contrib/bindings/python/dist/
@@ -112,26 +123,30 @@ jobs:
       - build-pyproject
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Build and install libpathrs.so.
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: stable
       - name: build libpathrs
         run: make release
       - name: install libpathrs
         run: sudo ./install.sh --libdir=/usr/lib
       # Set up python venv.
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
       # Download the pre-built python dist.
       - name: download built python-pathrs
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: python-${{ matrix.python-version }}-pathrs-dist
           path: ${{ env.PYTHON_DIST }}
       - name: install python-pathrs
         run: |-
-          python3 -m pip install ${{ env.PYTHON_DIST }}/*.whl
+          python3 -m pip install "$PYTHON_DIST"/*.whl
       # Run smoke-tests.
       - run: make -C examples/python smoke-test
 
@@ -159,7 +174,7 @@ jobs:
       id-token: write
     steps:
       - name: download built python-pathrs
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: python-3.x-pathrs-dist
           path: ${{ env.PYTHON_DIST }}
@@ -167,8 +182,8 @@ jobs:
       # using the restrictive manylinux set of libraries (because we depend on
       # libpathrs.so).
       - name: remove wheel from python-pathrs
-        run: rm -fv ${{ env.PYTHON_DIST }}/*.whl
+        run: rm -fv "$PYTHON_DIST"/*.whl
       - name: upload python-pathrs to pypi
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
         with:
           packages-dir: ${{ env.PYTHON_DIST }}
