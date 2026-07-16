@@ -85,7 +85,7 @@ jobs:
       # Setup go.
       - if: ${{ matrix.lang == 'go' }}
         name: install go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go-version || 'stable' }}
           check-latest: true
