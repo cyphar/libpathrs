@@ -307,7 +307,7 @@ impl ProcfsOpenHow {
         let mut builder = ProcfsHandleBuilder::new();
 
         if self.flags.contains_unknown_bits() {
-            return Err(ErrorImpl::InvalidArgument {
+            Err(ErrorImpl::InvalidArgument {
                 name: "flags".into(),
                 description: format!(
                     "contains unknown flag bits {:#x}",

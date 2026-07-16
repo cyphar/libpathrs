@@ -540,7 +540,7 @@ impl<'fd> ProcfsHandleRef<'fd> {
                 // to trigger ELOOP and then unmount it after this point. As
                 // always, fsopen(2) is needed for true safety here.
                 if err.kind() != ErrorKind::OsError(Some(libc::ELOOP)) {
-                    return Err(err)?;
+                    Err(err)?;
                 }
             }
         }
