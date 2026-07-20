@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # Set up python venv.
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
       - name: install mypy
         run: >-
           python3 -m pip install --user mypy
@@ -71,7 +71,7 @@ jobs:
       - name: install libpathrs
         run: sudo ./install.sh --libdir=/usr/lib
       # Set up python venv.
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: install pypa/build
@@ -118,7 +118,7 @@ jobs:
       - name: install libpathrs
         run: sudo ./install.sh --libdir=/usr/lib
       # Set up python venv.
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       # Download the pre-built python dist.
