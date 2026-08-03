@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   handling of numerical C constants is somewhat compiler-dependent and some of
   our sanity checking code would previously fail to compile under `CC=clang`.
   (#401)
+- Previously, if a downstream regenerated our `include/pathrs.h` header with
+  using `cbindgen >= v0.29.3`, the header would use C23 features that would
+  cause go-pathrs to fail to build. We now have worked around the issue for
+  go-pathrs but we still have not updated our headers because our Python
+  bindings have other issues with the new headers. See the discussion in
+  mozilla/cbindgen#1156 for more details.
 
 ## [0.2.5] - 2026-06-17 ##
 
