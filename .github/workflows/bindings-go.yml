@@ -77,6 +77,11 @@ jobs:
           - "1.18"
           - "oldstable"
           - "stable"
+        # CGo's behaviour is somewhat compiler-dependent so do smoke tests
+        # using both clang and gcc to hopefully catch issues earlier.
+        cc:
+          - gcc
+          - clang
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -93,7 +98,11 @@ jobs:
           go-version: ${{ matrix.go-version }}
           check-latest: true
       # Run smoke-tests.
+      # NOTE: CC is only set here (and not for the whole job) so that we don't
+      #       affect how libpathrs itself is built.
       - run: make -C examples/go smoke-test
+        env:
+          CC: ${{ matrix.cc }}
 
   go-complete:
     needs:

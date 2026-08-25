@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   library installation were incorrectly called `--disable-dynamic` rather than
   autoconf's `--disable-shared`. We have added new `--{enable,disable}-shared`
   flags and the old ones are kept for compatibility.
+- go-pathrs: Fix build failures when building the Go bindings with Clang. CGo's
+  handling of numerical C constants is somewhat compiler-dependent and some of
+  our sanity checking code would previously fail to compile under `CC=clang`.
+  (#401)
 
 ## [0.2.5] - 2026-06-17 ##
 

@@ -219,10 +219,12 @@ func InRootHardlink(oldRootFd uintptr, oldPath string, newRootFd uintptr, newPat
 // ProcBase is pathrs_proc_base_t (uint64_t).
 type ProcBase C.pathrs_proc_base_t
 
-// FIXME: We need to open-code the constants because CGo unfortunately will
-// implicitly convert any non-literal constants (i.e. those resolved using gcc)
-// to signed integers. See <https://github.com/golang/go/issues/39136> for some
-// more information on the underlying issue (though.
+// FIXME: We need to open-code the constants because CGo's handling of
+// non-literal constants (i.e., those resolved using the C compiler) that don't
+// fit in an int64 is compiler-dependent -- GCC gives us implicitly-converted
+// (negative) signed integers while Clang gives us the actual unsigned values.
+// See <https://github.com/golang/go/issues/39136> for some more information on
+// the underlying issue.
 const (
 	// ProcRoot is PATHRS_PROC_ROOT.
 	ProcRoot ProcBase = 0xFFFF_FFFE_7072_6F63 // C.PATHRS_PROC_ROOT
@@ -246,16 +248,26 @@ func assertEqual[T comparable](a, b T, msg string) {
 	}
 }
 
+// u64Mask is used to convert the C constants below into plain uint64 values,
+// regardless of how CGo decided to interpret their signedness.
+//
+// In particular, CGo gives us the PATHRS_PROC_* values as negative (signed)
+// constants with GCC and as (unsigned) constants that overflow int64 with
+// Clang, so neither int64 nor uint64 can hold them with both compilers.
+//
+// Luckily, Go constant expressions are arbitrary-precision and bitwise
+// operations on negative constants operate on their infinite two's complement
+// representation, so masking off the lower 64 bits yields the same uint64
+// value no matter which compiler CGo used.
+const u64Mask = 0xFFFF_FFFF_FFFF_FFFF
+
 // Verify that the values above match the actual C values. Unfortunately, Go
-// only allows us to forcefully cast int64 to uint64 if you use a temporary
-// variable, which means we cannot do it in a const context and thus need to do
-// it at runtime (even though it is a check that fundamentally could be done at
-// compile-time)...
+// has no way of doing compile-time assertions, so we need to do it at runtime.
 func init() {
 	var (
-		actualProcRoot       int64 = C.PATHRS_PROC_ROOT
-		actualProcSelf       int64 = C.PATHRS_PROC_SELF
-		actualProcThreadSelf int64 = C.PATHRS_PROC_THREAD_SELF
+		actualProcRoot       uint64 = C.PATHRS_PROC_ROOT & u64Mask
+		actualProcSelf       uint64 = C.PATHRS_PROC_SELF & u64Mask
+		actualProcThreadSelf uint64 = C.PATHRS_PROC_THREAD_SELF & u64Mask
 	)
 
 	assertEqual(ProcRoot, ProcBase(actualProcRoot), "PATHRS_PROC_ROOT")
@@ -263,8 +275,8 @@ func init() {
 	assertEqual(ProcThreadSelf, ProcBase(actualProcThreadSelf), "PATHRS_PROC_THREAD_SELF")
 
 	var (
-		actualProcBaseTypeMask uint64 = C.__PATHRS_PROC_TYPE_MASK
-		actualProcBaseTypePid  uint64 = C.__PATHRS_PROC_TYPE_PID
+		actualProcBaseTypeMask uint64 = C.__PATHRS_PROC_TYPE_MASK & u64Mask
+		actualProcBaseTypePid  uint64 = C.__PATHRS_PROC_TYPE_PID & u64Mask
 	)
 
 	assertEqual(ProcBaseTypeMask, ProcBase(actualProcBaseTypeMask), "__PATHRS_PROC_TYPE_MASK")
