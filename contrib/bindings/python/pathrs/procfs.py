@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 # SPDX-License-Identifier: MPL-2.0
 #
 # libpathrs: safe path resolution on Linux
@@ -10,22 +9,22 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import typing
-from typing import Any, IO, cast
+from typing import IO, Any, TypeAlias, cast
 
 # TODO: Remove this once we only support Python >= 3.11.
-from typing_extensions import Self, TypeAlias
+from typing_extensions import Self
 
 from ._internal import (
-    # File type helpers.
-    WrappedFd,
-    _convert_mode,
+    INTERNAL_ERROR,
     # Error API.
     PathrsError,
-    _is_pathrs_err,
-    INTERNAL_ERROR,
+    # File type helpers.
+    WrappedFd,
+    _cbuffer,
+    _convert_mode,
     # CFFI helpers.
     _cstr,
-    _cbuffer,
+    _is_pathrs_err,
 )
 from ._libpathrs_cffi import lib as libpathrs_so
 
@@ -45,10 +44,10 @@ else:
     CBuffer: TypeAlias = ffi.CData
 
 __all__ = [
+    "PROC_PID",
     "PROC_ROOT",
     "PROC_SELF",
     "PROC_THREAD_SELF",
-    "PROC_PID",
     "ProcfsHandle",
     # Shorthand for ProcfsHandle.cached().<foo>.
     "open",
@@ -94,7 +93,13 @@ def PROC_PID(pid: int) -> ProcfsBase:
 
 
 class ProcfsHandle(WrappedFd):
-    """ """
+    """
+    A handle to a procfs root that can be operated on safely.
+
+    While you can create your own custom handles with ProcfsHandle.new(), most
+    users should use the module-level procfs.* helper functions, which are all
+    shorthand for ProcfsHandle.cached().*.
+    """
 
     _PROCFS_OPEN_HOW_TYPE = "pathrs_procfs_open_how *"
 

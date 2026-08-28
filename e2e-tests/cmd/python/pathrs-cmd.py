@@ -9,16 +9,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import os
-import sys
-import stat
 import argparse
-from typing import Optional, Self, Sequence, Protocol, Tuple
+import os
+import stat
+import sys
+from collections.abc import Sequence
+from typing import Protocol, Self
 
 sys.path.append(os.path.dirname(__file__) + "/../../../contrib/bindings/python")
 import pathrs
 from pathrs import procfs
-from pathrs.procfs import ProcfsHandle, ProcfsBase
+from pathrs.procfs import ProcfsBase, ProcfsHandle
 
 
 def version(args: argparse.Namespace):
@@ -38,7 +39,7 @@ def root_resolve(args: argparse.Namespace):
     root: pathrs.Root = args.root
     subpath: str = args.subpath
     follow: bool = args.follow
-    reopen: Optional[int] = args.reopen
+    reopen: int | None = args.reopen
 
     with root.resolve(subpath, follow_trailing=follow) as handle:
         print("HANDLE-PATH", fdpath(handle))
@@ -197,7 +198,7 @@ def procfs_readlink(args: argparse.Namespace):
 
 def parse_args(
     args: tuple[str, ...],
-) -> Tuple[argparse.ArgumentParser, argparse.Namespace]:
+) -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser = argparse.ArgumentParser(prog="pathrs-cmd")
     parser.set_defaults(func=None)
     top_subparser = parser.add_subparsers()
@@ -207,7 +208,7 @@ def parse_args(
         name: str,
         default: int = 0o644,
         required: bool = False,
-        help: Optional[str] = None,
+        help: str | None = None,
     ) -> None:
         parser.add_argument(
             f"--{name}",
@@ -264,9 +265,9 @@ def parse_args(
     def add_o_flag(
         parser: argparse.ArgumentParser,
         name: str,
-        default: Optional[int] = os.O_RDONLY,
+        default: int | None = os.O_RDONLY,
         required: bool = False,
-        help: Optional[str] = None,
+        help: str | None = None,
     ) -> None:
         parser.add_argument(
             f"--{name}",
@@ -378,8 +379,8 @@ def parse_args(
             self: Self,
             parser: argparse.ArgumentParser,
             namespace: argparse.Namespace,
-            values: Optional[str | Sequence[str]],
-            option_string: Optional[str] = None,
+            values: str | Sequence[str] | None,
+            option_string: str | None = None,
         ):
             inode_type: str
             dev: int

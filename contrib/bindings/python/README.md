@@ -38,11 +38,11 @@ RENAME_EXCHANGE = 0x2
 
 with pathrs.Root("/path/to/rootfs") as root:
     # symlink
-    root.symlink("foo", "bar") # foo -> bar
+    root.symlink("foo", "bar")  # foo -> bar
     # link
-    root.hardlink("a", "b") # a -> b
+    root.hardlink("a", "b")  # a -> b
     # rename(at2)
-    root.rename("foo", "b", flags=RENAME_EXCHANGE) # foo <-> b
+    root.rename("foo", "b", flags=RENAME_EXCHANGE)  # foo <-> b
     # open(O_CREAT)
     with root.creat("newfile", "w+") as f:
         f.write("Some contents.")

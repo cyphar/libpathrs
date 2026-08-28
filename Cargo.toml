@@ -105,6 +105,12 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 	'cfg(nextest)',
 ] }
 
+# NOTE: This section will cause parsing issues on pre-edition2024 versions of
+# Rust, but they are not needed for compilation of the main libpathrs binary.
+# Our Makefile (via hack/with-crate-type.sh) will automatically remove this
+# during builds, but if you are running cargo commands yourself you might need
+# to work around this as well.
+# MSRV(1.85): Remove the above note.
 [workspace]
 resolver = "2"
 members = [

@@ -57,11 +57,32 @@ esac
 
 set -x
 
-backup="$(mktemp "$SRC_ROOT/Cargo.toml.XXXXXX")"
-sed -i".${backup##*.}" \
+# Make a backup of Cargo.toml and Cargo.lock. The lockfile backup is needed
+# because dropping members from [workspace] causes cargo to prune their
+# dependencies from the lockfile, which is not what we want.
+backup_dir="$(mktemp -d "$SRC_ROOT/.cargo-backup.XXXXXX")"
+cp "$SRC_ROOT"/Cargo.{toml,lock} "$backup_dir"
+# shellcheck disable=SC2064 # We want to expand the variables immediately.
+trap "mv -t '$SRC_ROOT/' -- '$backup_dir'/Cargo.*" EXIT
+
+# Replace the crate-type.
+sed -i \
 	"/^crate-type/ s/=.*/= [$(printf '"%s",' "${crate_types[@]}")]/" \
 	"$SRC_ROOT/Cargo.toml"
-# shellcheck disable=SC2064 # We want to expand the variables immediately.
-trap "mv '$backup' '$SRC_ROOT/Cargo.toml'" EXIT
+
+# Drop the workspace = [...] set. Some of our workspace crates have
+# dependencies that use edition2024 which triggers a parsing error even if you
+# do not actually build them, which causes problems for older distros.
+# MSRV(1.85): Drop this once we require edition2024.
+#
+# TODO: If we ever split out libpathrs into subcrates we will need to cleverer.
+#
+# The sed-foo below collects everything from "members = [" until the next "]"
+# into the pattern space and drops them in one go, to handle multi-line arrays
+# more robustly.
+sed -i '
+	/^\[workspace\]/,/^\[/ {
+		/^\s*members\s*=\s*\[/ { :x; /\]/!{ N; bx }; d }
+	}' "$SRC_ROOT/Cargo.toml"
 
 "$@"

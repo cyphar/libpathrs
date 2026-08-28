@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 # SPDX-License-Identifier: MPL-2.0
 #
 # libpathrs: safe path resolution on Linux
@@ -9,30 +8,31 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import os
+# TODO: Remove this once we only support Python >= 3.10.
+from __future__ import annotations  # PEP 604
 
+import os
 import typing
-from typing import Any, IO, Union, cast
 import warnings
 
 # TODO: Remove this once we only support Python >= 3.11.
-from typing_extensions import TypeAlias
+from typing import IO, Any, TypeAlias, cast
 
 from ._internal import (
-    # Generic helpers.
-    SingletonClass,
+    INTERNAL_ERROR,
     # File type helpers.
     FileLike,
-    WrappedFd,
-    _convert_mode,
     # Error API.
     PathrsError,
-    _is_pathrs_err,
-    INTERNAL_ERROR,
+    # Generic helpers.
+    SingletonClass,
+    WrappedFd,
+    _cbuffer,
+    _convert_mode,
     # CFFI helpers.
     _cstr,
+    _is_pathrs_err,
     _pystr,
-    _cbuffer,
 )
 from ._libpathrs_cffi import lib as libpathrs_so
 
@@ -52,12 +52,12 @@ else:
     CBuffer: TypeAlias = ffi.CData
 
 __all__ = [
-    # Core api.
-    "Root",
     "Handle",
-    "library_version",
     # Error api (re-export).
     "PathrsError",
+    # Core api.
+    "Root",
+    "library_version",
 ]
 
 
@@ -133,7 +133,7 @@ class Root(WrappedFd):
     relative to.
     """
 
-    def __init__(self, file_or_path: Union[FileLike, str], /):
+    def __init__(self, file_or_path: FileLike | str, /):
         """
         Create a handle from a file-like object or a path to a directory.
 
