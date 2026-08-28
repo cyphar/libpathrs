@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 # SPDX-License-Identifier: MPL-2.0
 #
 # libpathrs: safe path resolution on Linux
@@ -13,7 +12,7 @@ import importlib
 import importlib.metadata
 
 from . import _pathrs
-from ._pathrs import *  # noqa: F403 # We just re-export everything.
+from ._pathrs import *  # We just re-export everything.
 
 # In order get pydoc to include the documentation for the re-exported code from
 # _pathrs, we need to include all of the members in __all__. Rather than

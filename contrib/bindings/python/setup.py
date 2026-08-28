@@ -9,13 +9,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import setuptools
+from typing import Any
 
-from typing import Any, Dict
+import setuptools
 
 
 # This is only needed for backwards compatibility with older versions.
-def parse_pyproject() -> Dict[str, Any]:
+def parse_pyproject() -> dict[str, Any]:
     try:
         import tomllib
 
