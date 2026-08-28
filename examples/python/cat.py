@@ -30,11 +30,10 @@ def chomp(s):
 
 def main(root_path, unsafe_path):
     # Test that context managers work properly with WrappedFd:
-    with pathrs.Root(root_path) as root:
-        with root.open(unsafe_path, "r") as f:
-            for line in f:
-                line = chomp(line)
-                print(line)
+    with pathrs.Root(root_path) as root, root.open(unsafe_path, "r") as f:
+        for line in f:
+            line = chomp(line)
+            print(line)
 
 
 if __name__ == "__main__":

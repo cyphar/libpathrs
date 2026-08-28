@@ -14,10 +14,10 @@
 # An example program which provides a static webserver which will serve files
 # from a directory, safely resolving paths with libpathrs.
 
-import os
-import sys
-import stat
 import errno
+import os
+import stat
+import sys
 
 import flask
 import flask.json
@@ -60,7 +60,7 @@ def get(path):
             # Permission denied => 403 Forbidden.
             errno.EACCES: 403,
         }.get(e.errno, 500)
-        flask.abort(status_code, "Could not resolve path: %s." % (e,))
+        flask.abort(status_code, f"Could not resolve path: {e}.")
 
     with handle:
         try:
@@ -69,11 +69,10 @@ def get(path):
                 f, mimetype="application/octet-stream", direct_passthrough=True
             )
         except IsADirectoryError:
-            with handle.reopen_raw(os.O_RDONLY) as dirf:
-                with os.scandir(dirf.fileno()) as s:
-                    return flask.json.jsonify(
-                        {dentry.name: json_dentry(dentry) for dentry in s}
-                    )
+            with handle.reopen_raw(os.O_RDONLY) as dirf, os.scandir(dirf.fileno()) as s:
+                return flask.json.jsonify(
+                    {dentry.name: json_dentry(dentry) for dentry in s}
+                )
 
 
 def main(root_path=None):
