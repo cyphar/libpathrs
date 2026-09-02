@@ -19,6 +19,7 @@ on:
     types: [ published ]
   schedule:
     - cron: '0 0 * * *'
+  workflow_dispatch:
 
 env:
   PYTHON_DIST: ${{ github.workspace }}/.tmp/python3-pathrs-${{ github.run_id }}-${{ github.run_attempt }}
