@@ -104,14 +104,15 @@ where
     // our file descriptor. This makes attacks harder (if not near impossible,
     // outside of very constrained situations):
     //
-    // * An attacker would probably struggle to always accurately guess the inode
-    //   number of files that the process is trying to operate on. Yes, if they know
-    //   the victim process's access patterns of procfs they could probably make an
-    //   educated guess, but most files do not have stable inode numbers in procfs.
+    // * An attacker would probably struggle to always accurately guess the
+    //   inode number of files that the process is trying to operate on. Yes, if
+    //   they know the victim process's access patterns of procfs they could
+    //   probably make an educated guess, but most files do not have stable
+    //   inode numbers in procfs.
     //
-    // * An attacker can no longer bind-mount their own fdinfo directory with just a
-    //   buch of handles to "/proc" open (assuming the attacker is trying to spoof
-    //   "mnt_id"), because the inode numbers won't match.
+    // * An attacker can no longer bind-mount their own fdinfo directory with
+    //   just a buch of handles to "/proc" open (assuming the attacker is trying
+    //   to spoof "mnt_id"), because the inode numbers won't match.
     //
     //   They also can't really fake inode numbers in real procfs fdinfo files,
     //   so they would need to create fake fdinfo files using individual file

@@ -381,8 +381,9 @@ fn do_resolve(
                     current = next.into();
                     continue;
                 } else {
-                    // If we hit the last component and we were told to not follow
-                    // the trailing symlink, just return the link we have.
+                    // If we hit the last component and we were told to not
+                    // follow the trailing symlink, just return the link we
+                    // have.
                     if remaining_components.is_empty() && no_follow_trailing {
                         current = next.into();
                         break;
@@ -439,24 +440,24 @@ fn do_resolve(
                             source: err,
                         })?;
 
-                    // Check if it's a good idea to walk this symlink. If we are on
-                    // a filesystem that supports magic-links and we've hit an
-                    // absolute symlink, it is incredibly likely that this component
-                    // is a magic-link and it makes no sense to try to resolve it in
-                    // userspace.
+                    // Check if it's a good idea to walk this symlink. If we are
+                    // on a filesystem that supports magic-links and we've hit
+                    // an absolute symlink, it is incredibly likely that this
+                    // component is a magic-link and it makes no sense to try to
+                    // resolve it in userspace.
                     //
                     // NOTE: There are some pseudo-magic-links like /proc/self
-                    // (which dynamically generates the symlink contents but doesn't
-                    // use nd_jump_link). In the case of procfs, these are always
-                    // relative, and they are reasonable for us to walk.
+                    // (which dynamically generates the symlink contents but
+                    // doesn't use nd_jump_link). In the case of procfs, these
+                    // are always relative, and they are reasonable for us to
+                    // walk. In procfs, all real magic-links use d_path() to
+                    // generate readlink() and thus are all absolute paths.
                     //
-                    // In procfs, all magic-links use d_path() to generate
-                    // readlink() and thus are all absolute paths. (Unfortunately,
-                    // apparmorfs uses nd_jump_link to make
+                    // (Unfortunately, apparmorfs uses nd_jump_link to make
                     // /sys/kernel/security/apparmor/policy dynamic using actual
-                    // nd_jump_link() and their readlink give us a dummy relative
-                    // path like "apparmorfs:[123]". But in that case we will just
-                    // get an error.)
+                    // nd_jump_link() and their readlink give us a dummy
+                    // relative path like "apparmorfs:[123]". But in that case
+                    // we will just get an error.)
                     if link_target.is_absolute()
                         && next
                             .is_magiclink_filesystem()
@@ -483,8 +484,8 @@ fn do_resolve(
                     // Remove the link component from our expectex path.
                     expected_path.pop();
 
-                    // Add contents of the symlink to the set of components we are
-                    // looping over.
+                    // Add contents of the symlink to the set of components we
+                    // are looping over.
                     link_target
                         .raw_components()
                         .prepend(&mut remaining_components);

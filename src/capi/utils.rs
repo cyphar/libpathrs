@@ -182,10 +182,10 @@ impl<'fd> CBorrowedFd<'fd> {
             }
             .into())
         } else {
-            // SAFETY: The C caller guarantees that the file descriptor is valid for
-            //         the lifetime of CBorrowedFd (which is the same lifetime as
-            //         BorrowedFd). We verify that the file descriptor is not
-            //         negative, so it is definitely valid.
+            // SAFETY: The C caller guarantees that the file descriptor is valid
+            // for the lifetime of CBorrowedFd (which is the same lifetime as
+            // BorrowedFd). We verify that the file descriptor is not negative,
+            // so it is definitely valid.
             Ok(unsafe { BorrowedFd::borrow_raw(self.inner) })
         }
     }

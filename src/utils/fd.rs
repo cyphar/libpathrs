@@ -434,13 +434,13 @@ pub(crate) fn fetch_mnt_id(
     // fails. This does require us to operate on procfs in a less-safe way
     // (unlike the alternative approaches), however note that:
     //
-    //  * For openat2(2) systems, this is completely safe (fdinfo files are regular
-    //    files, and thus -- unlike magic-links -- RESOLVE_NO_XDEV can be used to
-    //    safely protect against bind-mounts).
+    //  * For openat2(2) systems, this is completely safe (fdinfo files are
+    //    regular files, and thus -- unlike magic-links -- RESOLVE_NO_XDEV can
+    //    be used to safely protect against bind-mounts).
     //
-    //  * For non-openat2(2) systems, an attacker can theoretically attack this by
-    //    overmounting fdinfo with something like /proc/self/environ and fill it
-    //    with a fake fdinfo file.
+    //  * For non-openat2(2) systems, an attacker can theoretically attack this
+    //    by overmounting fdinfo with something like /proc/self/environ and fill
+    //    it with a fake fdinfo file.
     //
     //    However, get_fdinfo_field and fd_get_verify_fdinfo have enough extra
     //    protections that would probably make it infeasible for an attacker to
