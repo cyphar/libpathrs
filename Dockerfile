@@ -111,9 +111,9 @@ RUN CARGO_BINSTALL_VERSION="$CARGO_BINSTALL_VERSION" \
         curl -L --proto '=https' --tlsv1.2 -sSf \
             "https://raw.githubusercontent.com/cargo-bins/cargo-binstall/v$CARGO_BINSTALL_VERSION/install-from-binstall-release.sh" | bash
 
-ARG CARGO_LLVM_COV_VERSION=0.8.7
+ARG CARGO_LLVM_COV_VERSION=0.9.0
 ARG CARGO_HACK_VERSION=0.6.45
-ARG CARGO_NEXTEST_VERSION=0.9.137
+ARG CARGO_NEXTEST_VERSION=0.9.143
 RUN cargo binstall --no-confirm \
         "cargo-llvm-cov@$CARGO_LLVM_COV_VERSION" \
         "cargo-hack@$CARGO_HACK_VERSION" \

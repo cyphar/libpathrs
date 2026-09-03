@@ -382,9 +382,18 @@ jobs:
       # FIXME: llvm-cov appears to have some kind of bug with
       # --nextest-archive-file as they do not strip the "target" prefix from
       # the nextest archive. As a workaround, we just extract it ourselves.
+      #
+      # FIXME: Cargo's v2 build-dir layout (enabled since nightly-2026-07-30)
+      # causes issues because while both nextest and cargo-llvm-cov support it,
+      # cargo-llvm-cov depends on a magic "fingerprint" directory being present
+      # to detect v2 build-dir usage but nextest does not include in its
+      # archives. We can workaround it for now by creating the directory
+      # ourselves. See <https://github.com/taiki-e/cargo-llvm-cov/issues/520>.
       - name: extract nextest archive
-        run: >-
+        run: |-
           tar xv -f nextest-pathrs-${{ matrix.run-as }}.tar.zst -C target/llvm-cov-target/ --strip-components=1
+          # mkdir -p ./target/llvm-cov-target/debug/build/<crate>/<hash>/fingerprint
+          find target/llvm-cov-target/debug/build -mindepth 2 -maxdepth 2 -type d -exec mkdir -p '{}/fingerprint' ';'
       # Upload to CodeCov.
       - name: generate codecov-friendly coverage
         id: codecov-coverage
@@ -562,9 +571,18 @@ jobs:
       # FIXME: llvm-cov appears to have some kind of bug with
       # --nextest-archive-file as they do not strip the "target" prefix from
       # the nextest archive. As a workaround, we just extract it ourselves.
+      #
+      # FIXME: Cargo's v2 build-dir layout (enabled since nightly-2026-07-30)
+      # causes issues because while both nextest and cargo-llvm-cov support it,
+      # cargo-llvm-cov depends on a magic "fingerprint" directory being present
+      # to detect v2 build-dir usage but nextest does not include in its
+      # archives. We can workaround it for now by creating the directory
+      # ourselves. See <https://github.com/taiki-e/cargo-llvm-cov/issues/520>.
       - name: extract nextest archive
-        run: >-
+        run: |-
           tar xv -f nextest-pathrs-root.tar.zst -C target/llvm-cov-target/ --strip-components=1
+          # mkdir -p ./target/llvm-cov-target/debug/build/<crate>/<hash>/fingerprint
+          find target/llvm-cov-target/debug/build -mindepth 2 -maxdepth 2 -type d -exec mkdir -p '{}/fingerprint' ';'
 
       - name: calculate coverage
         run: cargo llvm-cov report
