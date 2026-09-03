@@ -121,8 +121,8 @@ RUN cargo binstall --no-confirm \
 
 ARG RUST_NIGHTLY=nightly-2026-06-03
 RUN rustup toolchain install "$RUST_NIGHTLY" && \
-    rustup component add llvm-tools llvm-tools-preview && \
-    rustup component add --toolchain "$RUST_NIGHTLY" llvm-tools llvm-tools-preview
+    rustup component add llvm-tools && \
+    rustup component add --toolchain "$RUST_NIGHTLY" llvm-tools
 ENV CARGO_NIGHTLY="cargo +$RUST_NIGHTLY"
 
 # We want the installed libpathrs library for the Python and Go tests.

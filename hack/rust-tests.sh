@@ -158,10 +158,31 @@ fi
 		bail "--enosys=$(strjoin , "${enosys_syscalls[@]}") contains invalid syscalls"
 }
 
+# Find the llvm-profdata from the actual toolchain we are using. The raw
+# profile format changes between LLVM versions and llvm-profdata requires an
+# exact version match, so a distro-provided llvm-profdata could fail to merge
+# profiles produced by Rust nightly.
+function toolchain_llvm_profdata() {
+	local cargo_args
+	read -ra cargo_args <<<"$CARGO"
+	# The rustup wrappers are enabled for both cargo and rustc so if this is a
+	# "cargo" or "cargo +<toolchain>" command we can swap "cargo" for "rustc".
+	# Otherwise, fallback to the system toolchains.
+	[ "${cargo_args[0]}" == "cargo" ] || return 1
+
+	local libdir
+	libdir="$(rustc "${cargo_args[@]:1}" --print target-libdir 2>/dev/null)" || return 1
+	local profdata
+	profdata="$(dirname "$libdir")/bin/llvm-profdata"
+	[ -x "$profdata" ] || return 1
+	echo "$profdata"
+}
+
 function llvm-profdata() {
 	local profdata
 
-	{ command llvm-profdata --help &>/dev/null && profdata=llvm-profdata ; } ||
+	{ profdata="$(toolchain_llvm_profdata)" ; } ||
+		{ command llvm-profdata --help &>/dev/null && profdata=llvm-profdata ; } ||
 		{ command rust-profdata --help &>/dev/null && profdata=rust-profdata ; } ||
 		{ command cargo-profdata --help &>/dev/null && profdata=cargo-profdata ; } ||
 		bail "cannot find llvm-profdata!"
