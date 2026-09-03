@@ -104,8 +104,9 @@ fn main() -> Result<(), Error> {
     if !syscalls.is_empty() {
         let mut filter = bpf::compile_filter(&syscalls)?;
 
-        // Unprivileged processes cannot enable seccomp-bpf unless they also set the
-        // no-new-privs bit (to stop them from being able to trick setuid binaries).
+        // Unprivileged processes cannot enable seccomp-bpf unless they also set
+        // the no-new-privs bit (to stop them from being able to trick setuid
+        // binaries).
         if !rustix_process::getuid().is_root() {
             rustix_thread::set_no_new_privs(true).context("could not set no-new-privs bit")?;
         }

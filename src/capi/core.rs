@@ -75,7 +75,8 @@ use libc::{c_char, c_int, c_uint, dev_t, size_t};
 /// pathrs_errorinfo().
 #[no_mangle]
 pub unsafe extern "C" fn pathrs_open_root(path: *const c_char) -> RawFd {
-    unsafe { utils::parse_path(path) } // SAFETY: C caller says path is safe.
+    // SAFETY: C caller guarantees path is safe.
+    unsafe { utils::parse_path(path) }
         .and_then(Root::open)
         .into_c_return()
 }
@@ -160,7 +161,8 @@ pub unsafe extern "C" fn pathrs_inroot_resolve(
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path) }?;
         root.resolve(path)
     }()
     .into_c_return()
@@ -196,7 +198,8 @@ pub unsafe extern "C" fn pathrs_inroot_resolve_nofollow(
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path) }?;
         root.resolve_nofollow(path)
     }()
     .into_c_return()
@@ -241,7 +244,8 @@ pub unsafe extern "C" fn pathrs_inroot_open(
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path) }?;
         let flags = OpenFlags::from_bits_retain(flags);
         root.open_subpath(path, flags)
     }()
@@ -315,7 +319,8 @@ pub unsafe extern "C" fn pathrs_inroot_readlink(
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path) }?;
         let link_target = root.readlink(path)?;
         // SAFETY: C caller guarantees buffer is at least linkbuf_size and can
         // be written to.
@@ -369,8 +374,10 @@ pub unsafe extern "C" fn pathrs_inroot_rename(
             })?;
         }
         let root = RootRef::from_fd(new_root_fd);
-        let old_path = unsafe { utils::parse_path(old_path) }?; // SAFETY: C caller guarantees path is safe.
-        let new_path = unsafe { utils::parse_path(new_path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let old_path = unsafe { utils::parse_path(old_path) }?;
+        // SAFETY: C caller guarantees path is safe.
+        let new_path = unsafe { utils::parse_path(new_path) }?;
 
         root.rename(old_path, new_path, rflags)
     }()
@@ -426,7 +433,8 @@ pub unsafe extern "C" fn pathrs_inroot_rmdir(
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path) }?;
         root.remove_dir(path)
     }()
     .into_c_return()
@@ -461,7 +469,8 @@ pub unsafe extern "C" fn pathrs_inroot_unlink(
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path) }?;
         root.remove_file(path)
     }()
     .into_c_return()
@@ -493,7 +502,8 @@ pub unsafe extern "C" fn pathrs_inroot_remove_all(
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path) }?;
         root.remove_all(path)
     }()
     .into_c_return()
@@ -551,7 +561,8 @@ pub unsafe extern "C" fn pathrs_inroot_creat(
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path) }?;
         let mode = mode & !libc::S_IFMT;
         let perm = Permissions::from_mode(mode);
         root.create_file(path, OpenFlags::from_bits_retain(flags), &perm)
@@ -636,7 +647,8 @@ pub unsafe extern "C" fn pathrs_inroot_mkdir_all(
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path) }?;
         let perm = Permissions::from_mode(mode);
         root.mkdir_all(path, &perm)
     }()
@@ -671,7 +683,8 @@ pub unsafe extern "C" fn pathrs_inroot_mknod(
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let path = unsafe { utils::parse_path(path)? }; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path)? };
 
         let fmt = mode & libc::S_IFMT;
         let perms = Permissions::from_mode(mode ^ fmt);
@@ -721,8 +734,10 @@ pub unsafe extern "C" fn pathrs_inroot_symlink(
     || -> Result<_, Error> {
         let root_fd = root_fd.try_as_borrowed_fd()?;
         let root = RootRef::from_fd(root_fd);
-        let target = unsafe { utils::parse_path(target)? }; // SAFETY: C caller guarantees path is safe.
-        let linkpath = unsafe { utils::parse_path(linkpath)? }; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let target = unsafe { utils::parse_path(target)? };
+        // SAFETY: C caller guarantees path is safe.
+        let linkpath = unsafe { utils::parse_path(linkpath)? };
         root.create(linkpath, &InodeType::Symlink(target.into()))
     }()
     .into_c_return()
@@ -798,8 +813,10 @@ pub unsafe extern "C" fn pathrs_inroot_hardlink(
             })?;
         }
         let root = RootRef::from_fd(new_root_fd);
-        let old_path = unsafe { utils::parse_path(old_path) }?; // SAFETY: C caller guarantees path is safe.
-        let new_path = unsafe { utils::parse_path(new_path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let old_path = unsafe { utils::parse_path(old_path) }?;
+        // SAFETY: C caller guarantees path is safe.
+        let new_path = unsafe { utils::parse_path(new_path) }?;
         root.create(new_path, &InodeType::Hardlink(old_path.into()))
     }()
     .into_c_return()

@@ -816,8 +816,8 @@ pub(crate) mod openat2 {
     }
 
     /// Wrapper for `openat2(2)` which auto-sets `O_CLOEXEC | O_NOCTTY`.
-    // NOTE: rustix's openat2 wrapper is not extensible-friendly so we use our own
-    // for now. See <https://github.com/bytecodealliance/rustix/issues/1186>.
+    // NOTE: rustix's openat2 wrapper is not extensible-friendly so we use our
+    // own for now. See <https://github.com/bytecodealliance/rustix/issues/1186>.
     pub(crate) fn openat2_follow(
         dirfd: impl AsFd,
         path: impl AsRef<Path>,

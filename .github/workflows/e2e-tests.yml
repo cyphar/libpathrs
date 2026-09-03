@@ -19,6 +19,7 @@ on:
     types: [ published ]
   schedule:
     - cron: '0 0 * * *'
+  workflow_dispatch:
 
 name: e2e-tests
 
@@ -41,7 +42,7 @@ jobs:
         lang-desc: [""]
         include:
           # Test minimum python version.
-          # TODO: Switch to python 3.9 (pathrs bindings version).
+          # TODO: Switch to python 3.10 (pathrs bindings version).
           #       typing.Self: python >= 3.11
           #       match: python >= 3.10
           - lang: python

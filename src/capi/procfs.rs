@@ -222,7 +222,8 @@ impl From<ProcfsBase> for CProcfsBase {
                 //   type_of<pid>::MAX & _PATHRS_PROC_TYPE_MASK,
                 //   0,
                 // );
-                // static_assertions::const_assert_eq!(type_of<pid>::MAX, u32::MAX);
+                // static_assertions::const_assert_eq!(type_of<pid>::MAX,
+                // u32::MAX);
 
                 // We know this to be true from the check in the above TryFrom
                 // impl for ProcfsBase, but add an assertion here since we
@@ -468,7 +469,8 @@ pub unsafe extern "C" fn pathrs_proc_openat(
 ) -> RawFd {
     || -> Result<_, Error> {
         let base = base.try_into()?;
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path) }?;
         let oflags = OpenFlags::from_bits_retain(flags);
         let procfs = parse_proc_rootfd(proc_rootfd)?;
 
@@ -605,7 +607,8 @@ pub unsafe extern "C" fn pathrs_proc_readlinkat(
 ) -> c_int {
     || -> Result<_, Error> {
         let base = base.try_into()?;
-        let path = unsafe { utils::parse_path(path) }?; // SAFETY: C caller guarantees path is safe.
+        // SAFETY: C caller guarantees path is safe.
+        let path = unsafe { utils::parse_path(path) }?;
         let procfs = parse_proc_rootfd(proc_rootfd)?;
         let link_target = procfs.readlink(base, path)?;
         // SAFETY: C caller guarantees buffer is at least linkbuf_size and can

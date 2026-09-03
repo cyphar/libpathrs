@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 # SPDX-License-Identifier: MPL-2.0
 #
 # libpathrs: safe path resolution on Linux
@@ -9,19 +8,18 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import io
-import os
-import sys
 import copy
 import errno
 import fcntl
-
+import io
+import os
+import sys
 import typing
 from types import TracebackType
-from typing import Any, Dict, IO, Optional, TextIO, Type, TypeVar, Union
+from typing import IO, Any, ClassVar, TextIO, TypeAlias, TypeVar
 
 # TODO: Remove this once we only support Python >= 3.11.
-from typing_extensions import Self, TypeAlias
+from typing_extensions import Self
 
 from ._libpathrs_cffi import lib as libpathrs_so
 
@@ -52,7 +50,7 @@ def _pystr(cstr: CString) -> str:
 
 
 def _cbuffer(size: int) -> CBuffer:
-    return ffi.new("char[%d]" % (size,))
+    return ffi.new(f"char[{size}]")
 
 
 def _is_pathrs_err(ret: int) -> bool:
@@ -68,10 +66,10 @@ class PathrsError(Exception):
     """
 
     message: str
-    errno: Optional[int]
-    strerror: Optional[str]
+    errno: int | None
+    strerror: str | None
 
-    def __init__(self, message: str, /, *, errno: Optional[int] = None):
+    def __init__(self, message: str, /, *, errno: int | None = None):
         # Construct Exception.
         super().__init__(message)
 
@@ -88,7 +86,7 @@ class PathrsError(Exception):
                 self.strerror = str(errno)
 
     @classmethod
-    def _fetch(cls, err_id: int, /) -> Optional[Self]:
+    def _fetch(cls, err_id: int, /) -> Self | None:
         if err_id >= 0:
             return None
 
@@ -109,10 +107,10 @@ class PathrsError(Exception):
         if self.errno is None:
             return self.message
         else:
-            return "%s (%s)" % (self.message, self.strerror)
+            return f"{self.message} ({self.strerror})"
 
     def __repr__(self) -> str:
-        return "Error(%r, errno=%r)" % (self.message, self.errno)
+        return f"Error({self.message!r}, errno={self.errno!r})"
 
     def pprint(self, out: TextIO = sys.stdout) -> None:
         "Pretty-print the error to the given @out file."
@@ -120,8 +118,8 @@ class PathrsError(Exception):
         if self.errno is None:
             print("pathrs error:", file=out)
         else:
-            print("pathrs error [%s]:" % (self.strerror,), file=out)
-        print("  %s" % (self.message,), file=out)
+            print(f"pathrs error [{self.strerror}]:", file=out)
+        print(f"  {self.message}", file=out)
 
 
 INTERNAL_ERROR = PathrsError("tried to fetch libpathrs error but no error found")
@@ -131,7 +129,7 @@ class FilenoFile(typing.Protocol):
     def fileno(self) -> int: ...
 
 
-FileLike = Union[FilenoFile, int]
+FileLike = FilenoFile | int
 
 
 def _fileno(file: FileLike) -> int:
@@ -151,7 +149,7 @@ def _clonefile(file: FileLike) -> int:
 Fd = TypeVar("Fd", bound="WrappedFd")
 
 
-class WrappedFd(object):
+class WrappedFd:
     """
     Represents a file descriptor that allows for manual lifetime management,
     unlike os.fdopen() which are tracked by the GC with no way of "leaking" the
@@ -160,7 +158,7 @@ class WrappedFd(object):
     pathrs will return WrappedFds for most operations that return an fd.
     """
 
-    _fd: Optional[int]
+    _fd: int | None
 
     def __init__(self, file: FileLike, /):
         """
@@ -233,12 +231,12 @@ class WrappedFd(object):
             raise
 
     @classmethod
-    def from_raw_fd(cls: Type[Fd], fd: int, /) -> Fd:
+    def from_raw_fd(cls, fd: int, /) -> Self:
         "Shorthand for WrappedFd(fd)."
         return cls(fd)
 
     @classmethod
-    def from_file(cls: Type[Fd], file: FileLike, /) -> Fd:
+    def from_file(cls, file: FileLike, /) -> Self:
         "Shorthand for WrappedFd(file)."
         return cls(file)
 
@@ -288,7 +286,7 @@ class WrappedFd(object):
         # A "shallow copy" of a file is the same as a deep copy.
         return copy.deepcopy(self)
 
-    def __deepcopy__(self, memo: Dict[int, Any]) -> Self:
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
         "Identical to WrappedFd.clone()"
         return self.clone()
 
@@ -301,9 +299,9 @@ class WrappedFd(object):
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        exc_traceback: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None,
     ) -> None:
         self.close()
 
@@ -349,9 +347,9 @@ def _convert_mode(mode: str) -> int:
 class SingletonClass(type):
     """Metaclass used to create singleton classes."""
 
-    _instances: dict[type, Type[Any]] = {}
+    _instances: ClassVar[dict[type, type[Any]]] = {}
 
     def __call__(cls, *args, **kwargs):  # type: ignore[no-untyped-def] # TODO: Not clear what annotations to use, and mypy appears to be confused by metaclasses.
         if cls not in cls._instances:
-            cls._instances[cls] = super(SingletonClass, cls).__call__(*args, **kwargs)
+            cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]

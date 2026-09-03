@@ -13,12 +13,14 @@
 # build of libpathrs, and can be redistributed alongside the pathrs.py wrapping
 # library). It's much better than the ABI-mode of CFFI.
 
-import re
-import os
-import sys
+# TODO: Remove this once we only support Python >= 3.10.
+from __future__ import annotations  # PEP 604
 
-from typing import Any, Optional
+import os
+import re
+import sys
 from collections.abc import Iterable
+from typing import Any
 
 import cffi
 
@@ -97,7 +99,7 @@ def find_rootdir() -> str:
     return root_dir
 
 
-def srcdir_ffibuilder(root_dir: Optional[str] = None) -> cffi.FFI:
+def srcdir_ffibuilder(root_dir: str | None = None) -> cffi.FFI:
     """
     Build the CFFI bindings using the provided root_dir as the root of a
     pathrs source tree which has compiled cdylibs ready in target/*.
@@ -108,7 +110,7 @@ def srcdir_ffibuilder(root_dir: Optional[str] = None) -> cffi.FFI:
 
     # Figure out which libs are usable.
     library_dirs: Iterable[str] = (
-        os.path.join(root_dir, "target/%s/libpathrs.so" % (mode,))
+        os.path.join(root_dir, f"target/{mode}/libpathrs.so")
         for mode in ("debug", "release")
     )
     library_dirs = (so_path for so_path in library_dirs if os.path.exists(so_path))

@@ -60,9 +60,9 @@ fn main() {
         };
         if is_cdylib {
             let name = "pathrs";
-            // TODO: Since we use symbol versioning, it seems quite unlikely that we
-            // would ever bump the major version in the SONAME, so we should
-            // probably hard-code this or define it elsewhere.
+            // TODO: Since we use symbol versioning, it seems quite unlikely
+            // that we would ever bump the major version in the SONAME, so we
+            // should probably hard-code this or define it elsewhere.
             let major = env::var("CARGO_PKG_VERSION_MAJOR").unwrap();
             println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,lib{name}.so.{major}");
 
@@ -76,9 +76,9 @@ fn main() {
                 .expect("mktemp should be utf-8 safe string");
             writeln!(
                 version_script_file,
-                // All of the symbol versions are done with in-line .symver entries.
-                // This version script is only needed to define the version nodes
-                // (and their dependencies).
+                // All of the symbol versions are done with in-line .symver
+                // entries. This version script is only needed to define the
+                // version nodes (and their dependencies).
                 // FIXME: "local" doesn't appear to actually hide symbols in the
                 // output .so. For more information about getting all of this to
                 // work nicely, see <https://internals.rust-lang.org/t/23626>.
@@ -91,20 +91,21 @@ fn main() {
             .expect("write version script");
             println!("cargo:rustc-cdylib-link-arg=-Wl,--version-script={version_script_path}");
 
-            // The above version script (and our .symver setup) conflicts with the
-            // version script and options used by Rust when linking with GNU ld.
-            // Thankfully, lld Just Works(TM) out of the box so we can use it.
+            // The above version script (and our .symver setup) conflicts with
+            // the version script and options used by Rust when linking with GNU
+            // ld. Thankfully, lld Just Works(TM) out of the box so we can use
+            // it.
             //
-            // Rust 1.90 switched to lld by default for x86, but for older versions
-            // and other architectures it is necessary to specify the linker as lld
-            // (there was also a rustflag for this but it was unstable until Rust
-            // 1.90).
+            // Rust 1.90 switched to lld by default for x86, but for older
+            // versions and other architectures it is necessary to specify the
+            // linker as lld (there was also a rustflag for this but it was
+            // unstable until Rust 1.90).
             //
-            // Unfortunately, while there are some clever tricks you could use for
-            // GNU ld (such as writing an ld wrapper and executing it with "cc -B"),
-            // doing so produces useless symbol versions so it's better to just
-            // require lld. Debian bullseye and later all have lld, so this is a
-            // non-issue for packagers.
+            // Unfortunately, while there are some clever tricks you could use
+            // for GNU ld (such as writing an ld wrapper and executing it with
+            // "cc -B"), doing so produces useless symbol versions so it's
+            // better to just require lld. Debian bullseye and later all have
+            // lld, so this is a non-issue for packagers.
             println!("cargo:rustc-cdylib-link-arg=-fuse-ld=lld");
         }
     }

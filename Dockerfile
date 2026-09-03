@@ -111,9 +111,9 @@ RUN CARGO_BINSTALL_VERSION="$CARGO_BINSTALL_VERSION" \
         curl -L --proto '=https' --tlsv1.2 -sSf \
             "https://raw.githubusercontent.com/cargo-bins/cargo-binstall/v$CARGO_BINSTALL_VERSION/install-from-binstall-release.sh" | bash
 
-ARG CARGO_LLVM_COV_VERSION=0.8.7
+ARG CARGO_LLVM_COV_VERSION=0.9.0
 ARG CARGO_HACK_VERSION=0.6.45
-ARG CARGO_NEXTEST_VERSION=0.9.137
+ARG CARGO_NEXTEST_VERSION=0.9.143
 RUN cargo binstall --no-confirm \
         "cargo-llvm-cov@$CARGO_LLVM_COV_VERSION" \
         "cargo-hack@$CARGO_HACK_VERSION" \
@@ -121,8 +121,8 @@ RUN cargo binstall --no-confirm \
 
 ARG RUST_NIGHTLY=nightly-2026-06-03
 RUN rustup toolchain install "$RUST_NIGHTLY" && \
-    rustup component add llvm-tools llvm-tools-preview && \
-    rustup component add --toolchain "$RUST_NIGHTLY" llvm-tools llvm-tools-preview
+    rustup component add llvm-tools && \
+    rustup component add --toolchain "$RUST_NIGHTLY" llvm-tools
 ENV CARGO_NIGHTLY="cargo +$RUST_NIGHTLY"
 
 # We want the installed libpathrs library for the Python and Go tests.
