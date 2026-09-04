@@ -21,4 +21,10 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-
+  # Dependencies listed in e2e-tests/cmd/go/go.{mod,sum}.
+  # NOTE: We do not auto-bump go-pathrs or examples/go because we want to
+  # continue to support Go 1.18 for as long as reasonable.
+  - package-ecosystem: "gomod"
+    directory: "/e2e-tests/cmd/go"
+    schedule:
+      interval: "daily"
