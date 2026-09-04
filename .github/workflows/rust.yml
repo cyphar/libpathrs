@@ -130,7 +130,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # Pin the Rust version to avoid Rust updates breaking our clippy lints.
-      - uses: dtolnay/rust-toolchain@1.88
+      - uses: dtolnay/rust-toolchain@1.98
         with:
           components: clippy
       - uses: taiki-e/install-action@cargo-hack
