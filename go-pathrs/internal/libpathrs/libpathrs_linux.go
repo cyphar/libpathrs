@@ -217,7 +217,13 @@ func InRootHardlink(oldRootFd uintptr, oldPath string, newRootFd uintptr, newPat
 }
 
 // ProcBase is pathrs_proc_base_t (uint64_t).
-type ProcBase C.pathrs_proc_base_t
+//
+// FIXME: cbindgen v0.29.3 switched to outputting C23 fixed-type enum syntax
+// and making pathrs_proc_base_t a typedef of the enum. CGo treats all enum
+// members as an int64 despite the fixed-type declaration, causing spurious
+// errors about overflows. Thus we have to hardcode the type on the Go side.
+// See <https://github.com/mozilla/cbindgen/pull/1156>.
+type ProcBase uint64
 
 // FIXME: We need to open-code the constants because CGo's handling of
 // non-literal constants (i.e., those resolved using the C compiler) that don't
