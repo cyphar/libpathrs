@@ -24,7 +24,7 @@ on:
 name: e2e-tests
 
 env:
-  BATS_VERSION: "1.11.1"
+  BATS_VERSION: "1.14.0"
   CI_IMAGE: cyphar/libpathrs:ci-latest
 
 jobs:
