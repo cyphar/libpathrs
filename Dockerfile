@@ -29,7 +29,7 @@
 #  along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 ARG DEBIAN_RELEASE=trixie
-ARG RUST_VERSION=1.96
+ARG RUST_VERSION=1.98
 
 # --------------------------------------------------------------------------- #
 # build: builds libpathrs for use by CI and the "install" image.
@@ -76,7 +76,7 @@ RUN ldconfig
 # ci: full test runner for CI and local test runs.
 # This can run the Rust unit/integration tests and the e2e tests.
 # ----------------------------------------------------------------------------
-ARG RUST_VERSION=1.96
+ARG RUST_VERSION=1.98
 FROM rust:${RUST_VERSION}-${DEBIAN_RELEASE} AS ci
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -106,7 +106,7 @@ RUN apt-get update -y && \
 ENV GOCACHE=/tmp/go-cache/build
 ENV GOMODCACHE=/tmp/go-cache/mod
 
-ARG CARGO_BINSTALL_VERSION=1.19.1
+ARG CARGO_BINSTALL_VERSION=1.22.0
 RUN CARGO_BINSTALL_VERSION="$CARGO_BINSTALL_VERSION" \
         curl -L --proto '=https' --tlsv1.2 -sSf \
             "https://raw.githubusercontent.com/cargo-bins/cargo-binstall/v$CARGO_BINSTALL_VERSION/install-from-binstall-release.sh" | bash
@@ -119,7 +119,7 @@ RUN cargo binstall --no-confirm \
         "cargo-hack@$CARGO_HACK_VERSION" \
         "cargo-nextest@$CARGO_NEXTEST_VERSION"
 
-ARG RUST_NIGHTLY=nightly-2026-06-03
+ARG RUST_NIGHTLY=nightly-2026-09-03
 RUN rustup toolchain install "$RUST_NIGHTLY" && \
     rustup component add llvm-tools && \
     rustup component add --toolchain "$RUST_NIGHTLY" llvm-tools

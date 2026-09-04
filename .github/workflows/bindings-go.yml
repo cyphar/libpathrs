@@ -24,7 +24,7 @@ on:
 name: bindings-go
 
 env:
-  GO_VERSION: 1.25.x
+  GO_VERSION: 1.27.x
 
 jobs:
   lint:
@@ -44,7 +44,7 @@ jobs:
       # Run golangci-lint.
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.5
+          version: v2.13
           working-directory: go-pathrs
 
   go-fix:
