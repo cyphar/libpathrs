@@ -38,6 +38,7 @@ of this nature, and so we anticipate this list is much longer than given here.
 * [CVE-2024-12747](https://kb.cert.org/vuls/id/952657)
 * [CVE-2025-31133](https://github.com/opencontainers/runc/security/advisories/GHSA-9493-h29p-rfm2)
 * [CVE-2025-52565](https://github.com/opencontainers/runc/security/advisories/GHSA-qw9x-cqr3-wc7r)
+* [CVE-2026-23954](https://github.com/lxc/incus/security/advisories/GHSA-7f67-crqm-jgh7)
 * [CVE-2026-33711](https://github.com/lxc/incus/security/advisories/GHSA-q9vp-3wcg-8p4x)
 * [CVE-2026-33897](https://github.com/lxc/incus/security/advisories/GHSA-83xr-5xxr-mh92)
 * [CVE-2026-33945](https://github.com/lxc/incus/security/advisories/GHSA-q4q8-7f2j-9h9f)
@@ -47,10 +48,34 @@ of this nature, and so we anticipate this list is much longer than given here.
   (which libpathrs does not yet support) and usage of libpathrs itself would
   not have avoided the issue, but being forced to write file-handle-based code
   (which libpathrs does) would've avoided it.
+* [CVE-2026-46703](https://github.com/boxlite-ai/boxlite/security/advisories/GHSA-f396-4rp4-7v2j)
 * [CVE-2026-48749](https://github.com/lxc/incus/security/advisories/GHSA-2q3f-q5pq-g8wv)
 * [CVE-2026-48750](https://github.com/lxc/incus/security/advisories/GHSA-73hr-m85f-64v9)
 * [CVE-2026-48752](https://github.com/lxc/incus/security/advisories/GHSA-vxp5-584q-c479)
+* [CVE-2026-48753](https://github.com/lxc/incus/security/advisories/GHSA-ccjc-4qc3-jxqc)
 * [CVE-2026-48769](https://github.com/lxc/incus/security/advisories/GHSA-f6m5-xw2g-xc4x)
+* [CVE-2026-53783](https://github.com/RsyncProject/rsync/security/advisories/GHSA-9cgc-64g4-3gv5)
+* [CVE-2026-53784](https://github.com/RsyncProject/rsync/security/advisories/GHSA-ffg2-fr5g-3rxw)
+* [CVE-2026-53785](https://github.com/RsyncProject/rsync/security/advisories/GHSA-pph3-7xmf-rrqg)
+* [CVE-2026-53793](https://github.com/RsyncProject/rsync/security/advisories/GHSA-wj7w-vh23-mm44)
+* [CVE-2026-53795](https://github.com/RsyncProject/rsync/security/advisories/GHSA-m9vj-637x-v6pq)
+* [CVE-2026-53796](https://github.com/RsyncProject/rsync/security/advisories/GHSA-w75h-ccff-w53m)
+* [CVE-2026-53797](https://github.com/RsyncProject/rsync/security/advisories/GHSA-3jj3-qvc7-jp6x)
+* [CVE-2026-53799](https://github.com/RsyncProject/rsync/security/advisories/GHSA-phxh-hjqv-39c9)
+* [CVE-2026-53800](https://github.com/RsyncProject/rsync/security/advisories/GHSA-v3vw-pvpg-chwh)
+* [CVE-2026-53801](https://github.com/RsyncProject/rsync/security/advisories/GHSA-mch3-qr4p-chgm)
+* [CVE-2026-53802](https://github.com/RsyncProject/rsync/security/advisories/GHSA-4mfr-8jrv-49x4)
+* [CVE-2026-53803](https://github.com/RsyncProject/rsync/security/advisories/GHSA-g9f4-7q66-9582)
+* [CVE-2026-63125](https://github.com/lxc/incus/security/advisories/GHSA-6rqx-22hc-qm36)
+* [CVE-2026-63343](https://github.com/lxc/incus/security/advisories/GHSA-fmjx-5j3g-997p)
+* [CVE-2026-70460](https://github.com/RsyncProject/rsync/security/advisories/GHSA-w3xf-j2r2-gv4x)
+* [CVE-2026-81493](https://github.com/lxc/incus/security/advisories/GHSA-p2v3-6wvc-cv3p)
+* [CVE-2026-81494](https://github.com/lxc/incus/security/advisories/GHSA-7fj9-65v4-rp7h)
+* [CVE-2026-81495](https://github.com/lxc/incus/security/advisories/GHSA-67qw-68v3-36h6)
+* [CVE-2026-81496](https://github.com/lxc/incus/security/advisories/GHSA-26gp-p5fw-3r2h)
+* [CVE-2026-81497](https://github.com/lxc/incus/security/advisories/GHSA-4qxq-p5hm-3q3p)
+* [CVE-2026-81500](https://github.com/lxc/incus/security/advisories/GHSA-9pqw-c7m4-xvg7)
+* [CVE-2026-85706](https://hackerone.com/reports/3909881)
 
 [RedSun]: https://web.archive.org/web/20260521144507/https://github.com/Nightmare-Eclipse/RedSun
 [BlueHammer]: https://web.archive.org/web/20260406225410/https://github.com/Nightmare-Eclipse/BlueHammer
