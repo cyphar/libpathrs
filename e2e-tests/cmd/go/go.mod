@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	cyphar.com/go-pathrs v0.2.0
-	github.com/urfave/cli/v3 v3.12.0
+	github.com/urfave/cli/v3 v3.13.0
 	golang.org/x/sys v0.41.0
 )
 
