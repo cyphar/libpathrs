@@ -249,6 +249,12 @@ jobs:
         run: sudo apt-get install -y lld
       - run: make debug
       - run: make release
+      - if: matrix.rust-version == 'nightly'
+        name: make release LIBPATHRS_NO_BACKTRACE=1
+        run: |
+          rustup component add rust-src
+          make clean
+          make release LIBPATHRS_NO_BACKTRACE=1
 
   rustdoc:
     name: cargo doc
