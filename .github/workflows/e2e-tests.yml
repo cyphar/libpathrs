@@ -66,7 +66,7 @@ jobs:
       ${{
         format('({0}{1})',
           matrix.lang-desc || matrix.lang,
-          matrix.run-as && format(', {0}', matrix.run-as) || '',
+          matrix.run-as && format(', {0}', matrix.run-as) || ''
         )
       }}
     runs-on: ubuntu-latest
@@ -124,7 +124,8 @@ jobs:
       # Run tests.
       - name: make -C e2e-tests test-${{ matrix.lang }}
         run: |-
-          export BATS=$(which bats)
+          BATS="$(which bats)"
+          export BATS
           make -C e2e-tests RUN_AS=${{ matrix.run-as }} test-${{ matrix.lang }}
 
   ctr-ci-image:
@@ -202,9 +203,10 @@ jobs:
       - run: >-
           mkdir -p ./target && chmod a+rwx ./target
       - name: ${{ matrix.runtime }} run ${{ matrix.lang }} e2e-tests (run as ${{ matrix.run-as }})
-        run: >-
+        run: |-
+          # shellcheck disable=SC2086 # CONTAINER_RUN_ARGS needs word-splitting.
           "$CONTAINER_RUNTIME" run --rm $CONTAINER_RUN_ARGS \
-            -v $PWD/target:/usr/src/libpathrs/target \
+            -v "$PWD/target:/usr/src/libpathrs/target" \
             "$CI_IMAGE" \
               make -C e2e-tests "test-$E2E_LANG"
 

@@ -114,6 +114,7 @@ lint-rust:
 .PHONY: lint-gha
 lint-gha:
 	$(ZIZMOR) .github/
+	go run github.com/rhysd/actionlint/cmd/actionlint@latest
 
 .PHONY: validate-cbindgen
 validate-cbindgen:

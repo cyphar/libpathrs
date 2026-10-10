@@ -15,6 +15,9 @@ on:
 
 name: lint-gha
 
+env:
+  ACTIONLINT_VERSION: "v1.7.12"
+
 permissions:
   contents: read
 
@@ -34,3 +37,19 @@ jobs:
           # uploading SARIF results, which requires GitHub code scanning.
           advanced-security: false
           annotations: true
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
+      # NOTE: shellcheck is pre-installed on GitHub's Ubuntu runners, so
+      # actionlint will also lint run: scripts.
+      - name: run actionlint
+        run: go run "github.com/rhysd/actionlint/cmd/actionlint@$ACTIONLINT_VERSION"
