@@ -123,6 +123,7 @@ lint-rust:
 .PHONY: lint-gha
 lint-gha:
 	$(ZIZMOR) .github/
+	go run actionlint.kjanat.dev/cmd/actionlint@latest
 
 .PHONY: validate-cbindgen
 validate-cbindgen:

@@ -147,12 +147,14 @@ jobs:
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo check --target=${{ matrix.target }}
-        run: >-
+        run: |-
+          # shellcheck disable=SC2086 # BUILD_STD_FLAGS may be empty.
           cargo hack --each-feature --keep-going \
             check --target=${{ matrix.target }} --all-targets \
             $BUILD_STD_FLAGS
       - name: cargo build --target=${{ matrix.target }}
-        run: >-
+        run: |-
+          # shellcheck disable=SC2086 # BUILD_STD_FLAGS may be empty.
           cargo hack --each-feature --keep-going \
             build --target=${{ matrix.target }} --release \
             $BUILD_STD_FLAGS
@@ -169,8 +171,8 @@ jobs:
           CRATE_VERSION="$(cargo metadata --no-deps --format-version=1 | jq -rM '.packages[] | select(.name == "pathrs") | .version')"
           echo "CRATE_VERSION=$CRATE_VERSION" >>"$GITHUB_ENV"
       - run: ./hack/release.sh
-      - run: tar tvf ./release/${CRATE_VERSION}/libpathrs-${CRATE_VERSION}.tar.xz
-      - run: tar tvf ./release/${CRATE_VERSION}/libpathrs.vendor.tar.zst
+      - run: tar tvf "./release/$CRATE_VERSION/libpathrs-$CRATE_VERSION.tar.xz"
+      - run: tar tvf "./release/$CRATE_VERSION/libpathrs.vendor.tar.zst"
 
   fmt:
     name: rustfmt
@@ -450,7 +452,7 @@ jobs:
           format('({0}, {1}{2})',
             fromJSON(matrix.tests).name,
             matrix.run-as,
-            matrix.enosys && format(', {0}=enosys', matrix.enosys) || '',
+            matrix.enosys && format(', {0}=enosys', matrix.enosys) || ''
           )
       }}
     steps:
@@ -613,9 +615,10 @@ jobs:
       - run: >-
           mkdir -p ./target && chmod a+rwx ./target
       - name: ${{ matrix.runtime }} run ./hack/rust-tests.sh (run as ${{ matrix.run-as }})
-        run: >-
+        run: |-
+          # shellcheck disable=SC2086 # CONTAINER_RUN_ARGS needs word-splitting.
           "$CONTAINER_RUNTIME" run --rm $CONTAINER_RUN_ARGS \
-            -v $PWD/target:/usr/src/libpathrs/target \
+            -v "$PWD/target:/usr/src/libpathrs/target" \
             "$CI_IMAGE" \
               ./hack/rust-tests.sh "$NEXTEST_PATTERN_SPEC"
       - run: >-
@@ -784,8 +787,8 @@ jobs:
           echo "LIB_FILENAME=$libfile" >>"$GITHUB_ENV"
       - name: strip ${{ matrix.libtype }}
         run: |-
-          cp target/release/$LIB_FILENAME{,.nostrip}
-          strip target/release/$LIB_FILENAME
+          cp "target/release/$LIB_FILENAME"{,.nostrip}
+          strip "target/release/$LIB_FILENAME"
       - name: compute ${{ matrix.libtype }} binary size
         run: |-
           LIB_SIZE="$(stat -c "%s" "target/release/$LIB_FILENAME" | numfmt --to=si --suffix=B)"
