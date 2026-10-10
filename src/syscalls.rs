@@ -670,6 +670,18 @@ pub(crate) fn fstatfs(fd: impl AsFd) -> Result<StatFs, Error> {
     })
 }
 
+/// Shorthand for [`fstatfs(...)`][fstatfs]`?.f_type as u64`.
+///
+/// This is needed because on some architecture and libc combinations (notably
+/// musl on s390x) [`rustix::fs::FsWord`] and [`rustix::fs::StatFs`]`.f_type`
+/// are incompatbile and so attempts to compare the two fail to compile. It's a
+/// much smaller headache to use [`u64`] everywhere (in practice these are all
+/// [`u32`]).
+#[allow(clippy::unnecessary_cast)]
+pub(crate) fn fstatfs_type(fd: impl AsFd) -> Result<u64, Error> {
+    fstatfs(fd).map(|statfs| statfs.f_type as u64)
+}
+
 /// Wrapper for `fstatat(2)`, which auto-sets `AT_NO_AUTOMOUNT |
 /// AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH`.
 ///

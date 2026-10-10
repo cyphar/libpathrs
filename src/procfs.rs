@@ -78,7 +78,7 @@ use std::{
 
 use once_cell::sync::{Lazy, OnceCell as OnceLock};
 use rustix::{
-    fs::{self as rustix_fs, Access, AtFlags},
+    fs::{Access, AtFlags},
     mount::{FsMountFlags, FsOpenFlags, MountAttrFlags, OpenTreeFlags},
 };
 
@@ -972,21 +972,27 @@ impl ProcfsHandle {
     }
 }
 
+/// Eqiuvalent to [`rustix::fs::PROC_SUPER_MAGIC`] but cast to [`u64`]
+/// explicitly.
+///
+/// On some architecture and libc combinations (notably musl on s390x) the type
+/// of these constants doesn't match the types in [`rustix::fs::StatFs`].
+// TODO: Ideally this would be fixed in rustix or libc. For more details, see
+// <https://github.com/bytecodealliance/rustix/issues/1694>
+pub(crate) const PROC_SUPER_MAGIC: u64 = 0x0000_9fa0;
+
 pub(crate) fn verify_is_procfs(fd: impl AsFd) -> Result<(), Error> {
-    let fs_type = syscalls::fstatfs(fd)
-        .map_err(|err| ErrorImpl::RawOsError {
-            operation: "fstatfs proc handle".into(),
-            source: err,
-        })?
-        .f_type;
-    if fs_type != rustix_fs::PROC_SUPER_MAGIC {
+    let fs_type = syscalls::fstatfs_type(fd).map_err(|err| ErrorImpl::RawOsError {
+        operation: "fstatfs proc handle".into(),
+        source: err,
+    })?;
+    if fs_type != PROC_SUPER_MAGIC {
         Err(ErrorImpl::OsError {
             operation: "verify fd is from procfs".into(),
             source: IOError::from_raw_os_error(libc::EXDEV),
         })
         .wrap(format!(
-            "fstype mismatch in restricted procfs resolver (f_type is 0x{fs_type:X}, not 0x{:X})",
-            rustix_fs::PROC_SUPER_MAGIC,
+            "fstype mismatch in restricted procfs resolver (f_type is 0x{fs_type:X}, not 0x{PROC_SUPER_MAGIC:X})",
         ))?
     }
     Ok(())
