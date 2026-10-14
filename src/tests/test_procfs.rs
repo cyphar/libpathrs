@@ -326,6 +326,12 @@ procfs_tests! {
     magiclink_fd0: open(self, "fd/0", O_PATH) => (error: ErrOvermount("/proc/self/fd/0", ErrorKind::OsError(Some(libc::EXDEV))));
     magiclink_fd0: open_follow(self, "fd/0", O_RDONLY) => (error: ErrOvermount("/proc/self/fd/0", ErrorKind::OsError(Some(libc::EXDEV))));
     magiclink_fd0: readlink(self, "fd/0") => (error: ErrOvermount("/proc/self/fd/0", ErrorKind::OsError(Some(libc::EXDEV))));
+    // Paths with embedded nul bytes must be rejected rather than silently
+    // truncated (the truncated paths would succeed).
+    nul_byte: open(self, "status\0garbage", O_RDONLY) => (error: Err(ErrorKind::OsError(Some(libc::EINVAL))));
+    nul_byte: open_follow(self, "status\0garbage", O_RDONLY) => (error: Err(ErrorKind::OsError(Some(libc::EINVAL))));
+    nul_byte: readlink(self, "cwd\0garbage") => (error: Err(ErrorKind::OsError(Some(libc::EINVAL))));
+    nul_byte_global: open(ProcfsBase::ProcRoot, "filesystems\0garbage", O_RDONLY) => (error: Err(ErrorKind::OsError(Some(libc::EINVAL))));
     // Behaviour-related testing.
     nondir_odir: open_follow(self, "environ", O_DIRECTORY|O_RDONLY) => (error: Err(ErrorKind::OsError(Some(libc::ENOTDIR))));
     nondir_trailing_slash: open_follow(self, "environ/", O_RDONLY) => (error: Err(ErrorKind::OsError(Some(libc::ENOTDIR))));

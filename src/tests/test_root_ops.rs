@@ -918,6 +918,31 @@ root_op_tests! {
     root_dotdot: mkdir_all("..", 0o755) => Ok(());
     root_dotdot_trailing_slash: mkdir_all("../", 0o755) => Ok(());
 
+    // Paths with embedded nul bytes must be rejected rather than silently
+    // truncated. The paths are chosen such that the truncated path would
+    // succeed, so a truncating implementation would fail these tests.
+    nul_byte: mkfile("abc\0def", 0o444) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte: mkdir("abc\0def", 0o755) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte_path: symlink("abc\0def", "/NEWLINK") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte_target: symlink("abc", "/NEWLINK\0garbage") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte_path: hardlink("abc\0def", "b/c/file") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte_target: hardlink("abc", "b/c/file\0garbage") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte: mkfifo("abc\0def", 0o222) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte: mkblk("abc\0def", 0o001, 123, 456) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte: mkchar("abc\0def", 0o001, 123, 456) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte: create_file("abc\0def", O_RDONLY, 0o644) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte: open_subpath("b/c/file\0garbage", O_RDONLY) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte_parent: open_subpath("b/c\0garbage/file", O_RDONLY) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte: readlink("b-file\0garbage") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte: remove_dir("a\0garbage") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte: remove_file("b/c/file\0garbage") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte: remove_all("b\0garbage") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte_src: rename("b/c/file\0garbage", "bb-file", RenameFlags::empty()) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte_dst: rename("b/c/file", "bb-file\0garbage", RenameFlags::empty()) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte: mkdir_all("abc\0def", 0o755) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte_existing_parent: mkdir_all("b/c\0garbage/foo", 0o755) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+    nul_byte_missing_parent: mkdir_all("foo/bar\0garbage", 0o755) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+
     // Check that multiple mkdir_alls racing against each other will not result
     // in a spurious error. <https://github.com/opencontainers/runc/issues/4543>
     plain: mkdir_all_racing("a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z", 0o711) => Ok(());

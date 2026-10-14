@@ -85,7 +85,7 @@ fn inroot_open_v1() -> Result<(), Error> {
     let root = Root::open(root_dir.path()).context("Root::open basic tree")?;
 
     {
-        let path = capi_utils::path_to_cstring("b/c");
+        let path = capi_utils::path_to_cstring("b/c").context("convert path to C string")?;
         let oflags = OpenFlags::O_DIRECTORY | OpenFlags::O_RDONLY | OpenFlags::O_NOCTTY;
         // SAFETY: Called with valid C-like arguments.
         let file = capi_utils::call_capi_fd(|| unsafe {
@@ -101,7 +101,7 @@ fn inroot_open_v1() -> Result<(), Error> {
     }
 
     {
-        let path = capi_utils::path_to_cstring("b/c/file");
+        let path = capi_utils::path_to_cstring("b/c/file").context("convert path to C string")?;
         let oflags = OpenFlags::O_RDWR | OpenFlags::O_TRUNC | OpenFlags::O_DIRECT;
         // SAFETY: Called with valid C-like arguments.
         let file = capi_utils::call_capi_fd(|| unsafe {
@@ -117,7 +117,7 @@ fn inroot_open_v1() -> Result<(), Error> {
     }
 
     {
-        let path = capi_utils::path_to_cstring("b-file");
+        let path = capi_utils::path_to_cstring("b-file").context("convert path to C string")?;
         let oflags = OpenFlags::O_NOFOLLOW | OpenFlags::O_PATH;
         // SAFETY: Called with valid C-like arguments.
         let file = capi_utils::call_capi_fd(|| unsafe {
@@ -141,7 +141,8 @@ fn inroot_creat_v1() -> Result<(), Error> {
     let root = Root::open(root_dir.path()).context("Root::open basic tree")?;
 
     {
-        let path = capi_utils::path_to_cstring("b/c/new-file");
+        let path =
+            capi_utils::path_to_cstring("b/c/new-file").context("convert path to C string")?;
         let oflags = OpenFlags::O_RDWR | OpenFlags::O_NOCTTY | OpenFlags::O_EXCL;
         let mode = 0o644;
         // SAFETY: Called with valid C-like arguments.
@@ -167,8 +168,8 @@ fn inroot_creat_v1() -> Result<(), Error> {
 fn hardlink_v1() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
     let root = Root::open(root_dir.path()).context("Root::open basic tree")?;
-    let path1 = capi_utils::path_to_cstring("abc");
-    let path2 = capi_utils::path_to_cstring("b/c/file");
+    let path1 = capi_utils::path_to_cstring("abc").context("convert path to C string")?;
+    let path2 = capi_utils::path_to_cstring("b/c/file").context("convert path to C string")?;
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
@@ -208,8 +209,8 @@ fn hardlink_v2() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
     let root1 = Root::open(root_dir.path()).context("Root::open basic tree (#1)")?;
     let root2 = Root::open(root_dir.path()).context("Root::open basic tree (#2)")?;
-    let path1 = capi_utils::path_to_cstring("abc");
-    let path2 = capi_utils::path_to_cstring("b/c/file");
+    let path1 = capi_utils::path_to_cstring("abc").context("convert path to C string")?;
+    let path2 = capi_utils::path_to_cstring("b/c/file").context("convert path to C string")?;
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
@@ -250,8 +251,8 @@ fn hardlink_v2() -> Result<(), Error> {
 fn symlink_v1() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
     let root = Root::open(root_dir.path()).context("Root::open basic tree")?;
-    let path1 = capi_utils::path_to_cstring("abc");
-    let path2 = capi_utils::path_to_cstring("b/c/file");
+    let path1 = capi_utils::path_to_cstring("abc").context("convert path to C string")?;
+    let path2 = capi_utils::path_to_cstring("b/c/file").context("convert path to C string")?;
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
@@ -280,8 +281,8 @@ fn symlink_v1() -> Result<(), Error> {
 fn rename_v1() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
     let root = Root::open(root_dir.path()).context("Root::open basic tree")?;
-    let path1 = capi_utils::path_to_cstring("b/c/file");
-    let path2 = capi_utils::path_to_cstring("abc");
+    let path1 = capi_utils::path_to_cstring("b/c/file").context("convert path to C string")?;
+    let path2 = capi_utils::path_to_cstring("abc").context("convert path to C string")?;
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
@@ -318,8 +319,8 @@ fn rename_v2() -> Result<(), Error> {
     let root_dir = tests_common::create_basic_tree().context("create basic tree")?;
     let root1 = Root::open(root_dir.path()).context("Root::open basic tree (#1)")?;
     let root2 = Root::open(root_dir.path()).context("Root::open basic tree (#2)")?;
-    let path1 = capi_utils::path_to_cstring("b/c/file");
-    let path2 = capi_utils::path_to_cstring("abc");
+    let path1 = capi_utils::path_to_cstring("b/c/file").context("convert path to C string")?;
+    let path2 = capi_utils::path_to_cstring("abc").context("convert path to C string")?;
 
     assert_eq!(
         // SAFETY: Called with valid C-like arguments.
@@ -342,7 +343,7 @@ fn rename_v2() -> Result<(), Error> {
 
 #[test]
 fn procfs_open_v1() -> Result<(), Error> {
-    let path = capi_utils::path_to_cstring("stat");
+    let path = capi_utils::path_to_cstring("stat").context("convert path to C string")?;
     let oflags = OpenFlags::O_RDONLY | OpenFlags::O_NOFOLLOW;
     // SAFETY: Called with valid C-like arguments.
     let file = capi_utils::call_capi_fd(|| unsafe {
@@ -364,7 +365,7 @@ fn procfs_open_v1() -> Result<(), Error> {
 #[test]
 fn procfs_openat_v1() -> Result<(), Error> {
     let proc_rootfd = ProcfsHandle::new().context("ProcfsHandle::new")?;
-    let path = capi_utils::path_to_cstring("stat");
+    let path = capi_utils::path_to_cstring("stat").context("convert path to C string")?;
     let oflags = OpenFlags::O_RDONLY | OpenFlags::O_NOFOLLOW;
     // SAFETY: Called with valid C-like arguments.
     let file = capi_utils::call_capi_fd(|| unsafe {
