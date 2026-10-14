@@ -233,10 +233,10 @@ pathrs-cmd root --root <root> unlink <subpath>
 Calls `Root::remove_file` with the given `subpath` argument. (`subpath` needs
 to be a non-directory.)
 
-#### `remove-all` ####
+#### `rmdir-all` ####
 
 ```
-pathrs-cmd root --root <root> remove-all <subpath>
+pathrs-cmd root --root <root> rmdir-all <subpath>
 ```
 
 Calls `Root::remove_all` with the given `subpath` argument.
