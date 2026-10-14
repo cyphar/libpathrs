@@ -40,6 +40,12 @@ else:
 
 
 def _cstr(pystr: str) -> CString:
+    # C cannot express embedded nul bytes which means that paths and other
+    # string arguments get silently truncated (as ffi.new("char[]") happily
+    # copies them over), which results in unexpected behaviour for Python
+    # users. Python raises a ValueError in this case so just emulate that.
+    if "\0" in pystr:
+        raise ValueError(f"embedded null character in string {pystr!r}")
     return ffi.new("char[]", pystr.encode("utf8"))
 
 
