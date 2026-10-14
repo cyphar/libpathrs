@@ -35,7 +35,7 @@
 
 use crate::{
     flags::{OpenFlags, RenameFlags},
-    utils::{FdExt, ToCString},
+    utils::FdExt,
 };
 
 use std::{
@@ -60,6 +60,7 @@ use rustix::{
     },
     io::Errno,
     mount::{self as rustix_mount, FsMountFlags, FsOpenFlags, MountAttrFlags, OpenTreeFlags},
+    path::Arg,
     process::{self as rustix_process, DumpableBehavior},
     thread as rustix_thread,
 };
@@ -838,6 +839,20 @@ pub(crate) mod openat2 {
         let dirfd = dirfd.as_fd().check_rustix_fd()?;
         let path = path.as_ref();
 
+        // Use the same Path -> CStr logic that rustix does.
+        //
+        // Sadly rustix chose to use EINVAL instead of ENOENT for invalid path
+        // strings, but consistency is better I guess. I've sent
+        // <https://github.com/bytecodealliance/rustix/pull/1705> upstream to
+        // try to change this behaviour.
+        let c_path = path.into_c_str().map_err(|err| Error::Openat2 {
+            dirfd: dirfd.into(),
+            path: path.into(),
+            how,
+            size: std::mem::size_of::<OpenHow>(),
+            source: err,
+        })?;
+
         // Add O_CLOEXEC and O_NOCTTY explicitly (as we do for openat). However,
         // O_NOCTTY cannot be set if O_PATH is set (openat2 verifies flag
         // arguments).
@@ -863,7 +878,7 @@ pub(crate) mod openat2 {
                 libc::syscall(
                     libc::SYS_openat2,
                     dirfd.as_raw_fd(),
-                    path.to_c_string().as_ptr(),
+                    c_path.as_ptr(),
                     &how as *const OpenHow,
                     std::mem::size_of::<OpenHow>(),
                 )

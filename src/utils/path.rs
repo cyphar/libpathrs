@@ -34,33 +34,10 @@ use crate::error::{Error, ErrorImpl};
 
 use std::{
     collections::VecDeque,
-    ffi::{CString, OsStr, OsString},
+    ffi::{OsStr, OsString},
     os::unix::ffi::OsStrExt,
     path::Path,
 };
-
-pub(crate) trait ToCString {
-    /// Convert to a CStr.
-    fn to_c_string(&self) -> CString;
-}
-
-impl ToCString for OsStr {
-    fn to_c_string(&self) -> CString {
-        let filtered: Vec<_> = self
-            .as_bytes()
-            .iter()
-            .copied()
-            .take_while(|&c| c != b'\0')
-            .collect();
-        CString::new(filtered).expect("nul bytes should've been excluded")
-    }
-}
-
-impl ToCString for Path {
-    fn to_c_string(&self) -> CString {
-        self.as_os_str().to_c_string()
-    }
-}
 
 /// Helper to strip trailing / components from a path.
 pub(crate) fn path_strip_trailing_slash(path: &Path) -> (&Path, bool) {
