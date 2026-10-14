@@ -284,9 +284,7 @@ def parse_args(
 
     # root --root <root> ... commands
     root_parser = top_subparser.add_parser("root", help="Root::* operations")
-    root_parser.add_argument(
-        "--root", type=pathrs.Root, required=True, help="root path"
-    )
+    root_parser.add_argument("--root", required=True, help="root path")
     root_subparser = root_parser.add_subparsers()
 
     # root resolve [--reopen <flags>] [--[no-]follow] subpath
@@ -568,6 +566,8 @@ def main(*argv: str):
         )
 
     parser, args = parse_args(argv)
+    if "root" in args:
+        args.root = pathrs.Root(args.root)
     if args.func is not None:
         args.func(args)
     else:
