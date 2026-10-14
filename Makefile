@@ -53,6 +53,14 @@ RUSTC_FLAGS := -C panic=abort $(EXTRA_RUSTC_FLAGS)
 EXTRA_CARGO_FLAGS ?=
 CARGO_FLAGS := --features=capi $(EXTRA_CARGO_FLAGS)
 
+# If LIBPATHRS_NO_BACKTRACE is set, build without support for printing
+# a backtrace on panic to make the library smaller. Needs nightly Rust
+# (or RUSTC_BOOTSTRAP=1) and rust-src.
+LIBPATHRS_NO_BACKTRACE ?=
+ifneq ($(LIBPATHRS_NO_BACKTRACE),)
+CARGO_FLAGS += -Zbuild-std=std,panic_abort -Zbuild-std-features=
+endif
+
 SRC_FILES = $(wildcard Cargo.*) $(shell find . -name '*.rs')
 
 .DEFAULT: debug

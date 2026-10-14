@@ -100,6 +100,37 @@ explicitly specify `clang` as the linker driver:
 $ make release EXTRA_RUSTC_FLAGS="-C linker=clang"
 ```
 
+### Smaller Builds ###
+
+In some contexts it may be highly desirable for libpathrs to have as small a
+binary footprint as possible -- the most common usecase is that runc needs to
+create a copy of its binary which means any waste leads to container creation
+latency.
+
+By default, libpathrs is built against the prebuilt Rust standard library.
+Despite being built with `-C panic=abort` (which disables panic unwinding), the
+standard library was still built with the code to symbolize and print a
+backtrace on panic (including a DWARF parser and a decompressor). This code
+makes up a large part of the resulting library and Rust cannot figure out that
+it is dead code to eliminate it.
+
+You can make the library considerably smaller by rebuilding the standard
+library without backtrace support, which can be done by setting
+`LIBPATHRS_NO_BACKTRACE=1`. This requires the `rust-src` component, and either
+nightly Rust or `RUSTC_BOOTSTRAP=1` (which allows using unstable Cargo features
+with stable Rust):
+
+```bash
+$ rustup component add rust-src
+$ make release LIBPATHRS_NO_BACKTRACE=1                    # nightly Rust
+$ RUSTC_BOOTSTRAP=1 make release LIBPATHRS_NO_BACKTRACE=1  # stable Rust
+```
+
+Based on our testing, using `LIBPATHRS_NO_BACKTRACE=1` makes the stripped
+`libpathrs.so` about 40% smaller and `libpathrs.a` over 6 times smaller. Panics
+still print a message, but no backtrace. Note that the build takes longer,
+since the standard library is compiled from source.
+
 ### Vendored / Offline Builds ###
 
 If you have the vendored dependencies tarball (for offline builds), extract it
