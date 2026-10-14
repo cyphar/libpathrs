@@ -158,7 +158,7 @@ class WrappedFd:
     pathrs will return WrappedFds for most operations that return an fd.
     """
 
-    _fd: int | None
+    _fd: int | None = None
 
     def __init__(self, file: FileLike, /):
         """
