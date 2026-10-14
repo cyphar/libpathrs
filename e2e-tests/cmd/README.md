@@ -31,6 +31,23 @@ so tests should only ever test against the numerical `<errno code>`. Tests
 against `<error message>` are acceptable but should be used carefully as such
 tests could be brittle.
 
+If a binding rejects an invalid argument before calling into `libpathrs` (such
+as Python raising `ValueError` for strings containing nul bytes), the output
+should use `EINVAL` as the `<errno code>`.
+
+#### Escaped Arguments ####
+
+Some tests need to pass arguments that cannot normally be expressed via `argv`
+(namely, strings containing nul bytes). To facilitate this requirement,
+`pathrs-cmd` can be instructed to unescape `argv` arguments (with the exception
+of `argv[0]`) by setting the `PATHRS_CMD_UNESCAPE` environment variable to a
+non-empty value. Only the following escape sequences are valid:
+
+ * `\0` is decoded to a nul byte (`\x00`).
+ * `\\` is decoded to a single `\`.
+
+Any other use of `\` (including a trailing `\`) will result in a fatal error.
+
 ### `version` ###
 
 ```

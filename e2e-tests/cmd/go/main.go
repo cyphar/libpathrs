@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/urfave/cli/v3"
@@ -38,6 +39,32 @@ var versionCmd = &cli.Command{
 	},
 }
 
+// unescapeArg decodes the escape sequences in a command-line argument for
+// PATHRS_CMD_UNESCAPE=1.
+func unescapeArg(arg string) (string, error) {
+	var unescaped strings.Builder
+	for i := 0; i < len(arg); i++ {
+		if arg[i] != '\\' {
+			unescaped.WriteByte(arg[i])
+			continue
+		}
+		i++
+		if i >= len(arg) {
+			return "", fmt.Errorf("trailing unescaped '\\' in %q", arg)
+		}
+		// Only "\\" and "\0" are allowed.
+		switch arg[i] {
+		case '0':
+			unescaped.WriteByte(0)
+		case '\\':
+			unescaped.WriteByte('\\')
+		default:
+			return "", fmt.Errorf("invalid escape sequence '\\%c' in %q", arg[i], arg)
+		}
+	}
+	return unescaped.String(), nil
+}
+
 func Main(args []string) error {
 	if dumpableStr := os.Getenv("PR_SET_DUMPABLE"); dumpableStr != "" {
 		dumpable, err := strconv.ParseUint(dumpableStr, 10, 64)
@@ -46,6 +73,17 @@ func Main(args []string) error {
 		}
 		if err := unix.Prctl(unix.PR_SET_DUMPABLE, uintptr(dumpable), 0, 0, 0); err != nil {
 			return fmt.Errorf("failed to set PR_SET_DUMPABLE=%v: %w", dumpable, err)
+		}
+	}
+
+	if os.Getenv("PATHRS_CMD_UNESCAPE") != "" {
+		// We must skip argv[0].
+		for i := 1; i < len(args); i++ {
+			arg, err := unescapeArg(args[i])
+			if err != nil {
+				return fmt.Errorf("unescape argument (PATHRS_CMD_UNESCAPE is set): %w", err)
+			}
+			args[i] = arg
 		}
 	}
 
