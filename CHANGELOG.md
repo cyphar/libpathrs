@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   backtraces which makes our binaries much larger than necessary and the only
   workaround is to rebuild `rust-std` with the backtrace support disabled. To
   make this easier to do, we now provide a simple opt-in knob (`make
-  LIBPATHRS_NO_BACKTRACE=1`) that can be used to reduce binary size. This
-  requires nightly Rust (or `RUSTC_BOOTSTRAP=1`), since the Rust standard
+  LIBPATHRS_LIBSTD_NO_BACKTRACE=1`) that can be used to reduce binary size.
+  This requires nightly Rust (or `RUSTC_BOOTSTRAP=1`), since the Rust standard
   library has to be rebuilt. See `INSTALL.md` for more details. (#432)
 
 ### Fixed ###
