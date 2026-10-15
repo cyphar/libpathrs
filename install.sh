@@ -195,8 +195,11 @@ pkgconfigdir="${pkgconfigdir:-$libdir/pkgconfig}"
 # <https://github.com/rust-lang/rust/pull/43067#issuecomment-330625316>
 native_static_libs="-lgcc_s -lutil -lrt -lpthread -lm -ldl -lc"
 
+pkgconf_tmpfile="$(mktemp --tmpdir libpathrs-pathrs.XXXXXX.pc)"
+trap 'rm -f "$pkgconf_tmpfile"' EXIT
+
 echo "[pkg-config] generating pathrs pkg-config"
-cat >"pathrs.pc" <<EOF
+cat >"$pkgconf_tmpfile" <<EOF
 # SPDX-License-Identifier: MPL-2.0 OR LGPL-3.0-or-later
 #
 # libpathrs: safe path resolution on Linux
@@ -245,15 +248,15 @@ EOF
 echo "[install] installing libpathrs into DESTDIR=${DESTDIR:-/}"
 set -x
 # pkg-config.
-install -Dt "$DESTDIR/$pkgconfigdir/" -m 0644 pathrs.pc
-install -Dt "$DESTDIR/$includedir/"   -m 0644 include/pathrs.h
+install -Dm 0644 -T "$pkgconf_tmpfile" "$DESTDIR/$pkgconfigdir/pathrs.pc"
+install -Dm 0644 include/pathrs.h -t "$DESTDIR/$includedir/"
 # Static library.
 if [ -n "$install_static" ]; then
-	install -Dt "$DESTDIR/$libdir" -m 0644 "$builddir/libpathrs.a"
+	install -Dm 0644 "$builddir/libpathrs.a" -t "$DESTDIR/$libdir"
 fi
 # Shared library.
 if [ -n "$install_shared" ]; then
-	install -DT -m 0755 "$builddir/libpathrs.so" "$DESTDIR/$libdir/$SONAME"
+	install -Dm 0755 -T "$builddir/libpathrs.so" "$DESTDIR/$libdir/$SONAME"
 	ln -sf "$SONAME" "$DESTDIR/$libdir/libpathrs.so.$SOVERSION"
 	ln -sf "$SONAME" "$DESTDIR/$libdir/libpathrs.so"
 fi

@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   upstream issue][rustix-issue1694]). Previously our CI mostly focused on tier
   1 and 2 targets (which include some musl targets), but we now compile-test
   the equivalent tier 3 targets for most relevant architectures. (#425, #426)
+- `install.sh` now longer writes the generated `pathrs.pc` into the libpathrs
+  source tree. Previously this would cause issues when a `sudo ./install.sh`
+  was followed by an unprivileged `./install.sh` invocation. (#438)
 
 [rustix-issue1694]: https://github.com/bytecodealliance/rustix/issues/1694
 
