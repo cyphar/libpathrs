@@ -10,6 +10,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import argparse
+import errno
 import os
 import stat
 import sys
@@ -20,6 +21,30 @@ sys.path.append(os.path.dirname(__file__) + "/../../../contrib/bindings/python")
 import pathrs
 from pathrs import procfs
 from pathrs.procfs import ProcfsBase, ProcfsHandle
+
+
+def unescape_arg(arg: str) -> str:
+    """
+    Decode the escape sequences in a command-line argument for
+    PATHRS_CMD_UNESCAPE=1.
+    """
+    unescaped = []
+    chars = iter(arg)
+    for ch in chars:
+        if ch != "\\":
+            unescaped.append(ch)
+            continue
+        # Only "\\" and "\0" are allowed.
+        match next(chars, None):
+            case "0":
+                unescaped.append("\0")
+            case "\\":
+                unescaped.append("\\")
+            case None:
+                raise ValueError(f"trailing unescaped '\\' in {arg!r}")
+            case other:
+                raise ValueError(f"invalid escape sequence '\\{other}' in {arg!r}")
+    return "".join(unescaped)
 
 
 def version(args: argparse.Namespace):
@@ -284,9 +309,7 @@ def parse_args(
 
     # root --root <root> ... commands
     root_parser = top_subparser.add_parser("root", help="Root::* operations")
-    root_parser.add_argument(
-        "--root", type=pathrs.Root, required=True, help="root path"
-    )
+    root_parser.add_argument("--root", required=True, help="root path")
     root_subparser = root_parser.add_subparsers()
 
     # root resolve [--reopen <flags>] [--[no-]follow] subpath
@@ -567,7 +590,15 @@ def main(*argv: str):
             "PR_SET_DUMPABLE is not supported by the python pathrs-cmd implementation"
         )
 
+    if os.environ.get("PATHRS_CMD_UNESCAPE", "") != "":
+        try:
+            argv = tuple(unescape_arg(arg) for arg in argv)
+        except ValueError as e:
+            sys.exit(f"error: unescape argument (PATHRS_CMD_UNESCAPE is set): {e}")
+
     parser, args = parse_args(argv)
+    if "root" in args:
+        args.root = pathrs.Root(args.root)
     if args.func is not None:
         args.func(args)
     else:
@@ -584,4 +615,13 @@ if __name__ == "__main__":
             errstr = os.strerror(e.errno)
         print(f"ERRNO {e.errno} ({errstr})")
         print(f"error: {e.message}")
+        sys.exit(1)
+    except ValueError as e:
+        # Python bindings raise ValueError for invalid arguments such as
+        # strings with nul bytes, while other bindings return EINVAL. In order
+        # to make pathrs-cmd tests consistent we need to catch them here and
+        # remap them (this will also catch other ValueError sources but those
+        # should be fine).
+        print(f"ERRNO {errno.EINVAL} ({os.strerror(errno.EINVAL)})")
+        print(f"error: {e}")
         sys.exit(1)

@@ -332,6 +332,12 @@ resolve_tests! {
         complete_file_link: resolve("b-file") => Ok(("/b/c/file", libc::S_IFREG));
         complete_fifo: resolve("b/fifo") => Ok(("/b/fifo", libc::S_IFIFO));
         complete_sock: resolve("b/sock") => Ok(("/b/sock", libc::S_IFSOCK));
+        // Paths with embedded nul bytes must be rejected rather than silently
+        // truncated (the truncated paths would resolve successfully).
+        nul_byte: resolve("b/c/file\0garbage") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+        nul_byte_nofollow: resolve("b-file\0garbage", no_follow_trailing = true) => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+        nul_byte_parent: resolve("b/c\0garbage/file") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
+        nul_byte_symlink: resolve("b-file\0/../../../escape") => Err(ErrorKind::OsError(Some(libc::EINVAL)));
         // Partial lookups.
         partial_dir_basic: resolve("a/b/c/d/e/f/g/h") => Err(ErrorKind::OsError(Some(libc::ENOENT)));
         partial_dir_dotdot: resolve("a/foo/../bar/baz") => Err(ErrorKind::OsError(Some(libc::ENOENT)));

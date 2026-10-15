@@ -16,6 +16,7 @@ package libpathrs
 
 import (
 	"fmt"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -50,9 +51,28 @@ func fetchError(errID C.int) error {
 	return err
 }
 
+// cstring is a wrapper around [C.CString] which returns an error if the string
+// contains a nul byte to avoid Go callers getting confused.
+//
+// As with [C.CString], the caller is responsible for calling [C.free] on the
+// returned string.
+func cstring(str string) (*C.char, error) {
+	if strings.Contains(str, "\x00") {
+		// Go stdlib returns EINVAL in this case, so mirror that.
+		return nil, &Error{
+			errno:       syscall.EINVAL,
+			description: fmt.Sprintf("string %q contains a nul byte", str),
+		}
+	}
+	return C.CString(str), nil
+}
+
 // OpenRoot wraps pathrs_open_root.
 func OpenRoot(path string) (uintptr, error) {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return 0, err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
 	fd := C.pathrs_open_root(cPath)
@@ -67,7 +87,10 @@ func Reopen(fd uintptr, flags uint64) (uintptr, error) {
 
 // InRootResolve wraps pathrs_inroot_resolve.
 func InRootResolve(rootFd uintptr, path string) (uintptr, error) {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return 0, err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
 	fd := C.pathrs_inroot_resolve(C.int(rootFd), cPath)
@@ -76,7 +99,10 @@ func InRootResolve(rootFd uintptr, path string) (uintptr, error) {
 
 // InRootResolveNoFollow wraps pathrs_inroot_resolve_nofollow.
 func InRootResolveNoFollow(rootFd uintptr, path string) (uintptr, error) {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return 0, err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
 	fd := C.pathrs_inroot_resolve_nofollow(C.int(rootFd), cPath)
@@ -85,7 +111,10 @@ func InRootResolveNoFollow(rootFd uintptr, path string) (uintptr, error) {
 
 // InRootOpen wraps pathrs_inroot_open.
 func InRootOpen(rootFd uintptr, path string, flags uint64) (uintptr, error) {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return 0, err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
 	fd := C.pathrs_inroot_open(C.int(rootFd), cPath, C.uint64_t(flags))
@@ -94,7 +123,10 @@ func InRootOpen(rootFd uintptr, path string, flags uint64) (uintptr, error) {
 
 // InRootReadlink wraps pathrs_inroot_readlink.
 func InRootReadlink(rootFd uintptr, path string) (string, error) {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return "", err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
 	size := 128
@@ -122,34 +154,46 @@ func InRootReadlink(rootFd uintptr, path string) (string, error) {
 
 // InRootRmdir wraps pathrs_inroot_rmdir.
 func InRootRmdir(rootFd uintptr, path string) error {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
-	err := C.pathrs_inroot_rmdir(C.int(rootFd), cPath)
-	return fetchError(err)
+	ret := C.pathrs_inroot_rmdir(C.int(rootFd), cPath)
+	return fetchError(ret)
 }
 
 // InRootUnlink wraps pathrs_inroot_unlink.
 func InRootUnlink(rootFd uintptr, path string) error {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
-	err := C.pathrs_inroot_unlink(C.int(rootFd), cPath)
-	return fetchError(err)
+	ret := C.pathrs_inroot_unlink(C.int(rootFd), cPath)
+	return fetchError(ret)
 }
 
 // InRootRemoveAll wraps pathrs_inroot_remove_all.
 func InRootRemoveAll(rootFd uintptr, path string) error {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
-	err := C.pathrs_inroot_remove_all(C.int(rootFd), cPath)
-	return fetchError(err)
+	ret := C.pathrs_inroot_remove_all(C.int(rootFd), cPath)
+	return fetchError(ret)
 }
 
 // InRootCreat wraps pathrs_inroot_creat.
 func InRootCreat(rootFd uintptr, path string, flags uint64, mode uint32) (uintptr, error) {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return 0, err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
 	fd := C.pathrs_inroot_creat(C.int(rootFd), cPath, C.uint64_t(flags), C.uint(mode))
@@ -158,28 +202,40 @@ func InRootCreat(rootFd uintptr, path string, flags uint64, mode uint32) (uintpt
 
 // InRootRename wraps pathrs_inroot_rename.
 func InRootRename(oldRootFd uintptr, oldPath string, newRootFd uintptr, newPath string, flags uint64) error {
-	cOldPath := C.CString(oldPath)
+	cOldPath, err := cstring(oldPath)
+	if err != nil {
+		return err
+	}
 	defer C.free(unsafe.Pointer(cOldPath))
 
-	cNewPath := C.CString(newPath)
+	cNewPath, err := cstring(newPath)
+	if err != nil {
+		return err
+	}
 	defer C.free(unsafe.Pointer(cNewPath))
 
-	err := C.pathrs_inroot_rename(C.int(oldRootFd), cOldPath, C.int(newRootFd), cNewPath, C.uint64_t(flags))
-	return fetchError(err)
+	ret := C.pathrs_inroot_rename(C.int(oldRootFd), cOldPath, C.int(newRootFd), cNewPath, C.uint64_t(flags))
+	return fetchError(ret)
 }
 
 // InRootMkdir wraps pathrs_inroot_mkdir.
 func InRootMkdir(rootFd uintptr, path string, mode uint32) error {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
-	err := C.pathrs_inroot_mkdir(C.int(rootFd), cPath, C.uint(mode))
-	return fetchError(err)
+	ret := C.pathrs_inroot_mkdir(C.int(rootFd), cPath, C.uint(mode))
+	return fetchError(ret)
 }
 
 // InRootMkdirAll wraps pathrs_inroot_mkdir_all.
 func InRootMkdirAll(rootFd uintptr, path string, mode uint32) (uintptr, error) {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return 0, err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
 	fd := C.pathrs_inroot_mkdir_all(C.int(rootFd), cPath, C.uint(mode))
@@ -188,35 +244,50 @@ func InRootMkdirAll(rootFd uintptr, path string, mode uint32) (uintptr, error) {
 
 // InRootMknod wraps pathrs_inroot_mknod.
 func InRootMknod(rootFd uintptr, path string, mode uint32, dev uint64) error {
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
-	err := C.pathrs_inroot_mknod(C.int(rootFd), cPath, C.uint(mode), C.dev_t(dev))
-	return fetchError(err)
+	ret := C.pathrs_inroot_mknod(C.int(rootFd), cPath, C.uint(mode), C.dev_t(dev))
+	return fetchError(ret)
 }
 
 // InRootSymlink wraps pathrs_inroot_symlink.
 func InRootSymlink(target string, rootFd uintptr, linkpath string) error {
-	cLinkpath := C.CString(linkpath)
+	cLinkpath, err := cstring(linkpath)
+	if err != nil {
+		return err
+	}
 	defer C.free(unsafe.Pointer(cLinkpath))
 
-	cTarget := C.CString(target)
+	cTarget, err := cstring(target)
+	if err != nil {
+		return err
+	}
 	defer C.free(unsafe.Pointer(cTarget))
 
-	err := C.pathrs_inroot_symlink(cTarget, C.int(rootFd), cLinkpath)
-	return fetchError(err)
+	ret := C.pathrs_inroot_symlink(cTarget, C.int(rootFd), cLinkpath)
+	return fetchError(ret)
 }
 
 // InRootHardlink wraps pathrs_inroot_hardlink.
 func InRootHardlink(oldRootFd uintptr, oldPath string, newRootFd uintptr, newPath string, flags uint64) error {
-	cNewPath := C.CString(newPath)
+	cNewPath, err := cstring(newPath)
+	if err != nil {
+		return err
+	}
 	defer C.free(unsafe.Pointer(cNewPath))
 
-	cOldPath := C.CString(oldPath)
+	cOldPath, err := cstring(oldPath)
+	if err != nil {
+		return err
+	}
 	defer C.free(unsafe.Pointer(cOldPath))
 
-	err := C.pathrs_inroot_hardlink(C.int(oldRootFd), cOldPath, C.int(newRootFd), cNewPath, C.uint64_t(flags))
-	return fetchError(err)
+	ret := C.pathrs_inroot_hardlink(C.int(oldRootFd), cOldPath, C.int(newRootFd), cNewPath, C.uint64_t(flags))
+	return fetchError(ret)
 }
 
 // ProcBase is pathrs_proc_base_t (uint64_t).
@@ -301,7 +372,10 @@ func ProcPid(pid uint32) ProcBase { return ProcBaseTypePid | ProcBase(pid) }
 func ProcOpenat(procRootFd int, base ProcBase, path string, flags uint64) (uintptr, error) {
 	cBase := C.pathrs_proc_base_t(base)
 
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return 0, err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
 	fd := C.pathrs_proc_openat(C.int(procRootFd), cBase, cPath, C.uint64_t(flags))
@@ -314,7 +388,10 @@ func ProcReadlinkat(procRootFd int, base ProcBase, path string) (string, error) 
 
 	cBase := C.pathrs_proc_base_t(base)
 
-	cPath := C.CString(path)
+	cPath, err := cstring(path)
+	if err != nil {
+		return "", err
+	}
 	defer C.free(unsafe.Pointer(cPath))
 
 	size := 128

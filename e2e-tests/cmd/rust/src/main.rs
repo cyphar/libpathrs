@@ -85,9 +85,22 @@ fn main() -> ExitCode {
             }
         }
 
+        let mut args = env::args_os().collect::<Vec<_>>();
+        if env::var_os("PATHRS_CMD_UNESCAPE").is_some_and(|v| !v.is_empty()) {
+            // We must skip argv[0].
+            for arg in args.iter_mut().skip(1) {
+                *arg = utils::unescape_arg(arg)
+                    .context("unescape argument (PATHRS_CMD_UNESCAPE is set)")?;
+            }
+        }
+
         let mut app = cli();
 
-        match app.get_matches_mut().subcommand() {
+        let matches = app
+            .try_get_matches_from_mut(args)
+            .unwrap_or_else(|err| err.exit());
+
+        match matches.subcommand() {
             Some(("version", sub_matches)) => version::subcommand(sub_matches),
             Some(("root", sub_matches)) => root::subcommand(sub_matches),
             Some(("procfs", sub_matches)) => procfs::subcommand(sub_matches),

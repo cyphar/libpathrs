@@ -16,17 +16,39 @@ use pathrs::{
 };
 
 use std::{
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
     fs::{File, Permissions},
     os::unix::{
+        ffi::{OsStrExt, OsStringExt},
         fs::PermissionsExt,
         io::{AsFd, AsRawFd},
     },
     path::PathBuf,
 };
 
-use anyhow::Error;
+use anyhow::{bail, Error};
 use clap::{builder::TypedValueParser, error::ErrorKind as ClapErrorKind, Arg, ArgAction, Command};
+
+/// Decode the escape sequences in a command-line argument for
+/// `PATHRS_CMD_UNESCAPE=1`.
+pub(crate) fn unescape_arg(arg: &OsStr) -> Result<OsString, Error> {
+    let mut unescaped = Vec::with_capacity(arg.len());
+    let mut bytes = arg.as_bytes().iter().copied();
+    while let Some(b) = bytes.next() {
+        if b != b'\\' {
+            unescaped.push(b);
+            continue;
+        }
+        // Only "\\" and "\0" are allowed.
+        match bytes.next() {
+            Some(b'0') => unescaped.push(b'\0'),
+            Some(b'\\') => unescaped.push(b'\\'),
+            Some(b) => bail!("invalid escape sequence '\\{}' in {arg:?}", b as char),
+            None => bail!("trailing unescaped '\\' in {arg:?}"),
+        }
+    }
+    Ok(OsString::from_vec(unescaped))
+}
 
 pub(crate) fn subpath_arg(name: impl Into<clap::Id>) -> Arg {
     Arg::new(name).value_parser(clap::value_parser!(PathBuf))

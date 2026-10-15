@@ -41,6 +41,13 @@ function pathrs-cmd() {
 	sane_run "$PATHRS_CMD" "$@"
 }
 
+# Like pathrs-cmd, except that escape sequences in arguments are decoded by
+# pathrs-cmd ("\0" becomes a nul byte and "\\" becomes "\"). This is the only
+# way to pass a nul byte to pathrs-cmd, since argv cannot contain nul bytes.
+function pathrs-cmd-unescape() {
+	PATHRS_CMD_UNESCAPE=1 sane_run "$PATHRS_CMD" "$@"
+}
+
 # Shorthand for checking the ERRNO value from pathrs-cmd.
 function check-errno() {
 	local errno_num

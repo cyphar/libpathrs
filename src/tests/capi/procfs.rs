@@ -61,7 +61,7 @@ impl CapiProcfsHandle {
         oflags: impl Into<OpenFlags>,
     ) -> Result<File, CapiError> {
         let base: CProcfsBase = base.into();
-        let subpath = capi_utils::path_to_cstring(subpath);
+        let subpath = capi_utils::path_to_cstring(subpath)?;
         let oflags = oflags.into();
 
         capi_utils::call_capi_fd(|| unsafe {
@@ -82,7 +82,7 @@ impl CapiProcfsHandle {
 
     fn readlink(&self, base: ProcfsBase, subpath: impl AsRef<Path>) -> Result<PathBuf, CapiError> {
         let base: CProcfsBase = base.into();
-        let subpath = capi_utils::path_to_cstring(subpath);
+        let subpath = capi_utils::path_to_cstring(subpath)?;
 
         capi_utils::call_capi_readlink(|linkbuf, linkbuf_size| unsafe {
             capi::procfs::pathrs_proc_readlink(base, subpath.as_ptr(), linkbuf, linkbuf_size)
@@ -148,7 +148,7 @@ impl CapiProcfsHandleFd {
         oflags: impl Into<OpenFlags>,
     ) -> Result<File, CapiError> {
         let base: CProcfsBase = base.into();
-        let subpath = capi_utils::path_to_cstring(subpath);
+        let subpath = capi_utils::path_to_cstring(subpath)?;
         let oflags = oflags.into();
 
         capi_utils::call_capi_fd(|| unsafe {
@@ -174,7 +174,7 @@ impl CapiProcfsHandleFd {
 
     fn readlink(&self, base: ProcfsBase, subpath: impl AsRef<Path>) -> Result<PathBuf, CapiError> {
         let base: CProcfsBase = base.into();
-        let subpath = capi_utils::path_to_cstring(subpath);
+        let subpath = capi_utils::path_to_cstring(subpath)?;
 
         capi_utils::call_capi_readlink(|linkbuf, linkbuf_size| unsafe {
             capi::procfs::pathrs_proc_readlinkat(

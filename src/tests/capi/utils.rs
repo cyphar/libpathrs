@@ -49,6 +49,7 @@ use std::{
 };
 
 use errno::Errno;
+use rustix::path::Arg;
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub struct CapiError {
@@ -122,9 +123,23 @@ fn fetch_error(res: libc::c_int) -> Result<libc::c_int, CapiError> {
     }
 }
 
-pub(in crate::tests) fn path_to_cstring(path: impl AsRef<Path>) -> CString {
-    CString::new(path.as_ref().as_os_str().as_bytes())
-        .expect("normal path conversion shouldn't result in spurious nul bytes")
+/// Convert a path to a [`CString`] for passing to the C API.
+///
+/// C strings cannot contain nul bytes, so paths with embedded nul bytes cannot
+/// be expressed through the C API at all. In order for tests with such paths
+/// to be shared with the Rust API tests, we mirror what a correct C caller
+/// would have to do (reject the path) and return the same error that the Rust
+/// API returns.
+pub(in crate::tests) fn path_to_cstring(path: impl AsRef<Path>) -> Result<CString, CapiError> {
+    let path = path.as_ref();
+    // NOTE: We use the rustix::path::Arg handling here to make sure we have
+    // the same errno as the Rust API.
+    path.into_c_str()
+        .map(|c_path| c_path.into_owned())
+        .map_err(|err| CapiError {
+            errno: Some(Errno(err.raw_os_error())),
+            description: format!("path {path:?} contains a nul byte (cannot be passed to C API)"),
+        })
 }
 
 pub(in crate::tests) fn call_capi<Func>(func: Func) -> Result<libc::c_int, CapiError>

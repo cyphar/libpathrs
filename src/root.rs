@@ -55,6 +55,7 @@ use std::{
 use rustix::{
     fs::{self as rustix_fs, AtFlags, FileType},
     io::Errno,
+    path::Arg,
 };
 
 /// An inode type to be created with [`Root::create`].
@@ -1087,6 +1088,22 @@ impl RootRef<'_> {
     /// [`os.MkdirAll`]: https://pkg.go.dev/os#MkdirAll
     #[doc(alias = "pathrs_inroot_mkdir_all")]
     pub fn mkdir_all(&self, path: impl AsRef<Path>, perm: &Permissions) -> Result<Handle, Error> {
+        let path = path.as_ref();
+
+        // Reject paths containing nul bytes (which cannot be passed to the
+        // kernel) upfront because otherwise we would needlessly create part of
+        // the directory tree before returning an error.
+        //
+        // NOTE: We use the rustix::path::Arg handling here to make sure it has
+        // the same errno as the syscall would.
+        if let Err(err) = path.into_c_str() {
+            Err(ErrorImpl::OsError {
+                operation: "mkdir_all path".into(),
+                source: err.into(),
+            })
+            .with_wrap(|| format!("path {path:?} contains a nul byte"))?
+        }
+
         if perm.mode() & !0o7777 != 0 {
             Err(ErrorImpl::InvalidArgument {
                 name: "perm".into(),
@@ -1108,7 +1125,7 @@ impl RootRef<'_> {
 
         let (handle, remaining) = self
             .resolver
-            .resolve_partial(self, path.as_ref(), false)
+            .resolve_partial(self, path, false)
             .and_then(TryInto::try_into)?;
 
         // Re-open the handle with O_DIRECTORY to make sure it's a directory we

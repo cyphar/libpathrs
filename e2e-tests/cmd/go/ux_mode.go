@@ -30,7 +30,7 @@ func parseModeFlag(modeStr string) (os.FileMode, error) {
 		return 0, fmt.Errorf("failed to parse --mode: %w", err)
 	}
 	if unixMode&^0o7777 != 0 {
-		return 0, fmt.Errorf("invalid --mode %#o: must be subset of 0o7777")
+		return 0, fmt.Errorf("invalid --mode %#o: must be subset of 0o7777", unixMode)
 	}
 
 	mode := os.FileMode(unixMode & 0o777)

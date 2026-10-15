@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   upstream issue][rustix-issue1694]). Previously our CI mostly focused on tier
   1 and 2 targets (which include some musl targets), but we now compile-test
   the equivalent tier 3 targets for most relevant architectures. (#425, #426)
+- When using libpathrs from languages that support embedded nul bytes in
+  strings, libpathrs (and its bindings) will now correctly return an error
+  rather than silently truncating the string C-style. (#436)
 - `make -C e2e-tests test-*` now all test against the in-tree `libpathrs.so`.
   You can set `PATHRS_E2E_USE_HOST_SO=1` to switch to the old behaviour of
   testing the host's `libpathrs.so` install (for obvious reasons, this does
