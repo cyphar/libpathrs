@@ -53,11 +53,12 @@ RUSTC_FLAGS := -C panic=abort $(EXTRA_RUSTC_FLAGS)
 EXTRA_CARGO_FLAGS ?=
 CARGO_FLAGS := --features=capi $(EXTRA_CARGO_FLAGS)
 
-# If LIBPATHRS_NO_BACKTRACE is set, build without support for printing
-# a backtrace on panic to make the library smaller. Needs nightly Rust
-# (or RUSTC_BOOTSTRAP=1) and rust-src.
-LIBPATHRS_NO_BACKTRACE ?=
-ifneq ($(LIBPATHRS_NO_BACKTRACE),)
+# In order to allow for smaller binary sizes, allow the builder to request
+# libstd be rebuilt with backtrace support disabled (sadly -C panic=abort
+# doesn't give us this automatically). Needs nightly Rust (or
+# RUSTC_BOOTSTRAP=1) and rust-src.
+LIBPATHRS_LIBSTD_NO_BACKTRACE ?=
+ifneq ($(LIBPATHRS_LIBSTD_NO_BACKTRACE),)
 CARGO_FLAGS += -Zbuild-std=std,panic_abort -Zbuild-std-features=
 endif
 

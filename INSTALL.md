@@ -116,20 +116,20 @@ it is dead code to eliminate it.
 
 You can make the library considerably smaller by rebuilding the standard
 library without backtrace support, which can be done by setting
-`LIBPATHRS_NO_BACKTRACE=1`. This requires the `rust-src` component, and either
-nightly Rust or `RUSTC_BOOTSTRAP=1` (which allows using unstable Cargo features
-with stable Rust):
+`LIBPATHRS_LIBSTD_NO_BACKTRACE=1`. This requires the `rust-src` component, and
+either nightly Rust or `RUSTC_BOOTSTRAP=1` (which allows using unstable Cargo
+features with stable Rust):
 
-```bash
+```console
 $ rustup component add rust-src
-$ make release LIBPATHRS_NO_BACKTRACE=1                    # nightly Rust
-$ RUSTC_BOOTSTRAP=1 make release LIBPATHRS_NO_BACKTRACE=1  # stable Rust
+$ make release LIBPATHRS_LIBSTD_NO_BACKTRACE=1                   # nightly Rust
+$ RUSTC_BOOTSTRAP=1 make release LIBPATHRS_LIBSTD_NO_BACKTRACE=1 # stable Rust
 ```
 
-Based on our testing, using `LIBPATHRS_NO_BACKTRACE=1` makes the stripped
-`libpathrs.so` about 40% smaller and `libpathrs.a` over 6 times smaller. Panics
-still print a message, but no backtrace. Note that the build takes longer,
-since the standard library is compiled from source.
+Based on our testing, using `LIBPATHRS_LIBSTD_NO_BACKTRACE=1` makes the
+stripped `libpathrs.so` about 40% smaller and `libpathrs.a` over 6 times
+smaller. Panics still print a message, but no backtrace. Note that the build
+takes longer, since the standard library is compiled from source.
 
 ### Vendored / Offline Builds ###
 
