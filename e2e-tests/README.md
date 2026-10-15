@@ -10,3 +10,19 @@ the behaviour of `libpathrs` itself), but instead are just intended to verify
 that the language bindings are correctly wrapping the right `libpathrs` APIs.
 
 [rust-tests]: ../src/tests/
+
+### Running ###
+
+```console
+$ make -C e2e-tests test-all               # all bindings
+$ make -C e2e-tests test-{python,go,rust}  # individual bindings
+```
+
+By default, all bindings are tested against the `libpathrs.so` built from the
+source tree. For bindings that support linking against the host's
+`libpathrs.so` (i.e., all but the Rust ones) it is possible to test them
+against the host's `libpathrs.so` by setting `PATHRS_E2E_USE_HOST_SO=1`:
+
+```console
+$ make -C e2e-tests PATHRS_E2E_USE_HOST_SO=1 test-all
+```

@@ -40,5 +40,7 @@ pathrs-cmd: .venv
 .PHONY: .venv
 .venv:
 	python3 -m venv $@
-	make -C ../../../contrib/bindings/python
-	$@/bin/pip3 install --force ../../../contrib/bindings/python/dist/*.whl
+	# Always build a fresh wheel so we link against the right libpathrs.so.
+	rm -rf .dist
+	python3 -m build --outdir .dist ../../../contrib/bindings/python
+	$@/bin/pip3 install --force .dist/*.whl
