@@ -27,6 +27,7 @@ permissions:
   contents: read
 
 env:
+  CARGO_TERM_COLOR: always
   BATS_VERSION: "1.14.0"
   BUILDX_VERSION: "v0.38.0"
   CI_IMAGE: cyphar/libpathrs:ci-latest
@@ -80,10 +81,11 @@ jobs:
           sudo apt-get install -y moreutils
 
       # Build and install libpathrs.so.
-      - if: ${{ matrix.lang != 'rust' }}
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
+      - name: install rust toolchain
+        if: ${{ matrix.lang != 'rust' }}
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - if: ${{ matrix.lang != 'rust' }}
         name: build libpathrs
         run: make release

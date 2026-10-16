@@ -27,6 +27,7 @@ permissions:
   contents: read
 
 env:
+  CARGO_TERM_COLOR: always
   GO_VERSION: 1.27.x
 
 jobs:
@@ -41,9 +42,10 @@ jobs:
         with:
           persist-credentials: false
       # Build and install libpathrs.so.
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - name: build libpathrs
         run: make release
       - name: install libpathrs
@@ -62,9 +64,10 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
       # Build and install libpathrs.so.
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - name: build libpathrs
         run: make release
       - name: install libpathrs
@@ -99,9 +102,10 @@ jobs:
         with:
           persist-credentials: false
       # Build and install libpathrs.so.
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - name: build libpathrs
         run: make release
       - name: install libpathrs

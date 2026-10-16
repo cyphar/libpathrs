@@ -27,7 +27,10 @@ permissions:
   contents: read
 
 env:
+  CARGO_TERM_COLOR: always
   RUST_MSRV: &RUST_MSRV "1.63"
+  # Pin the Rust version to avoid Rust updates breaking our clippy lints.
+  RUST_CLIPPY_VERSION: "1.98"
   CBINDGEN_VERSION: "0.29.2"
   CARGO_HACK_VERSION: "0.6.45"
   CARGO_LLVM_COV_VERSION: "0.8.7"
@@ -54,9 +57,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
@@ -72,9 +76,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: *RUST_MSRV
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update "$RUST_MSRV"
+          rustup default "$RUST_MSRV"
       - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
@@ -131,18 +136,20 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+      - name: install rust toolchain
         if: ${{ !matrix.build-std }}
-        with:
-          toolchain: stable
-          # TODO: Should we use MSRV for this?
-          targets: ${{ matrix.target }}
+        # TODO: Should we use MSRV for this?
+        env:
+          RUST_TARGET: ${{ matrix.target }}
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -t "$RUST_TARGET" stable
+          rustup default stable
       # -Zbuild-std requires nightly Rust (and the libstd sources).
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+      - name: install rust toolchain
         if: ${{ matrix.build-std }}
-        with:
-          toolchain: nightly
-          components: rust-src
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c rust-src --allow-downgrade nightly
+          rustup default nightly
       - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
@@ -182,10 +189,10 @@ jobs:
         with:
           persist-credentials: false
       # We need to use nightly Rust to check the formatting.
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: nightly
-          components: rustfmt
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c rustfmt --allow-downgrade nightly
+          rustup default nightly
       - run: cargo fmt --all -- --check
 
   clippy:
@@ -195,11 +202,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      # Pin the Rust version to avoid Rust updates breaking our clippy lints.
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: "1.98"
-          components: clippy
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c clippy "$RUST_CLIPPY_VERSION"
+          rustup default "$RUST_CLIPPY_VERSION"
       - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
@@ -215,10 +221,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
-          components: rustfmt,clippy
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c rustfmt -c clippy stable
+          rustup default stable
       - name: install cbindgen
         run: cargo install --force --locked cbindgen@${{ env.CBINDGEN_VERSION }}
       - name: make lint
@@ -230,9 +236,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - name: install cbindgen
         run: cargo install --force --locked cbindgen@${{ env.CBINDGEN_VERSION }}
       - run: make validate-cbindgen
@@ -253,9 +260,12 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: ${{ matrix.rust-version }}
+      - name: install rust toolchain
+        env:
+          RUST_TOOLCHAIN: ${{ matrix.rust-version }}
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update "$RUST_TOOLCHAIN"
+          rustup default "$RUST_TOOLCHAIN"
       - name: install lld
         run: sudo apt-get install -y lld
       - run: make validate-elf-symbols
@@ -274,9 +284,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - run: make dist-release
       - name: check release artefacts
         run: |-
@@ -298,9 +309,12 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: ${{ matrix.rust-version }}
+      - name: install rust toolchain
+        env:
+          RUST_TOOLCHAIN: ${{ matrix.rust-version }}
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update "$RUST_TOOLCHAIN"
+          rustup default "$RUST_TOOLCHAIN"
       - name: install lld
         run: sudo apt-get install -y lld
       - run: make debug
@@ -319,9 +333,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - run: cargo doc --document-private-items --workspace --all-features
       - name: upload docs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -348,10 +363,10 @@ jobs:
         with:
           persist-credentials: false
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: nightly
-          components: llvm-tools
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
+          rustup default nightly
       - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
@@ -382,10 +397,10 @@ jobs:
         with:
           persist-credentials: false
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: nightly
-          components: llvm-tools
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
+          rustup default nightly
       - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
@@ -460,10 +475,10 @@ jobs:
         with:
           persist-credentials: false
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: nightly
-          components: llvm-tools
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
+          rustup default nightly
       - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
@@ -579,10 +594,10 @@ jobs:
         with:
           persist-credentials: false
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: nightly
-          components: llvm-tools
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
+          rustup default nightly
       - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
@@ -656,9 +671,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - name: cargo test
         run: cargo test --features capi
 
@@ -674,10 +690,10 @@ jobs:
         with:
           persist-credentials: false
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: nightly
-          components: llvm-tools
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
+          rustup default nightly
       - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
@@ -750,9 +766,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - run: cargo build --examples
       - run: make -C examples smoke-test-rust
 
@@ -770,9 +787,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: stable
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - run: make release
       - name: compute ${{ matrix.libtype }} file name
         run: |-
