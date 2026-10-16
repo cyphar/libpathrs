@@ -47,7 +47,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - run: pip install codespell==v2.4.3
+      - name: install codespell
+        uses: $/.github/actions/python-deps
+        with:
+          name: codespell
       - run: codespell -L crate
 
   check:

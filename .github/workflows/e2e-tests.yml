@@ -108,13 +108,11 @@ jobs:
 
       # Setup python.
       - if: ${{ matrix.lang == 'python' }}
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        name: install pypa/build
+        uses: $/.github/actions/python-deps
         with:
           python-version: ${{ matrix.python-version }}
-      - if: ${{ matrix.lang == 'python' }}
-        name: install pypa/build
-        run: >-
-          python3 -m pip install --user build==1.6.1 twine==7.0.0
+          name: build
 
       # Install bats.
       - name: checkout bats-core v${{ env.BATS_VERSION }}

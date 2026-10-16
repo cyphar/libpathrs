@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# libpathrs: safe path resolution on Linux
+# Copyright (C) 2026 Aleksa Sarai <cyphar@cyphar.com>
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+name: python-deps
+description: Install a Python tool from .github/python-deps.
+
+inputs:
+  name:
+    description: Name of the lockfile in .github/python-deps/ (without the .txt suffix).
+    required: true
+  python-version:
+    description: Python version to set up.
+    required: false
+    default: "3.x"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: install .github/python-deps/${{ inputs.name }}.txt
+      shell: bash
+      env:
+        DEPS_NAME: ${{ inputs.name }}
+      run: |-
+        if ! [[ "$DEPS_NAME" =~ ^[a-z0-9_-]+$ ]]; then
+          echo "::error::invalid python-deps name '$DEPS_NAME'"
+          exit 1
+        fi
+        # All of the lockfiles are fully resolved and hash-pinned, so make sure
+        # pip only ever installs exactly what is listed (and never builds
+        # anything from source).
+        python3 -m pip install --require-hashes --no-deps --only-binary ':all:' \
+          -r "$GITHUB_WORKSPACE/.github/python-deps/$DEPS_NAME.txt"

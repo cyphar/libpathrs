@@ -37,11 +37,11 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: astral-sh/ruff-action@4919ec5cf1f49eff0871dbcea0da843445b837e6 # v3.6.1
+      - name: install ruff
+        uses: $/.github/actions/python-deps
         with:
-          version: "0.16.10"
-          args: "--version"
-      - run: ruff check
+          name: ruff
+      - run: ruff check --output-format=github
       - run: ruff format --check --diff
 
   mypy:
@@ -86,12 +86,11 @@ jobs:
       - name: install libpathrs
         run: sudo ./install.sh --libdir=/usr/lib
       # Set up python venv.
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - name: install pypa/build
+        uses: $/.github/actions/python-deps
         with:
           python-version: ${{ matrix.python-version }}
-      - name: install pypa/build
-        run: >-
-          python3 -m pip install --user build==1.6.1 twine==7.0.0
+          name: build
       # Build and install our bindings.
       - name: build python-pathrs bindings
         run: make -C contrib/bindings/python dist

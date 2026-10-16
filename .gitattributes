@@ -1,0 +1,2 @@
+# pip-compile lockfiles (mostly hashes).
+/.github/python-deps/*.txt linguist-generated=true
