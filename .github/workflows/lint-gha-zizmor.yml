@@ -15,9 +15,6 @@ on:
 
 name: lint-gha-zizmor
 
-env:
-  ZIZMOR_VERSION: "v1.7.12"
-
 permissions:
   contents: read
 
@@ -29,11 +26,16 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - name: run zizmor
-        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+      # zizmor is written in Rust but installing it from source can take quite
+      # a long time, so we use the prebuilt version provided via Python wheels.
+      # taiki-e/install-action does provide zizmor too but the version tends to
+      # be quite outdated and we want to bump this as aggressively as possible.
+      - name: install zizmor
+        uses: $/.github/actions/python-deps
         with:
-          version: ${{ env.ZIZMOR_VERSION }}
-          # Fail the job directly (with inline annotations) rather than
-          # uploading SARIF results, which requires GitHub code scanning.
-          advanced-security: false
-          annotations: true
+          name: zizmor
+      - name: run zizmor
+        env:
+          # Needed for zizmor's online audits.
+          GH_TOKEN: ${{ github.token }}
+        run: zizmor --format=github .
