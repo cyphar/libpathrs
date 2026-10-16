@@ -825,16 +825,14 @@ jobs:
       # repos) -- we probably need to switch to status checks?
       - if: github.event_name == 'push'
         name: update commit status
-        uses: octokit/request-action@dad4362715b7fb2ddedf9772c8670824af564f0d # v2.4.0
-        with:
-          route: POST /repos/{owner_repo}/statuses/{sha}
-          owner_repo: ${{ github.repository }}
-          sha: ${{ github.sha }}
-          state: success
-          description: ${{ env.LIB_FILENAME }} (${{ matrix.libtype }}) is ${{ env.LIB_SIZE }} (${{ env.LIB_NOSTRIP_SIZE }} unstripped)
-          context: rust-ci / ${{ matrix.libtype }} size
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LIB_TYPE: ${{ matrix.libtype }}
+        run: |-
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state=success \
+            -f description="$LIB_FILENAME ($LIB_TYPE) is $LIB_SIZE ($LIB_NOSTRIP_SIZE unstripped)" \
+            -f context="rust-ci / $LIB_TYPE size"
 
   rust-complete:
     needs:
