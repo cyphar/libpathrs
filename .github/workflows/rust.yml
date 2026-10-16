@@ -642,6 +642,13 @@ jobs:
       - run: >-
           sudo chown -R "$UID" ./target
 
+      - name: upload rust coverage (artifact)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: profraw-${{ github.job }}-${{ strategy.job-index }}
+          path: "target/llvm-cov-target/*.profraw"
+          retention-days: 7 # no need to waste disk space
+
       # Upload to CodeCov.
       - name: generate codecov-friendly coverage
         id: codecov-coverage
@@ -656,13 +663,6 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: cyphar/libpathrs
           files: ${{ steps.codecov-coverage.outputs.file }}
-
-      - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: profraw-${{ github.job }}-${{ strategy.job-index }}
-          path: "target/llvm-cov-target/*.profraw"
-          retention-days: 7 # no need to waste disk space
 
   # Smoke-test for our %check section in the libpathrs RPM.
   # <https://github.com/cyphar/libpathrs/issues/299>
