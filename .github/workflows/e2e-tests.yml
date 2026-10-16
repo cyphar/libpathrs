@@ -28,7 +28,11 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # BATS_COMMIT must be the commit that the v$BATS_VERSION tag points to:
+  #   git ls-remote https://github.com/bats-core/bats-core "refs/tags/v$BATS_VERSION^{}"
+  # TODO: Switch to renovate which can update this automatically.
   BATS_VERSION: "1.14.0"
+  BATS_COMMIT: "eb7f42f8d608ac693d7a4b67474f6714ea68cfc5"
   BUILDX_VERSION: "v0.38.0"
   CI_IMAGE: cyphar/libpathrs:ci-latest
 
@@ -113,15 +117,23 @@ jobs:
           python3 -m pip install --user build==1.6.1 twine==7.0.0
 
       # Install bats.
-      - name: install bats
-        uses: bats-core/bats-action@77d6fb60505b4d0d1d73e48bd035b55074bbfb43 # 4.0.0
+      - name: checkout bats-core v${{ env.BATS_VERSION }}
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          bats-version: ${{ env.BATS_VERSION }}
-          support-install: false
-          assert-install: false
-          detik-install: false
-          file-install: false
+          repository: bats-core/bats-core
+          ref: ${{ env.BATS_COMMIT }}
+          path: .tmp/bats-core
+          persist-credentials: false
+      - name: install bats
+        run: |-
+          # Make sure BATS_COMMIT actually matches the BATS_VERSION release.
+          git -C .tmp/bats-core fetch --depth=1 origin tag "v$BATS_VERSION"
+          tag_commit="$(git -C .tmp/bats-core rev-parse "v$BATS_VERSION^{commit}")"
+          if [[ "$tag_commit" != "$BATS_COMMIT" ]]; then
+            echo "::error::bats v$BATS_VERSION is commit $tag_commit, not $BATS_COMMIT"
+            exit 1
+          fi
+          sudo .tmp/bats-core/install.sh /usr/local
 
       # Run tests.
       - name: make -C e2e-tests test-${{ matrix.lang }}
