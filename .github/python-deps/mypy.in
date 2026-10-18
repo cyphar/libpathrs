@@ -1,0 +1,3 @@
+mypy==2.4.0
+# Stubs needed for mypy to type-check pathrs.
+types-cffi==2.1.0.20260827

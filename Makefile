@@ -31,6 +31,8 @@
 
 CARGO ?= cargo
 CARGO_NIGHTLY ?= cargo +nightly
+ZIZMOR ?= zizmor
+CONTAINER_RUNTIME ?= podman
 
 # Unfortunately --all-features needs to be put after the subcommand, but
 # cargo-hack needs to be put before the subcommand. So make a function to make
@@ -118,6 +120,16 @@ lint-rust:
 	$(CARGO_NIGHTLY) fmt --all -- --check
 	$(CARGO_CLIPPY) --all-targets
 	$(CARGO_CHECK) $(CARGO_FLAGS) --all-targets
+
+.PHONY: lint-gha
+lint-gha:
+	$(ZIZMOR) .github/
+	go run actionlint.kjanat.dev/cmd/actionlint@latest
+	$(CONTAINER_RUNTIME) run --rm \
+		--cap-drop=all --user 65534:65534 \
+		-v "$(PWD):/src:ro" -w /src \
+		ghcr.io/renovatebot/renovate:latest \
+		renovate-config-validator --strict
 
 .PHONY: validate-cbindgen
 validate-cbindgen:

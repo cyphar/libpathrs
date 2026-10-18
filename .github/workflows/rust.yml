@@ -23,26 +23,58 @@ on:
 
 name: rust-ci
 
+permissions:
+  contents: read
+
 env:
+  CARGO_TERM_COLOR: always
   RUST_MSRV: &RUST_MSRV "1.63"
+  # Pin the Rust version to avoid Rust updates breaking our clippy lints.
+  # renovate: datasource=rust-version depName=rust extractVersion=^(?<version>\d+\.\d+)\.\d+$
+  RUST_CLIPPY_VERSION: "1.98"
+  # renovate: datasource=crate depName=cbindgen
   CBINDGEN_VERSION: "0.29.2"
+  # renovate: datasource=crate depName=cargo-hack
+  CARGO_HACK_VERSION: "0.6.45"
+  # renovate: datasource=crate depName=cargo-llvm-cov
+  CARGO_LLVM_COV_VERSION: "0.8.7"
+  # renovate: datasource=crate depName=cargo-nextest
+  CARGO_NEXTEST_VERSION: "0.9.140"
+  # renovate: datasource=crate depName=cargo-binutils
+  CARGO_BINUTILS_VERSION: "0.4.0"
+  # renovate: datasource=github-releases depName=docker/buildx
+  BUILDX_VERSION: "v0.38.0"
+  # renovate: datasource=github-releases depName=codecov/codecov-cli
+  CODECOV_CLI_VERSION: "v11.3.1"
   CI_IMAGE: cyphar/libpathrs:ci-latest
 
 jobs:
   codespell:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - run: pip install codespell==v2.4.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: install codespell
+        uses: $/.github/actions/python-deps
+        with:
+          name: codespell
       - run: codespell -L crate
 
   check:
     name: cargo check (stable)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@cargo-hack
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo check
         run: >-
           cargo hack --workspace --each-feature --keep-going \
@@ -52,11 +84,16 @@ jobs:
     name: cargo check (msrv)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          toolchain: *RUST_MSRV
-      - uses: taiki-e/install-action@cargo-hack
+          persist-credentials: false
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update "$RUST_MSRV"
+          rustup default "$RUST_MSRV"
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo check
         run: >-
           cargo hack --each-feature --keep-going \
@@ -107,25 +144,35 @@ jobs:
       # Only set for the targets where we need to build libstd ourselves.
       BUILD_STD_FLAGS: ${{ matrix.build-std && '-Zbuild-std' || '' }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: install rust toolchain
         if: ${{ !matrix.build-std }}
-        with:
-          # TODO: Should we use MSRV for this?
-          targets: ${{ matrix.target }}
+        # TODO: Should we use MSRV for this?
+        env:
+          RUST_TARGET: ${{ matrix.target }}
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -t "$RUST_TARGET" stable
+          rustup default stable
       # -Zbuild-std requires nightly Rust (and the libstd sources).
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: install rust toolchain
         if: ${{ matrix.build-std }}
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c rust-src --allow-downgrade nightly
+          rustup default nightly
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
-          components: rust-src
-      - uses: taiki-e/install-action@cargo-hack
+          tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo check --target=${{ matrix.target }}
-        run: >-
+        run: |-
+          # shellcheck disable=SC2086 # BUILD_STD_FLAGS may be empty.
           cargo hack --each-feature --keep-going \
             check --target=${{ matrix.target }} --all-targets \
             $BUILD_STD_FLAGS
       - name: cargo build --target=${{ matrix.target }}
-        run: >-
+        run: |-
+          # shellcheck disable=SC2086 # BUILD_STD_FLAGS may be empty.
           cargo hack --each-feature --keep-going \
             build --target=${{ matrix.target }} --release \
             $BUILD_STD_FLAGS
@@ -134,36 +181,45 @@ jobs:
     name: check release script
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: compute libpathrs crate version
         run: |-
           CRATE_VERSION="$(cargo metadata --no-deps --format-version=1 | jq -rM '.packages[] | select(.name == "pathrs") | .version')"
           echo "CRATE_VERSION=$CRATE_VERSION" >>"$GITHUB_ENV"
       - run: ./hack/release.sh
-      - run: tar tvf ./release/${CRATE_VERSION}/libpathrs-${CRATE_VERSION}.tar.xz
-      - run: tar tvf ./release/${CRATE_VERSION}/libpathrs.vendor.tar.zst
+      - run: tar tvf "./release/$CRATE_VERSION/libpathrs-$CRATE_VERSION.tar.xz"
+      - run: tar tvf "./release/$CRATE_VERSION/libpathrs.vendor.tar.zst"
 
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      # We need to use nightly Rust to check the formatting.
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          components: rustfmt
+          persist-credentials: false
+      # We need to use nightly Rust to check the formatting.
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c rustfmt --allow-downgrade nightly
+          rustup default nightly
       - run: cargo fmt --all -- --check
 
   clippy:
     name: clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      # Pin the Rust version to avoid Rust updates breaking our clippy lints.
-      - uses: dtolnay/rust-toolchain@1.98
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          components: clippy
-      - uses: taiki-e/install-action@cargo-hack
+          persist-credentials: false
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c clippy "$RUST_CLIPPY_VERSION"
+          rustup default "$RUST_CLIPPY_VERSION"
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo clippy
         run: >-
           cargo hack --workspace --each-feature --keep-going \
@@ -173,10 +229,13 @@ jobs:
     name: make lint (no cargo-hack)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          components: rustfmt,clippy
+          persist-credentials: false
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c rustfmt -c clippy stable
+          rustup default stable
       - name: install cbindgen
         run: cargo install --force --locked cbindgen@${{ env.CBINDGEN_VERSION }}
       - name: make lint
@@ -185,8 +244,13 @@ jobs:
   validate-cbindgen:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - name: install cbindgen
         run: cargo install --force --locked cbindgen@${{ env.CBINDGEN_VERSION }}
       - run: make validate-cbindgen
@@ -204,10 +268,15 @@ jobs:
           - stable
           - nightly
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          toolchain: ${{ matrix.rust-version }}
+          persist-credentials: false
+      - name: install rust toolchain
+        env:
+          RUST_TOOLCHAIN: ${{ matrix.rust-version }}
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update "$RUST_TOOLCHAIN"
+          rustup default "$RUST_TOOLCHAIN"
       - name: install lld
         run: sudo apt-get install -y lld
       - run: make validate-elf-symbols
@@ -215,14 +284,21 @@ jobs:
   validate-keyring:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - run: make validate-keyring
 
   validate-dist-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - run: make dist-release
       - name: check release artefacts
         run: |-
@@ -241,10 +317,15 @@ jobs:
           - stable
           - nightly
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          toolchain: ${{ matrix.rust-version }}
+          persist-credentials: false
+      - name: install rust toolchain
+        env:
+          RUST_TOOLCHAIN: ${{ matrix.rust-version }}
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update "$RUST_TOOLCHAIN"
+          rustup default "$RUST_TOOLCHAIN"
       - name: install lld
         run: sudo apt-get install -y lld
       - run: make debug
@@ -260,11 +341,16 @@ jobs:
     name: cargo doc
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - run: cargo doc --document-private-items --workspace --all-features
       - name: upload docs
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rustdoc
           path: target/doc
@@ -284,22 +370,29 @@ jobs:
         _test_race
         ${{ matrix.run-as == 'root' && '_test_as_root _test_can_mknod' || '' }}
     steps:
-      - uses: actions/checkout@v7
-      # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: taiki-e/install-action@nextest
+          persist-credentials: false
+      # Nightly rust is required for llvm-cov --doc.
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
+          rustup default nightly
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: nextest@${{ env.CARGO_NEXTEST_VERSION }}
       - name: cargo nextest archive
         run: >-
           cargo llvm-cov \
             nextest-archive \
               --workspace \
-              -F "${{ env.FEATURES }}" \
+              -F "$FEATURES" \
               --archive-file nextest-pathrs-${{ matrix.run-as }}.tar.zst
       - name: upload nextest archive
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: nextest-archive-${{ matrix.run-as }}
           path: nextest-pathrs-${{ matrix.run-as }}.tar.zst
@@ -311,15 +404,20 @@ jobs:
     env:
       CARGO_NIGHTLY: cargo
     steps:
-      - uses: actions/checkout@v7
-      # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
+          persist-credentials: false
+      # Nightly rust is required for llvm-cov --doc.
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
+          rustup default nightly
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
       - run: make test-rust-doctest
       - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
@@ -335,7 +433,9 @@ jobs:
     outputs:
       tests: ${{ steps.test-partitions.outputs.data }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: compute test partitions
         id: test-partitions
         run: |-
@@ -378,24 +478,31 @@ jobs:
           format('({0}, {1}{2})',
             fromJSON(matrix.tests).name,
             matrix.run-as,
-            matrix.enosys && format(', {0}=enosys', matrix.enosys) || '',
+            matrix.enosys && format(', {0}=enosys', matrix.enosys) || ''
           )
       }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
+          rustup default nightly
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
-          components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: taiki-e/install-action@nextest
+          tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: nextest@${{ env.CARGO_NEXTEST_VERSION }}
       - name: install llvm-tools wrappers
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
-          tool: cargo-binutils
+          tool: cargo-binutils@${{ env.CARGO_BINUTILS_VERSION }}
 
       - name: pull nextest archive
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: nextest-archive-${{ matrix.run-as }}
           path: .
@@ -407,10 +514,10 @@ jobs:
             ${{ matrix.run-as == 'root' && '--sudo' || '' }} \
             --enosys="${{ matrix.enosys }}" \
             --archive-file="nextest-pathrs-${{ matrix.run-as }}.tar.zst" \
-            "${{ env.NEXTEST_PATTERN_SPEC }}"
+            "$NEXTEST_PATTERN_SPEC"
 
       - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
@@ -439,8 +546,9 @@ jobs:
           cargo llvm-cov report --lcov --output-path="$CODECOV_FILE"
           echo "file=$CODECOV_FILE" >>"$GITHUB_OUTPUT"
       - name: upload rust coverage (codecov)
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
+          version: ${{ env.CODECOV_CLI_VERSION }}
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: cyphar/libpathrs
           files: ${{ steps.codecov-coverage.outputs.file }}
@@ -449,11 +557,17 @@ jobs:
     runs-on: ubuntu-latest
     name: build ci docker image
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: setup docker buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          version: ${{ env.BUILDX_VERSION }}
+          # Avoid GHA cache poisoning of the buildx binary.
+          cache-binary: false
       - name: build and cache ci image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           tags: ${{ env.CI_IMAGE }}
@@ -487,25 +601,36 @@ jobs:
       cargo nextest
       (${{ fromJSON(matrix.tests).name }}, ${{ matrix.run-as }})
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
+          rustup default nightly
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
-          components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: taiki-e/install-action@nextest
+          tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: nextest@${{ env.CARGO_NEXTEST_VERSION }}
       - name: install llvm-tools wrappers
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
-          tool: cargo-binutils
+          tool: cargo-binutils@${{ env.CARGO_BINUTILS_VERSION }}
       # Pull the image from the cache by triggering a "new build".
       - name: setup docker buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          version: ${{ env.BUILDX_VERSION }}
+          # Avoid GHA cache poisoning of the buildx binary.
+          cache-binary: false
       # TODO: Ideally we would be able to pull the image from the cache without
       # needing to trigger another build. In the worst case we could just
       # upload the CI image in the ctr-ci-image job and load it here.
       - name: build and cache ci image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           tags: ${{ env.CI_IMAGE }}
@@ -516,13 +641,21 @@ jobs:
       - run: >-
           mkdir -p ./target && chmod a+rwx ./target
       - name: ${{ matrix.runtime }} run ./hack/rust-tests.sh (run as ${{ matrix.run-as }})
-        run: >-
+        run: |-
+          # shellcheck disable=SC2086 # CONTAINER_RUN_ARGS needs word-splitting.
           "$CONTAINER_RUNTIME" run --rm $CONTAINER_RUN_ARGS \
-            -v $PWD/target:/usr/src/libpathrs/target \
+            -v "$PWD/target:/usr/src/libpathrs/target" \
             "$CI_IMAGE" \
               ./hack/rust-tests.sh "$NEXTEST_PATTERN_SPEC"
       - run: >-
           sudo chown -R "$UID" ./target
+
+      - name: upload rust coverage (artifact)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: profraw-${{ github.job }}-${{ strategy.job-index }}
+          path: "target/llvm-cov-target/*.profraw"
+          retention-days: 7 # no need to waste disk space
 
       # Upload to CodeCov.
       - name: generate codecov-friendly coverage
@@ -532,18 +665,12 @@ jobs:
           cargo llvm-cov report --lcov --output-path="$CODECOV_FILE"
           echo "file=$CODECOV_FILE" >>"$GITHUB_OUTPUT"
       - name: upload rust coverage (codecov)
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
+          version: ${{ env.CODECOV_CLI_VERSION }}
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: cyphar/libpathrs
           files: ${{ steps.codecov-coverage.outputs.file }}
-
-      - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@v7
-        with:
-          name: profraw-${{ github.job }}-${{ strategy.job-index }}
-          path: "target/llvm-cov-target/*.profraw"
-          retention-days: 7 # no need to waste disk space
 
   # Smoke-test for our %check section in the libpathrs RPM.
   # <https://github.com/cyphar/libpathrs/issues/299>
@@ -552,8 +679,13 @@ jobs:
     name: cargo test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - name: cargo test
         run: cargo test --features capi
 
@@ -565,31 +697,38 @@ jobs:
     name: compute coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Nightly rust is required for llvm-cov --doc.
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
+          rustup default nightly
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
-          components: llvm-tools
-      - uses: taiki-e/install-action@cargo-llvm-cov
+          tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
       - name: install llvm-tools wrappers
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
-          tool: cargo-binutils
+          tool: cargo-binutils@${{ env.CARGO_BINUTILS_VERSION }}
 
       - name: pull rust coverage
         id: rust-coverage
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: "profraw-*"
           path: profraw
       - name: merge coverage
+        env:
+          PROFRAW_DOWNLOAD_PATH: ${{ steps.rust-coverage.outputs.download-path }}
         run: |-
           mkdir -p target/llvm-cov-target
           profraw_list="$(mktemp --tmpdir libpathrs-profraw.XXXXXXXX)"
-          find "${{ steps.rust-coverage.outputs.download-path }}" -name '*.profraw' -type f >"$profraw_list"
+          find "$PROFRAW_DOWNLOAD_PATH" -name '*.profraw' -type f >"$profraw_list"
           rust-profdata merge --sparse -f "$profraw_list" -o ./target/llvm-cov-target/libpathrs-combined.profraw
       - name: upload merged rust coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: libpathrs-combined-profraw
           path: target/llvm-cov-target/libpathrs-combined.profraw
@@ -600,7 +739,7 @@ jobs:
       # the "root" and "unpriv" binaries are different and so the coverage data
       # is a little off. See <https://github.com/cyphar/libpathrs/issues/282>.
       - name: pull nextest archive
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: nextest-archive-root
           path: .
@@ -626,7 +765,7 @@ jobs:
       - name: generate coverage html
         run: cargo llvm-cov report --html
       - name: upload coverage html
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
           path: target/llvm-cov/html
@@ -635,8 +774,13 @@ jobs:
     name: smoke-test examples
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - run: cargo build --examples
       - run: make -C examples smoke-test-rust
 
@@ -651,8 +795,13 @@ jobs:
     name: check ${{ matrix.libtype }} size
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: install rust toolchain
+        run: |-
+          rustup toolchain install --profile minimal --no-self-update stable
+          rustup default stable
       - run: make release
       - name: compute ${{ matrix.libtype }} file name
         run: |-
@@ -667,8 +816,8 @@ jobs:
           echo "LIB_FILENAME=$libfile" >>"$GITHUB_ENV"
       - name: strip ${{ matrix.libtype }}
         run: |-
-          cp target/release/$LIB_FILENAME{,.nostrip}
-          strip target/release/$LIB_FILENAME
+          cp "target/release/$LIB_FILENAME"{,.nostrip}
+          strip "target/release/$LIB_FILENAME"
       - name: compute ${{ matrix.libtype }} binary size
         run: |-
           LIB_SIZE="$(stat -c "%s" "target/release/$LIB_FILENAME" | numfmt --to=si --suffix=B)"
@@ -687,16 +836,14 @@ jobs:
       # repos) -- we probably need to switch to status checks?
       - if: github.event_name == 'push'
         name: update commit status
-        uses: octokit/request-action@v2.x
-        with:
-          route: POST /repos/{owner_repo}/statuses/{sha}
-          owner_repo: ${{ github.repository }}
-          sha: ${{ github.sha }}
-          state: success
-          description: ${{ env.LIB_FILENAME }} (${{ matrix.libtype }}) is ${{ env.LIB_SIZE }} (${{ env.LIB_NOSTRIP_SIZE }} unstripped)
-          context: rust-ci / ${{ matrix.libtype }} size
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LIB_TYPE: ${{ matrix.libtype }}
+        run: |-
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state=success \
+            -f description="$LIB_FILENAME ($LIB_TYPE) is $LIB_SIZE ($LIB_NOSTRIP_SIZE unstripped)" \
+            -f context="rust-ci / $LIB_TYPE size"
 
   rust-complete:
     needs:
@@ -724,20 +871,3 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "Rust CI jobs completed successfully."
-
-  release-crate:
-    if: false && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs:
-      - rust-complete
-    runs-on: ubuntu-latest
-    environment:
-      name: release-crate
-      url: "https://crates.io/crates/pathrs"
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo publish
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# libpathrs: safe path resolution on Linux
+# Copyright (C) 2026 Aleksa Sarai <cyphar@cyphar.com>
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+name: lint-gha-zizmor
+
+permissions:
+  contents: read
+
+jobs:
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      # zizmor is written in Rust but installing it from source can take quite
+      # a long time, so we use the prebuilt version provided via Python wheels.
+      # taiki-e/install-action does provide zizmor too but the version tends to
+      # be quite outdated and we want to bump this as aggressively as possible.
+      - name: install zizmor
+        uses: $/.github/actions/python-deps
+        with:
+          name: zizmor
+      - name: run zizmor
+        env:
+          # Needed for zizmor's online audits.
+          GH_TOKEN: ${{ github.token }}
+        run: zizmor --format=github .

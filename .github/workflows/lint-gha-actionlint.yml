@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# libpathrs: safe path resolution on Linux
+# Copyright (C) 2026 Aleksa Sarai <cyphar@cyphar.com>
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+name: lint-gha-actionlint
+
+env:
+  # renovate: datasource=go depName=actionlint.kjanat.dev
+  ACTIONLINT_VERSION: "v1.17.0"
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
+      # NOTE: shellcheck is pre-installed on GitHub's Ubuntu runners, so
+      # actionlint will also lint run: scripts.
+      - name: run actionlint
+        run: go run "actionlint.kjanat.dev/cmd/actionlint@$ACTIONLINT_VERSION"

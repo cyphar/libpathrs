@@ -28,13 +28,10 @@
 #  You should have received a copy of the GNU Lesser General Public License
 #  along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-ARG DEBIAN_RELEASE=trixie
-ARG RUST_VERSION=1.98
-
 # --------------------------------------------------------------------------- #
 # build: builds libpathrs for use by CI and the "install" image.
 # --------------------------------------------------------------------------- #
-FROM rust:${RUST_VERSION}-${DEBIAN_RELEASE} AS build
+FROM rust:1.98-trixie@sha256:a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546 AS build
 
 RUN apt-get update -y && \
     apt-get upgrade -y && \
@@ -56,7 +53,7 @@ RUN make release && \
 # Intended to be used as a base image by downstream projects on distros that do
 # not ship a libpathrs package yet.
 # ----------------------------------------------------------------------------
-FROM debian:${DEBIAN_RELEASE} AS install
+FROM debian:trixie@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5 AS install
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -76,8 +73,7 @@ RUN ldconfig
 # ci: full test runner for CI and local test runs.
 # This can run the Rust unit/integration tests and the e2e tests.
 # ----------------------------------------------------------------------------
-ARG RUST_VERSION=1.98
-FROM rust:${RUST_VERSION}-${DEBIAN_RELEASE} AS ci
+FROM rust:1.98-trixie@sha256:a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546 AS ci
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -106,19 +102,23 @@ RUN apt-get update -y && \
 ENV GOCACHE=/tmp/go-cache/build
 ENV GOMODCACHE=/tmp/go-cache/mod
 
-ARG CARGO_BINSTALL_VERSION=1.22.0
-RUN CARGO_BINSTALL_VERSION="$CARGO_BINSTALL_VERSION" \
-        curl -L --proto '=https' --tlsv1.2 -sSf \
-            "https://raw.githubusercontent.com/cargo-bins/cargo-binstall/v$CARGO_BINSTALL_VERSION/install-from-binstall-release.sh" | bash
-
+# renovate: datasource=crate depName=cargo-llvm-cov
 ARG CARGO_LLVM_COV_VERSION=0.9.0
+# renovate: datasource=crate depName=cargo-hack
 ARG CARGO_HACK_VERSION=0.6.45
+# renovate: datasource=crate depName=cargo-nextest
 ARG CARGO_NEXTEST_VERSION=0.9.143
-RUN cargo binstall --no-confirm \
+# NOTE: cargo-binstall would reduce the build time here but it doesn't have
+# hash pinning and none of these tools provide minisign signatures so
+# cargo-binstall installs them without any real validation. So just install
+# them from source which crates.io guarantees is hash-pinned and immutable.
+RUN cargo install --locked \
         "cargo-llvm-cov@$CARGO_LLVM_COV_VERSION" \
         "cargo-hack@$CARGO_HACK_VERSION" \
-        "cargo-nextest@$CARGO_NEXTEST_VERSION"
+        "cargo-nextest@$CARGO_NEXTEST_VERSION" && \
+    rm -rf "$CARGO_HOME/registry"
 
+# renovate: datasource=rust-version depName=rust versioning=rust-release-channel extractVersion=^(?<version>nightly-.+)$
 ARG RUST_NIGHTLY=nightly-2026-09-03
 RUN rustup toolchain install "$RUST_NIGHTLY" && \
     rustup component add llvm-tools && \

@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# libpathrs: safe path resolution on Linux
+# Copyright (C) 2026 Aleksa Sarai <cyphar@cyphar.com>
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+name: lint-renovate
+
+env:
+  # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
+  RENOVATE_VERSION: "44.133.0"
+  RENOVATE_DIGEST: "sha256:05c512c35c764ef6a179e69c3b30567eca254d67f13a0143479fe3c84852c67a"
+
+permissions:
+  contents: read
+
+jobs:
+  renovate-config-validator:
+    name: renovate-config-validator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: run renovate-config-validator
+        run: |-
+          docker run --rm \
+            --cap-drop=all --user 65534:65534 \
+            -v "$GITHUB_WORKSPACE:/src:ro" \
+            -w /src \
+            "ghcr.io/renovatebot/renovate:$RENOVATE_VERSION@$RENOVATE_DIGEST" \
+            renovate-config-validator --strict
