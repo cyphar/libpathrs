@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: MPL-2.0
+//
+// libpathrs: safe path resolution on Linux
+// Copyright (C) 2026 Aleksa Sarai <cyphar@cyphar.com>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    // Pin all GitHub Actions and container base images by digest.
+    "helpers:pinGitHubActionDigests",
+    "docker:pinDigests",
+  ],
+  // Wait a week before picking up new releases, to give the ecosystem a chance
+  // to notice (and yank) broken or malicious releases.
+  minimumReleaseAge: "7 days",
+
+  "pip-compile": {
+    // Hash-pinned lockfiles for the Python tools used in CI. Note that
+    // Renovate uses the Python version from the pip-compile header of each
+    // lockfile, which must be the oldest Python version used in CI.
+    managerFilePatterns: ["/^\\.github/python-deps/[^/]+\\.txt$/"],
+  },
+
+  customManagers: [
+    {
+      // Version pins that are not handled by any built-in manager are
+      // annotated with a comment of the form
+      //
+      //   # renovate: datasource=<ds> depName=<name> [versioning=<v>] [extractVersion=<re>]
+      //   FOO_VERSION: "1.2.3"     (or "ARG FOO_VERSION=1.2.3", or "version: 1.2.3")
+      //   FOO_COMMIT: "<sha1>"     (optional, the commit for that version)
+      //   FOO_DIGEST: "sha256:..." (optional, the digest for that version)
+      //
+      // on the line directly above the version.
+      customType: "regex",
+      description: "Annotated version pins in workflows, actions and Dockerfiles",
+      managerFilePatterns: [
+        "/^\\.github/(workflows|actions)/.+\\.ya?ml$/",
+        "/(^|/)Dockerfile$/",
+      ],
+      matchStrings: [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*(?:ARG\\s+)?[A-Za-z0-9_-]+\\s*[:=]\\s*\"?(?<currentValue>[^\"\\s]+)\"?(?:\\s*\\n\\s*[A-Z0-9_]+_(?:COMMIT|DIGEST)\\s*[:=]\\s*\"?(?<currentDigest>[0-9a-f]{40}|sha256:[0-9a-f]{64})\"?)?",
+      ],
+      versioningTemplate: "{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}",
+      extractVersionTemplate: "{{#if extractVersion}}{{{extractVersion}}}{{else}}^(?<version>.+)${{/if}}",
+    },
+  ],
+
+  packageRules: [
+    {
+      // This is the oldest Python version we support (used to generate the
+      // lockfiles), not something that should be bumped to the latest version.
+      matchManagers: ["pyenv"],
+      matchFileNames: [".github/python-deps/.python-version"],
+      enabled: false,
+    },
+    {
+      // The Python bindings only specify minimum supported versions.
+      matchManagers: ["pep621", "pip_setup", "poetry", "pixi"],
+      matchFileNames: ["contrib/bindings/python/**"],
+      enabled: false,
+    },
+    {
+      // We want to keep supporting Go 1.18 for as long as reasonable, so we
+      // don't auto-bump the dependencies of go-pathrs or the Go examples.
+      matchManagers: ["gomod"],
+      matchFileNames: ["go-pathrs/go.mod", "examples/go/go.mod"],
+      enabled: false,
+    },
+    // Transitive dependencies that violate our MSRV.
+    {
+      // MSRV(1.65)
+      matchManagers: ["cargo"],
+      matchPackageNames: ["textwrap"],
+      allowedVersions: "<0.16.2",
+    },
+    {
+      // MSRV(1.65)
+      matchManagers: ["cargo"],
+      matchPackageNames: ["once_cell"],
+      allowedVersions: "<1.21.0",
+    },
+    {
+      // All of the Python lockfiles share dependencies, so update them
+      // together.
+      matchManagers: ["pip-compile"],
+      groupName: "CI Python tools",
+    },
+    {
+      // These are used in both the CI workflows and the CI Dockerfile, so keep
+      // them in sync.
+      matchManagers: ["custom.regex"],
+      matchDatasources: ["crate"],
+      groupName: "CI cargo tools",
+    },
+    {
+      // The Rust image used by the Dockerfile and the toolchain used for
+      // clippy in CI.
+      matchPackageNames: ["rust"],
+      matchCurrentValue: "!/^nightly-/",
+      groupName: "Rust stable",
+    },
+    {
+      // Nightlies are released every day, so only update them once a month.
+      matchPackageNames: ["rust"],
+      matchCurrentValue: "/^nightly-/",
+      groupName: "Rust nightly",
+      extends: ["schedule:monthly"],
+    },
+    {
+      // Base images are rebuilt quite often, so only update their digests
+      // (without changing the tags) once a week.
+      matchDatasources: ["docker"],
+      matchUpdateTypes: ["pin", "digest"],
+      groupName: "base image digests",
+      extends: ["schedule:weekly"],
+    },
+  ],
+}

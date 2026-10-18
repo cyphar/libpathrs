@@ -28,6 +28,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # renovate: datasource=golang-version depName=go versioning=npm
   GO_VERSION: 1.27.x
 
 jobs:

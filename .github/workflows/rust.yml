@@ -30,13 +30,21 @@ env:
   CARGO_TERM_COLOR: always
   RUST_MSRV: &RUST_MSRV "1.63"
   # Pin the Rust version to avoid Rust updates breaking our clippy lints.
+  # renovate: datasource=rust-version depName=rust extractVersion=^(?<version>\d+\.\d+)\.\d+$
   RUST_CLIPPY_VERSION: "1.98"
+  # renovate: datasource=crate depName=cbindgen
   CBINDGEN_VERSION: "0.29.2"
+  # renovate: datasource=crate depName=cargo-hack
   CARGO_HACK_VERSION: "0.6.45"
+  # renovate: datasource=crate depName=cargo-llvm-cov
   CARGO_LLVM_COV_VERSION: "0.8.7"
+  # renovate: datasource=crate depName=cargo-nextest
   CARGO_NEXTEST_VERSION: "0.9.140"
+  # renovate: datasource=crate depName=cargo-binutils
   CARGO_BINUTILS_VERSION: "0.4.0"
+  # renovate: datasource=github-releases depName=docker/buildx
   BUILDX_VERSION: "v0.38.0"
+  # renovate: datasource=github-releases depName=codecov/codecov-cli
   CODECOV_CLI_VERSION: "v11.3.1"
   CI_IMAGE: cyphar/libpathrs:ci-latest
 

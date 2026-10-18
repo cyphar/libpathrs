@@ -16,6 +16,7 @@ on:
 name: lint-gha-actionlint
 
 env:
+  # renovate: datasource=go depName=actionlint.kjanat.dev
   ACTIONLINT_VERSION: "v1.17.0"
 
 permissions:

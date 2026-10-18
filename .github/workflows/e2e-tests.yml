@@ -30,9 +30,10 @@ env:
   CARGO_TERM_COLOR: always
   # BATS_COMMIT must be the commit that the v$BATS_VERSION tag points to:
   #   git ls-remote https://github.com/bats-core/bats-core "refs/tags/v$BATS_VERSION^{}"
-  # TODO: Switch to renovate which can update this automatically.
+  # renovate: datasource=github-tags depName=bats-core/bats-core extractVersion=^v(?<version>.+)$
   BATS_VERSION: "1.14.0"
   BATS_COMMIT: "eb7f42f8d608ac693d7a4b67474f6714ea68cfc5"
+  # renovate: datasource=github-releases depName=docker/buildx
   BUILDX_VERSION: "v0.38.0"
   CI_IMAGE: cyphar/libpathrs:ci-latest
 
