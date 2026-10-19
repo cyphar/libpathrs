@@ -72,7 +72,7 @@ jobs:
         run: |-
           rustup toolchain install --profile minimal --no-self-update stable
           rustup default stable
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo check
@@ -91,7 +91,7 @@ jobs:
         run: |-
           rustup toolchain install --profile minimal --no-self-update "$RUST_MSRV"
           rustup default "$RUST_MSRV"
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo check
@@ -161,7 +161,7 @@ jobs:
         run: |-
           rustup toolchain install --profile minimal --no-self-update -c rust-src --allow-downgrade nightly
           rustup default nightly
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo check --target=${{ matrix.target }}
@@ -217,7 +217,7 @@ jobs:
         run: |-
           rustup toolchain install --profile minimal --no-self-update -c clippy "$RUST_CLIPPY_VERSION"
           rustup default "$RUST_CLIPPY_VERSION"
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-hack@${{ env.CARGO_HACK_VERSION }}
       - name: cargo clippy
@@ -378,10 +378,10 @@ jobs:
         run: |-
           rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
           rustup default nightly
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: nextest@${{ env.CARGO_NEXTEST_VERSION }}
       - name: cargo nextest archive
@@ -412,7 +412,7 @@ jobs:
         run: |-
           rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
           rustup default nightly
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
       - run: make test-rust-doctest
@@ -490,14 +490,14 @@ jobs:
         run: |-
           rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
           rustup default nightly
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: nextest@${{ env.CARGO_NEXTEST_VERSION }}
       - name: install llvm-tools wrappers
-        uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-binutils@${{ env.CARGO_BINUTILS_VERSION }}
 
@@ -609,14 +609,14 @@ jobs:
         run: |-
           rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
           rustup default nightly
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: nextest@${{ env.CARGO_NEXTEST_VERSION }}
       - name: install llvm-tools wrappers
-        uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-binutils@${{ env.CARGO_BINUTILS_VERSION }}
       # Pull the image from the cache by triggering a "new build".
@@ -705,11 +705,11 @@ jobs:
         run: |-
           rustup toolchain install --profile minimal --no-self-update -c llvm-tools --allow-downgrade nightly
           rustup default nightly
-      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
       - name: install llvm-tools wrappers
-        uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-binutils@${{ env.CARGO_BINUTILS_VERSION }}
 
