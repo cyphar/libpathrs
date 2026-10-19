@@ -140,7 +140,8 @@ jobs:
           #- target: riscv32gc-unknown-linux-gnu
           #  build-std: true
     name: cargo check (${{ matrix.target }})
-    runs-on: ubuntu-latest
+    # ubuntu-24.04 lacks an unversioned loongarch64 cross-compiler package.
+    runs-on: ubuntu-26.04
     env:
       # Only set for the targets where we need to build libstd ourselves.
       BUILD_STD_FLAGS: ${{ matrix.build-std && '-Zbuild-std' || '' }}
@@ -177,6 +178,48 @@ jobs:
           cargo hack --each-feature --keep-going \
             build --target=${{ matrix.target }} --release \
             $BUILD_STD_FLAGS
+      # The above only builds an rlib, so the cdylib linking (with our symbol
+      # versioning setup) is not tested. Linking needs a cross-compiler and a
+      # libc for the target, which Ubuntu only provides for glibc targets.
+      # (musl targets default to crt-static, for which cdylibs are not built.)
+      - name: install cross linker
+        id: cross-linker
+        env:
+          RUST_TARGET: ${{ matrix.target }}
+        run: |-
+          case "$RUST_TARGET" in
+          riscv32*) exit 0 ;; # no Ubuntu cross-compiler
+          # lld does not support all SPARC relocations used by the gcc crt*.o.
+          sparc*) exit 0 ;;
+          *-linux-gnu*) ;;
+          *) exit 0 ;;
+          esac
+          triple="${RUST_TARGET/-unknown-/-}"
+          triple="${triple/#armv7-/arm-}"
+          triple="${triple/#riscv64gc-/riscv64-}"
+          pkgs=(lld binutils-multiarch)
+          [ "$triple" = "$(gcc -dumpmachine)" ] || pkgs+=("gcc-${triple//_/-}")
+          sudo apt-get update -y
+          sudo apt-get install -y "${pkgs[@]}"
+          # Cross gcc looks for a target-prefixed ld.lld with -fuse-ld=lld.
+          sudo ln -sf "$(command -v ld.lld)" "/usr/local/bin/$triple-ld.lld"
+          linker_var="CARGO_TARGET_${RUST_TARGET//-/_}_LINKER"
+          echo "${linker_var^^}=$triple-gcc" >> "$GITHUB_ENV"
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+          # See the symver! macro for the list of architectures where we
+          # cannot generate symbol versions yet.
+          case "$RUST_TARGET" in
+          powerpc*) ;;
+          *) echo "symvers=true" >> "$GITHUB_OUTPUT" ;;
+          esac
+      - name: make release (cross)
+        if: steps.cross-linker.outputs.enabled
+        env:
+          CARGO_BUILD_TARGET: ${{ matrix.target }}
+        run: make release
+      - name: check libpathrs.so symbol versions (cross)
+        if: steps.cross-linker.outputs.symvers
+        run: ./hack/check-elf-symbols.sh "target/${{ matrix.target }}/release/libpathrs.so"
 
   check-release-script:
     name: check release script
