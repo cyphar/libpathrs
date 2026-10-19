@@ -350,7 +350,7 @@ jobs:
           rustup default stable
       - run: cargo doc --document-private-items --workspace --all-features
       - name: upload docs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rustdoc
           path: target/doc
@@ -392,7 +392,7 @@ jobs:
               -F "$FEATURES" \
               --archive-file nextest-pathrs-${{ matrix.run-as }}.tar.zst
       - name: upload nextest archive
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nextest-archive-${{ matrix.run-as }}
           path: nextest-pathrs-${{ matrix.run-as }}.tar.zst
@@ -417,7 +417,7 @@ jobs:
           tool: cargo-llvm-cov@${{ env.CARGO_LLVM_COV_VERSION }}
       - run: make test-rust-doctest
       - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
@@ -517,7 +517,7 @@ jobs:
             "$NEXTEST_PATTERN_SPEC"
 
       - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
@@ -651,7 +651,7 @@ jobs:
           sudo chown -R "$UID" ./target
 
       - name: upload rust coverage (artifact)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: profraw-${{ github.job }}-${{ strategy.job-index }}
           path: "target/llvm-cov-target/*.profraw"
@@ -728,7 +728,7 @@ jobs:
           find "$PROFRAW_DOWNLOAD_PATH" -name '*.profraw' -type f >"$profraw_list"
           rust-profdata merge --sparse -f "$profraw_list" -o ./target/llvm-cov-target/libpathrs-combined.profraw
       - name: upload merged rust coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: libpathrs-combined-profraw
           path: target/llvm-cov-target/libpathrs-combined.profraw
@@ -765,7 +765,7 @@ jobs:
       - name: generate coverage html
         run: cargo llvm-cov report --html
       - name: upload coverage html
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-report
           path: target/llvm-cov/html
