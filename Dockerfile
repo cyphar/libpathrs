@@ -119,7 +119,7 @@ RUN cargo install --locked \
     rm -rf "$CARGO_HOME/registry"
 
 # renovate: datasource=rust-version depName=rust versioning=rust-release-channel extractVersion=^(?<version>nightly-.+)$
-ARG RUST_NIGHTLY=nightly-2026-09-03
+ARG RUST_NIGHTLY=nightly-2026-10-12
 RUN rustup toolchain install "$RUST_NIGHTLY" && \
     rustup component add llvm-tools && \
     rustup component add --toolchain "$RUST_NIGHTLY" llvm-tools
