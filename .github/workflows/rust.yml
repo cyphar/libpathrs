@@ -134,10 +134,11 @@ jobs:
           # NOTE: Adding new targets here from tier 3 is a little risky as they
           # may break randomly. Only add a target here if it really is known to
           # be needed by someone.
-          - target: riscv32gc-unknown-linux-gnu
-            build-std: true
           - target: s390x-unknown-linux-musl
             build-std: true
+          # FIXME: This broke with nightly-2026-10-19 (07e526db9).
+          #- target: riscv32gc-unknown-linux-gnu
+          #  build-std: true
     name: cargo check (${{ matrix.target }})
     runs-on: ubuntu-latest
     env:
