@@ -120,5 +120,15 @@
       groupName: "base image digests",
       extends: ["schedule:weekly"],
     },
+    {
+      // None of the Docker image repos have a usable release timestamp, so
+      // with minimumReleaseAgeBehaviour=timestamp-required every image update
+      // would be stuck pending forever. Even if they did have usable
+      // timestamps, they would get reset by rebuilds making them useless
+      // anyway.
+      matchDatasources: ["docker"],
+      minimumReleaseAge: null,
+      extends: ["schedule:weekly"],
+    },
   ],
 }
