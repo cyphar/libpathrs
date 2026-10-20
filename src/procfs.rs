@@ -197,7 +197,14 @@ impl ProcfsBase {
             .into_iter()
             // Return the first option that exists in proc_rootfd.
             .find(|base| proc_rootfd.exists_unchecked(base).is_ok())
-            .expect("at least one candidate /proc/thread-self path should work"),
+            // On kernels lacking the faccessat2 syscall (Linux < 5.8), rustix's
+            // linux_raw backend returns ENOSYS for every SYMLINK_NOFOLLOW-flagged
+            // accessat probe above, regardless of which candidate actually exists --
+            // so all three candidates can spuriously fail here even though "self"
+            // always exists. Fall back to "self" instead of panicking, matching the
+            // behavior already documented on ProcThreadSelf above ("we will silently
+            // fallback to ProcSelf").
+            .unwrap_or_else(|| PathBuf::from("self")),
         }
     }
     // TODO: Add into_raw_path() that doesn't use symlinks?

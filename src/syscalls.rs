@@ -40,6 +40,7 @@ use crate::{
 
 use std::{
     borrow::Cow,
+    cell::Cell,
     ffi::OsStr,
     fmt,
     io::Error as IOError,
@@ -92,9 +93,40 @@ pub(crate) struct FrozenFd(RawFd, Option<PathBuf>);
 // TODO: Should probably be a pub(crate) impl.
 impl<Fd: AsFd> From<Fd> for FrozenFd {
     fn from(fd: Fd) -> Self {
-        // SAFETY: as_unsafe_path is safe here since it is only used for
-        //         pretty-printing error messages and no real logic.
-        Self(fd.as_fd().as_raw_fd(), fd.as_unsafe_path_unchecked().ok())
+        let fd = fd.as_fd();
+
+        // as_unsafe_path_unchecked() resolves ProcfsBase::ProcThreadSelf, which
+        // probes /proc with accessat(). On kernels where a probe fails (e.g.
+        // pre-3.17 kernels without /proc/thread-self, such as RHEL 7's 3.10),
+        // the accessat() error itself builds a FrozenFd -- which would recurse
+        // back into this function without bound and overflow the stack.
+        //
+        // Guard against re-entrancy: if this thread is already resolving a
+        // path for a FrozenFd, the nested FrozenFd just omits the path. The
+        // path is only used for pretty-printing (Display handles None), and the
+        // nested error is discarded by the probe anyway.
+        thread_local! {
+            static RESOLVING_PATH: Cell<bool> = const { Cell::new(false) };
+        }
+
+        struct ResetOnDrop;
+        impl Drop for ResetOnDrop {
+            fn drop(&mut self) {
+                RESOLVING_PATH.with(|r| r.set(false));
+            }
+        }
+
+        let path = if RESOLVING_PATH.with(|r| r.replace(true)) {
+            // Re-entrant call; do not touch the flag, the outer call owns it.
+            None
+        } else {
+            let _reset = ResetOnDrop;
+            // SAFETY: as_unsafe_path_unchecked is safe here since it is only
+            //         used for pretty-printing error messages and no real
+            //         logic.
+            fd.as_unsafe_path_unchecked().ok()
+        };
+        Self(fd.as_raw_fd(), path)
     }
 }
 
