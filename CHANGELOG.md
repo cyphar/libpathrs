@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   resolved its path using the same probe, recursing without bound. `FrozenFd`
   now guards against this re-entrancy. In addition, `ProcfsBase::ProcThreadSelf`
   now falls back to `self` rather than panicking if every probe fails (such as
-  on pre-5.8 kernels where `faccessat2` is unavailable).
+  on pre-5.8 kernels where `faccessat2` is unavailable). (#468)
 
 [rustix-issue1694]: https://github.com/bytecodealliance/rustix/issues/1694
 
