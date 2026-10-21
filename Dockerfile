@@ -103,11 +103,11 @@ ENV GOCACHE=/tmp/go-cache/build
 ENV GOMODCACHE=/tmp/go-cache/mod
 
 # renovate: datasource=crate depName=cargo-llvm-cov
-ARG CARGO_LLVM_COV_VERSION=0.9.0
+ARG CARGO_LLVM_COV_VERSION=0.9.1
 # renovate: datasource=crate depName=cargo-hack
 ARG CARGO_HACK_VERSION=0.6.45
 # renovate: datasource=crate depName=cargo-nextest
-ARG CARGO_NEXTEST_VERSION=0.9.143
+ARG CARGO_NEXTEST_VERSION=0.9.148
 # NOTE: cargo-binstall would reduce the build time here but it doesn't have
 # hash pinning and none of these tools provide minisign signatures so
 # cargo-binstall installs them without any real validation. So just install
