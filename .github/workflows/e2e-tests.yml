@@ -155,7 +155,7 @@ jobs:
           # Avoid GHA cache poisoning of the buildx binary.
           cache-binary: false
       - name: build and cache ci image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           tags: ${{ env.CI_IMAGE }}
@@ -205,7 +205,7 @@ jobs:
       # needing to trigger another build. In the worst case we could just
       # upload the CI image in the ctr-ci-image job and load it here.
       - name: build and cache ci image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           tags: ${{ env.CI_IMAGE }}
