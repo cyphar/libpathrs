@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - `install.sh` now longer writes the generated `pathrs.pc` into the libpathrs
   source tree. Previously this would cause issues when a `sudo ./install.sh`
   was followed by an unprivileged `./install.sh` invocation. (#438)
+- On kernels without `/proc/thread-self` (Linux < 3.17, such as RHEL 7's 3.10
+  kernel), libpathrs could overflow the stack. Building the error for a failed
+  `/proc` probe in `ProcfsBase::ProcThreadSelf` constructed a `FrozenFd`, which
+  resolved its path using the same probe, recursing without bound. `FrozenFd`
+  now guards against this re-entrancy. In addition, `ProcfsBase::ProcThreadSelf`
+  now falls back to `self` rather than panicking if every probe fails (such as
+  on pre-5.8 kernels where `faccessat2` is unavailable). (#468)
 
 [rustix-issue1694]: https://github.com/bytecodealliance/rustix/issues/1694
 
