@@ -33,13 +33,13 @@ env:
   # renovate: datasource=rust-version depName=rust extractVersion=^(?<version>\d+\.\d+)\.\d+$
   RUST_CLIPPY_VERSION: "1.99"
   # renovate: datasource=crate depName=cbindgen
-  CBINDGEN_VERSION: "0.29.2"
+  CBINDGEN_VERSION: "0.29.4"
   # renovate: datasource=crate depName=cargo-hack
   CARGO_HACK_VERSION: "0.6.45"
   # renovate: datasource=crate depName=cargo-llvm-cov
-  CARGO_LLVM_COV_VERSION: "0.8.7"
+  CARGO_LLVM_COV_VERSION: "0.9.1"
   # renovate: datasource=crate depName=cargo-nextest
-  CARGO_NEXTEST_VERSION: "0.9.140"
+  CARGO_NEXTEST_VERSION: "0.9.149"
   # renovate: datasource=crate depName=cargo-binutils
   CARGO_BINUTILS_VERSION: "0.4.0"
   # renovate: datasource=github-releases depName=docker/buildx
