@@ -111,10 +111,20 @@ impl Eq for KernelVersion {}
 /// Parse a kernel version string like `"4.10.23-1-default"` into a
 /// [`KernelVersion`] that can be used for comparisons.
 fn parse_kernel_version(kver_str: &str) -> Option<KernelVersion> {
-    // Strip off any of the non-version suffixes from the kver string.
-    let kver_str = &kver_str[..kver_str
-        .find(|ch: char| !ch.is_ascii_digit() && ch != '.')
-        .unwrap_or(kver_str.len())];
+    // Strip off any of the non-version suffixes from the kver string. Some
+    // vendors separate their suffix with a "." rather than "-" (such as
+    // "6.18.52.mshv1-2.azl3"), so a "." followed by a letter also starts the
+    // suffix. Other stray dots (such as "42.12." or "4.10.-default") are left
+    // in place so that they are rejected as malformed below.
+    let bytes = kver_str.as_bytes();
+    let suffix_start = (0..bytes.len())
+        .find(|&idx| match bytes[idx] {
+            b'0'..=b'9' => false,
+            b'.' => matches!(bytes.get(idx + 1), Some(ch) if ch.is_ascii_alphabetic()),
+            _ => true,
+        })
+        .unwrap_or(bytes.len());
+    let kver_str = &kver_str[..suffix_start];
 
     let kver = kver_str
         .split('.')
@@ -283,6 +293,28 @@ mod tests {
             Some(kver![5, 4, 0])
         );
         assert_eq!(parse_kernel_version("3.8-4"), Some(kver![3, 8]));
+    }
+
+    #[test]
+    fn parse_kernel_version_with_dot_suffix() {
+        // Azure Linux guest kernels used by AKS Pod Sandboxing (Kata).
+        assert_eq!(
+            parse_kernel_version("6.18.52.mshv1-2.azl3"),
+            Some(kver![6, 18, 52])
+        );
+        assert_eq!(
+            parse_kernel_version("6.18.52-mshv1-2.azl3"),
+            Some(kver![6, 18, 52])
+        );
+        assert_eq!(parse_kernel_version("5.4.0.custom"), Some(kver![5, 4, 0]));
+        assert_eq!(
+            parse_kernel_version("4.19.112.x86_64"),
+            Some(kver![4, 19, 112])
+        );
+        assert_eq!(
+            parse_kernel_version("2.6.16.48.foo.1"),
+            Some(kver![2, 6, 16, 48])
+        );
     }
 
     #[test]

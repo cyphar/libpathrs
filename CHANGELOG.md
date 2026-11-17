@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - `install.sh` now longer writes the generated `pathrs.pc` into the libpathrs
   source tree. Previously this would cause issues when a `sudo ./install.sh`
   was followed by an unprivileged `./install.sh` invocation. (#438)
+- Kernel releases that use a `.` to separate the vendor suffix from the version
+  (such as `6.18.52.mshv1-2.azl3`, used by the Azure Linux guest kernels of AKS
+  Pod Sandboxing) are now parsed correctly. Previously libpathrs would panic
+  with `uname kernel release must be a valid KernelVersion string` on such
+  systems. (#471)
 
 [rustix-issue1694]: https://github.com/bytecodealliance/rustix/issues/1694
 
