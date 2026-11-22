@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   - libpathrs will no longer panic if the host version string cannot be parsed
     using the parsing rules we have, and instead it will assume the worst
     (i.e., some ancient Linux version). (#471, #473)
+  - Release versions that have some non-numerical value immediately after a dot
+    (i.e., releases of the form `5.8.0.custom`) will now be parsed more
+    permissively as just another form of suffix. Previously such versions would
+    be treated as invalid (triggering the panic mentioned above). (#471, #473)
 
 [rustix-issue1694]: https://github.com/bytecodealliance/rustix/issues/1694
 

@@ -116,19 +116,23 @@ fn parse_kernel_version(kver_str: &str) -> Option<KernelVersion> {
         .find(|ch: char| !ch.is_ascii_digit() && ch != '.')
         .unwrap_or(kver_str.len())];
 
-    let kver = kver_str
-        .split('.')
-        .map(|num| match num {
-            "" => None,            // version components must be non-empty
-            _ => num.parse().ok(), // version components must be valid numbers
-        })
-        .collect::<Option<Vec<_>>>()
-        .map(KernelVersion);
+    let kver = KernelVersion(
+        kver_str
+            .split('.')
+            // Cut off the set at the first invalid component, str::parse
+            // rejects all non-numbers (including empty components).
+            .map_while(|num| num.parse().ok())
+            .collect::<Vec<_>>(),
+    );
 
-    match kver {
-        // Versions must have >= 2 components (actually, in practice it's >= 3).
-        Some(KernelVersion(ref v)) if v.len() >= 2 => kver,
-        _ => None,
+    // If there is at least one component present, accept it as a version.
+    //
+    // TODO: We should probably have a check to ensure that versions have >= 2
+    // components (in practice >= 3) but making this fragile is more painful.
+    if kver.0.is_empty() {
+        None
+    } else {
+        Some(kver)
     }
 }
 
@@ -218,8 +222,6 @@ mod tests {
         assert_eq!(parse_kernel_version("."), None);
         assert_eq!(parse_kernel_version(".."), None);
         assert_eq!(parse_kernel_version(".-foo"), None);
-        assert_eq!(parse_kernel_version("1..3"), None);
-        assert_eq!(parse_kernel_version("4...2"), None);
 
         assert_eq!(parse_kernel_version("a.a.a"), None);
         assert_eq!(parse_kernel_version("invalid"), None);
@@ -229,15 +231,8 @@ mod tests {
         assert_eq!(parse_kernel_version("-1.2"), None);
         assert_eq!(parse_kernel_version("+1.2"), None);
 
-        assert_eq!(parse_kernel_version("3a"), None);
-
         assert_eq!(parse_kernel_version(".1"), None);
         assert_eq!(parse_kernel_version(".1.2"), None);
-
-        assert_eq!(parse_kernel_version("3.foo"), None);
-        assert_eq!(parse_kernel_version("42.12."), None);
-        assert_eq!(parse_kernel_version("4.10.-default"), None);
-        assert_eq!(parse_kernel_version("4.10.-default"), None);
     }
 
     #[test]
@@ -253,6 +248,49 @@ mod tests {
         assert_eq!(
             parse_kernel_version("42.12.1000"),
             Some(kver![42, 12, 1000])
+        );
+    }
+
+    #[test]
+    fn parse_kernel_version_weird() {
+        // Empty / bad elements cause truncation.
+        assert_eq!(parse_kernel_version("1..3"), Some(kver![1]));
+        assert_eq!(parse_kernel_version("4...2"), Some(kver![4]));
+        assert_eq!(parse_kernel_version("1.foo.3"), Some(kver![1]));
+
+        // Trailing junk is fine.
+        assert_eq!(parse_kernel_version("3.foo"), Some(kver![3]));
+        assert_eq!(parse_kernel_version("42.12."), Some(kver![42, 12]));
+        assert_eq!(parse_kernel_version("4.10.-default"), Some(kver![4, 10]));
+
+        // Bad suffixes directly after a dot should return something reasonable.
+        // See <https://github.com/cyphar/libpathrs/issues/471>.
+        assert_eq!(parse_kernel_version("5.4.0.custom"), Some(kver![5, 4, 0]));
+        assert_eq!(
+            parse_kernel_version("4.19.112.x86_64"),
+            Some(kver![4, 19, 112])
+        );
+        assert_eq!(
+            parse_kernel_version("2.6.16.48.foo.1"),
+            Some(kver![2, 6, 16, 48])
+        );
+        assert_eq!(
+            parse_kernel_version("6.18.52-mshv1-2.azl3"),
+            Some(kver![6, 18, 52])
+        );
+        assert_eq!(
+            parse_kernel_version("6.18.52.mshv1-2.azl3"),
+            Some(kver![6, 18, 52])
+        );
+
+        // TODO: These are slightly less than ideal. They happen because the
+        // suffix that starts with the non-number gets stripped entirely and so
+        // the parser just sees the numerical section. It seems like it'd be
+        // nicer for the component to be dropped but idk.
+        assert_eq!(parse_kernel_version("3a"), Some(kver![3]));
+        assert_eq!(
+            parse_kernel_version("6.18.52.1foo2-2.azl3"),
+            Some(kver![6, 18, 52, 1])
         );
     }
 
