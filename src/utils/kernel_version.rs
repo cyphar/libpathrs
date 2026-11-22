@@ -136,8 +136,15 @@ fn parse_kernel_version(kver_str: &str) -> Option<KernelVersion> {
 pub(crate) static HOST_KERNEL_VERSION: Lazy<KernelVersion> = Lazy::new(host_kernel_version);
 
 pub(crate) fn host_kernel_version() -> KernelVersion {
-    parse_kernel_version(&rustix_system::uname().release().to_string_lossy())
-        .expect("uname kernel release must be a valid KernelVersion string")
+    match parse_kernel_version(&rustix_system::uname().release().to_string_lossy()) {
+        Some(kver) => kver,
+        // If we got a version we cannot parse for some reason, we can just
+        // return a ridiculously old version that is guaranteed to be older than
+        // any real kernel version. 0.99.1234 is an arbitrary choice that will
+        // at least look weird if it ends up in logs somewhere.
+        // TODO(log): We should log to stderr here...
+        None => KernelVersion(vec![0, 99, 1234]),
+    }
 }
 
 /// Returns the result of comparing the kernel version of the running system

@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - `install.sh` now longer writes the generated `pathrs.pc` into the libpathrs
   source tree. Previously this would cause issues when a `sudo ./install.sh`
   was followed by an unprivileged `./install.sh` invocation. (#438)
+- The parsing of kernel releases (used for last-resort kernel feature detection)
+  has been made more resilient:
+  - libpathrs will no longer panic if the host version string cannot be parsed
+    using the parsing rules we have, and instead it will assume the worst
+    (i.e., some ancient Linux version). (#471, #473)
 
 [rustix-issue1694]: https://github.com/bytecodealliance/rustix/issues/1694
 
