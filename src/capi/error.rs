@@ -40,7 +40,7 @@ use std::{
     error::Error as StdError,
     ffi::CString,
     ptr,
-    sync::Mutex,
+    sync::{Mutex, MutexGuard, PoisonError},
 };
 
 use libc::{c_char, c_int};
@@ -67,8 +67,18 @@ pub const __PATHRS_MAX_ERR_VALUE: CReturn = -4096;
 // MSRV(1.80): Use LazyLock.
 static ERROR_MAP: Lazy<Mutex<HashMap<CReturn, Error>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
+/// Lock [`ERROR_MAP`], ignoring any lock poisoning.
+///
+/// You should use this instead of `ERROR_MAP.lock().unwrap()` because
+/// `ERROR_MAP` is global and a panic in the C API is not problematic for future
+/// function calls.
+// MSRV(mutex_unpoison): Ideally we would switch to ERROR_MAP.clear_poison().
+fn lock_error_map() -> MutexGuard<'static, HashMap<CReturn, Error>> {
+    ERROR_MAP.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 pub(crate) fn store_error(err: Error) -> CReturn {
-    let mut err_map = ERROR_MAP.lock().unwrap();
+    let mut err_map = lock_error_map();
 
     // Try to find a negative error value we can use.
     let mut g = rand::rng();
@@ -188,13 +198,10 @@ impl Drop for CError {
 /// associated memory once you are done with the error.
 #[no_mangle]
 pub unsafe extern "C" fn pathrs_errorinfo(err_id: c_int) -> Option<&'static mut CError> {
-    let mut err_map = ERROR_MAP.lock().unwrap();
+    let err = lock_error_map().remove(&err_id);
+    // mutex dropped
 
-    err_map
-        .remove(&err_id)
-        .as_ref()
-        .map(CError::from)
-        .map(Leakable::leak)
+    err.as_ref().map(CError::from).map(Leakable::leak)
 }
 utils::symver! {
     fn pathrs_errorinfo <- (pathrs_errorinfo, version = "LIBPATHRS_0.1", default);
