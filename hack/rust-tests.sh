@@ -201,6 +201,11 @@ function merge_llvmcov_profdata() {
 	#shellcheck disable=SC2064
 	trap "rm -f '$profraw_list'; trap - RETURN" RETURN
 
+	# If there are no profiling files, llvm-profdata gives a fairly unhelpful
+	# error, so give a more obvious one.
+	[ -s "$profraw_list" ] || \
+		bail "no *.profraw files found in $llvmcov_targetdir (was LLVM_PROFILE_FILE stripped from the test environment?)"
+
 	# Merge profiling data. This is what cargo-llvm-cov does internally, and
 	# they also make use of --sparse to remove useless entries.
 	local combined_profraw
