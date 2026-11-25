@@ -185,19 +185,28 @@ impl ProcfsBase {
                 "thread-self".into(),
                 // For pre-3.17 kernels we use the fully-expanded version.
                 format!("self/task/{}", syscalls::gettid()).into(),
-                // However, if the proc root is not using our pid namespace, the
-                // tid in /proc/self/task/... will be wrong and we need to fall
-                // back to /proc/self. This is technically incorrect but we have
-                // no other choice -- and this is needed for runc (mainly
-                // because of RHEL 7 which has a 3.10 kernel).
-                // TODO: Remove this and just return an error so callers can
-                //       make their own fallback decisions...
-                "self".into(),
             ]
             .into_iter()
             // Return the first option that exists in proc_rootfd.
             .find(|base| proc_rootfd.exists_unchecked(base).is_ok())
-            .expect("at least one candidate /proc/thread-self path should work"),
+            // However, if the proc root is not using our pid namespace, the
+            // tid in /proc/self/task/... will be wrong and we need to fall
+            // back to /proc/self. This is technically incorrect but we have
+            // no other choice -- and this is needed for runc (mainly because
+            // of RHEL 7 which has a 3.10 kernel).
+            //
+            // This is also the fallback if none of the candidates could be
+            // checked (such as when proc_rootfd is not actually a procfs).
+            // Like the other ProcfsBase variants, we don't care whether the
+            // target exists -- the caller will get an error when they try to
+            // use the path.
+            //
+            // NOTE: This can also be triggered when dealing with chroots or
+            // when running in contexts without procfs.
+            //
+            // TODO: Remove this and just return an error so callers can make
+            //       their own fallback decisions...
+            .unwrap_or_else(|| "self".into()),
         }
     }
     // TODO: Add into_raw_path() that doesn't use symlinks?
@@ -1103,6 +1112,31 @@ mod tests {
         assert!(
             procfs.is_err(),
             "creating a procfs handle from non-root of procfs should return an error"
+        );
+    }
+
+    #[test]
+    fn thread_self_into_path_bad_procfs() {
+        // ProcfsBase::ProcThreadSelf must not panic if the candidate paths
+        // cannot be checked (such as when /proc is not a procfs), and should
+        // instead fall back to "self" like the other non-existence cases.
+        let dir = tempfile::TempDir::new().expect("create tmpdir");
+        let file = File::open(dir.path()).expect("open tmpdir");
+        assert_eq!(
+            ProcfsBase::ProcThreadSelf.into_path(RawProcfsRoot::UnsafeFd(file.as_fd())),
+            PathBuf::from("self"),
+            "ProcThreadSelf.into_path() with non-procfs root should fall back to self"
+        );
+
+        // Same for a fake procfs that contains every candidate path.
+        for subpath in ["thread-self", "self/task"] {
+            std::fs::create_dir_all(dir.path().join(subpath))
+                .unwrap_or_else(|err| panic!("create {subpath:?} in fake procfs: {err}"));
+        }
+        assert_eq!(
+            ProcfsBase::ProcThreadSelf.into_path(RawProcfsRoot::UnsafeFd(file.as_fd())),
+            PathBuf::from("self"),
+            "ProcThreadSelf.into_path() with fake procfs root should fall back to self"
         );
     }
 
