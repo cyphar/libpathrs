@@ -408,10 +408,12 @@ impl ProcfsHandleBuilder {
                     Ok(inner) => MaybeOwnedFd::BorrowedFd(inner.as_fd()),
                     Err((inner, _)) => MaybeOwnedFd::BorrowedFd(inner.as_fd()),
                 };
-                // Do not return an error here -- it should be impossible for
-                // this validation to fail after we get here.
-                Ok(ProcfsHandle::try_from_maybe_owned_fd(cached_inner)
-                    .expect("cached procfs handle should be valid"))
+                // This validation should not fail since we just validated the
+                // handle, but in principle it could fail due to transient
+                // issues like running out of fds. It's better to error out than
+                // panic here.
+                ProcfsHandle::try_from_maybe_owned_fd(cached_inner)
+                    .wrap("re-validate cached procfs handle")
             }
             procfs => Ok(procfs),
         }
@@ -1016,7 +1018,7 @@ pub(crate) fn verify_is_procfs_root(fd: impl AsFd) -> Result<(), Error> {
     // And make sure it's the root of procfs. The root directory is
     // guaranteed to have an inode number of PROC_ROOT_INO. If this check
     // ever stops working, it's a kernel regression.
-    let ino = fd.metadata().expect("fstat(/proc) should work").ino();
+    let ino = fd.metadata().wrap("fstat procfs root")?.ino();
     if ino != ProcfsHandle::PROC_ROOT_INO {
         Err(ErrorImpl::SafetyViolation {
             description: format!(

@@ -151,10 +151,11 @@ fn check_current(
 // checking this for every symlink lookup is more likely to be an issue.
 // MSRV(1.80): Use LazyLock.
 static PROTECTED_SYMLINKS_SYSCTL: Lazy<u32> = Lazy::new(|| {
-    let procfs = ProcfsHandle::new().expect("should be able to get a procfs handle");
-    utils::sysctl_read_parse(&procfs, "fs.protected_symlinks")
+    ProcfsHandle::new()
+        .and_then(|procfs| utils::sysctl_read_parse(&procfs, "fs.protected_symlinks"))
         // In container workloads, /proc/sys might be overmounted as read-only
-        // and we really don't want to fail in this case so we just assume that
+        // (or /proc might not be usable at all) and we really don't want to
+        // fail (or panic) in this case so we just assume that
         // fs.protected_symlinks is enabled (to be conservative).
         // TODO(log): Add logging?
         .unwrap_or(1u32)

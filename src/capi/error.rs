@@ -131,8 +131,12 @@ impl From<&Error> for CError {
                 desc.push_str(&next.to_string());
                 err = next;
             }
-            // Create a C-compatible string for CError.description.
-            CString::new(desc).expect("CString::new(description) failed in CError generation")
+            // Create a C-compatible string for CError.description. Error
+            // descriptions should never contain nul bytes, but replace them
+            // with the UTF-8 replacement char (a-la CStr::to_string_lossy) just
+            // in case so this cannot fail.
+            CString::new(desc.replace('\0', "\u{FFFD}"))
+                .expect("description cannot contain nul bytes after replacing them")
         };
 
         // Map the error to a C errno if possible.
