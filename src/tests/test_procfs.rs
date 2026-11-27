@@ -576,7 +576,12 @@ mod utils {
                     &mut over_mounts,
                     prefix.join("exe"),
                     MountType::Bind {
-                        src: "/proc/1/fd/0".into(),
+                        src: "/proc/1/root".into(),
+                        // TODO: kcommit 75f4197f1e11 ("dcache: don't put a
+                        // mountpoint on a dentry that's being removed") broke
+                        // bind-mounts of unbindable magic-links as a source so
+                        // we need to temporarily use something else.
+                        //src: "/proc/1/fd/0".into(),
                     },
                 )?;
                 try_mount(
