@@ -61,13 +61,13 @@ pub(in crate::tests) const NOSYMFOLLOW: MountFlags = MountFlags::from_bits_retai
 fn are_vfs_flags(flags: MountFlags) -> bool {
     flags
         .difference(
-            // MS_RDONLY can be both a vfsmount and sb flag, but if we're operating
-            // using MS_BIND then it acts like a vfs flag.
+            // MS_RDONLY can be both a vfsmount and sb flag, but if we're
+            // operating using MS_BIND then it acts like a vfs flag.
             MountFlags::RDONLY |
-        // These NO* flags are all per-vfsmount flags.
-        MountFlags::NOSUID | MountFlags::NODEV | MountFlags::NOEXEC | NOSYMFOLLOW |
-        // Except LAZYATIME, these are all per-vfsmount flags.
-        MountFlags::NOATIME | MountFlags::NODIRATIME | MountFlags::RELATIME,
+            // These NO* flags are all per-vfsmount flags.
+            MountFlags::NOSUID | MountFlags::NODEV | MountFlags::NOEXEC | NOSYMFOLLOW |
+            // Except LAZYATIME, these are all per-vfsmount flags.
+            MountFlags::NOATIME | MountFlags::NODIRATIME | MountFlags::RELATIME,
         )
         .is_empty()
 }

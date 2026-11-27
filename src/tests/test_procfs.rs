@@ -463,18 +463,21 @@ mod utils {
     // attacks libpathrs needs to defend against no longer possible, but we
     // still want to test for these attacks in CI.
     //
-    // For more information, see d80b065bb172 ('Merge patch series "proc:
-    // restrict overmounting of ephemeral entities"'). In future kernel versions
-    // these restrictions will be even more restrictive (hopefully one day
-    // including all of /proc/<tid>/*).
+    // For more information, see kcommit d80b065bb172 ('Merge patch series
+    // "proc: restrict overmounting of ephemeral entities"'). In future kernel
+    // versions these restrictions will be even more restrictive (hopefully one
+    // day including all of /proc/<tid>/*).
     const PROCFS_MAYBE_UNMOUNTABLE: &[&str] = &[
-        // 3836b31c3e71 ("proc: block mounting on top of /proc/<pid>/map_files/*")
+        // kcommit 3836b31c3e71
+        // ("proc: block mounting on top of /proc/<pid>/map_files/*")
         "/proc/self/map_files/",
         "/proc/thread-self/map_files/",
-        // 74ce208089f4 ("proc: block mounting on top of /proc/<pid>/fd/*")
+        // kcommit 74ce208089f4
+        // ("proc: block mounting on top of /proc/<pid>/fd/*")
         "/proc/self/fd/",
         "/proc/thread-self/fd/",
-        // cf71eaa1ad18 ("proc: block mounting on top of /proc/<pid>/fdinfo/*")
+        // kcommit cf71eaa1ad18
+        // ("proc: block mounting on top of /proc/<pid>/fdinfo/*")
         "/proc/self/fdinfo/",
         "/proc/thread-self/fdinfo/",
     ];
