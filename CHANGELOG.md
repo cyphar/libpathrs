@@ -44,6 +44,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Several other unnecessary `panic!`-level assertions were replaced with
   error-returning assertions to avoid crashing user programs in weird
   situations. (#475)
+- On kernels without `/proc/thread-self` (pre-3.17),  libpathrs would enter a
+  recursive loop when trying to apply its workaround for `/proc/thread-self`
+  due to some code reuse that lead to inadverent reentrancy. (#468, #478)
 
 [rustix-issue1694]: https://github.com/bytecodealliance/rustix/issues/1694
 

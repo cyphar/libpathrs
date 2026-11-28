@@ -282,21 +282,35 @@ impl<Fd: AsFd> FdExt for Fd {
     }
 
     fn as_unsafe_path_unchecked(&self) -> Result<PathBuf, Error> {
-        // "/proc/thread-self/fd/$n"
-        let fd_path = PathBuf::from("/proc").join(proc_threadself_subpath(
-            RawProcfsRoot::UnsafeGlobal,
-            &proc_subpath(self.as_fd())?,
-        ));
+        let subpath = proc_subpath(self.as_fd())?;
 
-        // Because this code is used within syscalls, we can't even check the
-        // filesystem type of /proc (unless we were to copy the logic here).
-        fs::read_link(&fd_path).map_err(|err| {
-            ErrorImpl::OsError {
-                operation: format!("readlink fd magic-link {fd_path:?}").into(),
-                source: err,
+        // NOTE: This is used by FrozenFd (deep inside the syscall::* error
+        // paths), so we MUST NOT call any failable syscalls::* wrappers. By
+        // design we would be forced to use RawProcfsRoot::UnsafeGlobal anyway
+        // so there is no real point trying to use it or replicate any of the
+        // other protections. These candidates are a copy of the fallback path
+        // from ProcfsBase::ProcThreadSelf::into_path.
+        let tid_path = format!("/proc/self/task/{}", syscalls::gettid());
+        let thread_self_candidates = [
+            Path::new("/proc/thread-self"),
+            Path::new(&tid_path),
+            Path::new("/proc/self"),
+        ];
+        let mut last_err: Option<(PathBuf, IOError)> = None;
+        for proc_thread_self in &thread_self_candidates {
+            let fd_path = proc_thread_self.join(&subpath);
+            match fs::read_link(&fd_path) {
+                Ok(path) => return Ok(path),
+                Err(err) => last_err = Some((fd_path, err)),
             }
-            .into()
-        })
+        }
+        // None of the candidates worked.
+        let (fd_path, err) = last_err.expect("candidate list is non-empty");
+        Err(ErrorImpl::OsError {
+            operation: format!("readlink fd magic-link {fd_path:?}").into(),
+            source: err,
+        }
+        .into())
     }
 
     fn is_magiclink_filesystem(&self) -> Result<bool, Error> {
