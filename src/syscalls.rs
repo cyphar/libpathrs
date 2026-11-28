@@ -35,11 +35,12 @@
 
 use crate::{
     flags::{OpenFlags, RenameFlags},
-    utils::FdExt,
+    utils::{self, FdExt},
 };
 
 use std::{
     borrow::Cow,
+    cell::Cell,
     ffi::OsStr,
     fmt,
     io::Error as IOError,
@@ -92,9 +93,17 @@ pub(crate) struct FrozenFd(RawFd, Option<PathBuf>);
 // TODO: Should probably be a pub(crate) impl.
 impl<Fd: AsFd> From<Fd> for FrozenFd {
     fn from(fd: Fd) -> Self {
-        // SAFETY: as_unsafe_path is safe here since it is only used for
-        //         pretty-printing error messages and no real logic.
-        Self(fd.as_fd().as_raw_fd(), fd.as_unsafe_path_unchecked().ok())
+        // FrozenFd is called deep inside the error handling of syscalls, which
+        // means we have to be careful to avoid reentrancy problems. NESTED_CALL
+        // tracks whether this call is the first in our current call stack.
+        thread_local! {
+            static NESTED_CALL: Cell<bool> = const { Cell::new(false) };
+        }
+        // SAFETY: as_unsafe_path_unchecked is safe here since it is only used
+        // for pretty-printing error messages and no real logic.
+        let path =
+            utils::non_reentrant(&NESTED_CALL, || fd.as_unsafe_path_unchecked().ok()).flatten();
+        Self(fd.as_fd().as_raw_fd(), path)
     }
 }
 
